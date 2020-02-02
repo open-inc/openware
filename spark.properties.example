@@ -1,0 +1,53 @@
+#Rename to spark.properties and update settings to use this file
+
+#Spark config 
+sparkFileDir = //path//to//static//files
+sparkPort = 4567
+sparkSSL = false
+keystoreFilePath = keystore.jks
+keystorePassword = --
+publicServer = false
+useUsernames = true
+standardUser = all
+allowDeleteData = false
+accessControl = false
+whiteList = 127.0.0.1,0:0:0:0:0:0:0:1
+
+#Database config
+dbPath = localhost
+dbPort = 27017
+dbUser = --
+dbPass = --
+dbName = mySensorData
+dbSensorPrefix = sensors
+dbArchivePrefix = archive
+idSeperator = ---
+
+#RabbitMQ config
+rmqPath = myRabbitMQServer.com
+rmqQueue = myDataQueueName
+rmqQueueAutoDelete = true
+rmqUser = myRabbitMQUserName
+rmqPass = mySuperSecretRMQPW
+rmqPort = 5672
+rmqExchange = amq.topic
+rmqTopic = #
+validateData = false
+rejectUnvalidated = false
+
+
+#User Backend config
+baasboxEndpoint = http://myparseserver.com/parse
+baasboxPort = 80
+baasboxAppID = 66666666
+baasboxCollection = dashBoardCollection
+baasboxUser = UserBackendUser
+baasboxPass = UserBackendPass
+mappingsCollection = CollectionForTemplateSensors
+
+#Aggregation Service config
+aggregationServiceUrl = localhost
+aggregationServicePort = 8080
+
+analyticSensors= NameForTheAnalyticsSensorsCollection
+analyticPrefix= analytics.

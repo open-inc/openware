@@ -1,8 +1,7 @@
 package de.openinc.ow.core.model.data;
 
+import org.json.JSONException;
 import org.json.JSONObject;
-
-import fr.opensagres.xdocreport.document.json.JSONException;
 
 public class OpenWareGeneric extends OpenWareValueDimension {
 

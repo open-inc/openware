@@ -4,10 +4,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import de.openinc.ow.OpenWareInstance;
-import fr.opensagres.xdocreport.document.json.JSONException;
 
 public class OpenWareGeo extends OpenWareValueDimension {
 

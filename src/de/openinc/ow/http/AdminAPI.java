@@ -11,6 +11,7 @@ import org.json.JSONObject;
 import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.core.api.OpenWareAPI;
 import de.openinc.ow.core.helper.Config;
+import de.openinc.ow.core.helper.HTTPResponseHelper;
 import de.openinc.ow.core.model.user.User;
 import de.openinc.ow.middleware.services.DataService;
 
@@ -54,7 +55,9 @@ public class AdminAPI implements OpenWareAPI {
 					return "Malformed data posted to Sensor Config API\n" + req.body();
 				} catch (SecurityException e2) {
 					res.status(403);
-					return "No Permission \n" + e2.getMessage() + "\n" + req.body();
+					return "No Permission \n" + e2.getMessage() +
+							"\n" +
+							req.body();
 				}
 			});
 
@@ -63,13 +66,14 @@ public class AdminAPI implements OpenWareAPI {
 				if (Config.accessControl) {
 					user = req.session().attribute("user");
 					if (user == null)
-						halt(403, "You need to log in to configure items");
+						return HTTPResponseHelper.generateResponse(res, 403, null,
+								"You need to log in to configure items");
 				}
 				try {
+
 					return DataService.getItemConfiguration(user).values();
 				} catch (Exception e) {
-					res.status(400);
-					return e.getMessage();
+					return HTTPResponseHelper.generateResponse(res, 400, null, e.getMessage());
 				}
 
 			});
@@ -96,7 +100,9 @@ public class AdminAPI implements OpenWareAPI {
 					return "Malformed data posted to Sensor Config API\n" + req.body();
 				} catch (SecurityException e2) {
 					res.status(403);
-					return "No Permission \n" + e2.getMessage() + "\n" + req.body();
+					return "No Permission \n" + e2.getMessage() +
+							"\n" +
+							req.body();
 				}
 			});
 

@@ -178,8 +178,8 @@ public class DataService {
 			String source = item.getUser();
 			if (item.getMeta().has("id_source")) {
 				id = item.getMeta().getString("id_source");
-				if (item.getMeta().has("sourc_source")) {
-					source = item.getMeta().getString("sourc_source");
+				if (item.getMeta().has("source_source")) {
+					source = item.getMeta().getString("source_source");
 				}
 				if (!isCurrentCustomizedItem(item))
 					continue;
@@ -200,7 +200,8 @@ public class DataService {
 
 	private static boolean isCurrentCustomizedItem(OpenWareDataItem toTest) {
 		String sourceID = toTest.getMeta().getString("id_source");
-		String sourceSource = toTest.getMeta().getString("source_source");
+		String sourceSource = toTest.getMeta().optString("source_source").equals("") ? toTest.getUser()
+				: toTest.getMeta().optString("source_source");
 		String currentID = itemConfigs.get(sourceSource + Config.idSeperator + sourceID).getId();
 		return sourceID.equals(currentID);
 	}

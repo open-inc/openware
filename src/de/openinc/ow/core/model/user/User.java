@@ -2,6 +2,7 @@ package de.openinc.ow.core.model.user;
 
 import java.util.HashSet;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class User {
@@ -108,18 +109,22 @@ public class User {
 
 	@Override
 	public String toString() {
-		JSONObject res = new JSONObject();
 		return this.toJSON().toString(2);
 	}
 
 	public JSONObject toJSON() {
+		JSONArray roles2add = new JSONArray();
+		for (Role r : this.getRoles()) {
+			roles2add.put(r.toJSON(false));
+		}
 		JSONObject res = new JSONObject();
+		res.put("uid", this.getUID());
 		res.put("name", this.name);
 		res.put("session", this.session);
 		res.put("data", this.data);
 		res.put("email", this.email);
-		res.put("roles", roles);
-		res.put("permissions", permissions);
+		res.put("roles", roles2add);
+		res.put("permissions", permissions.toJSONArray());
 		return res;
 	}
 

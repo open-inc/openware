@@ -1,5 +1,7 @@
 package de.openinc.ow.core.model.user;
 
+import org.json.JSONArray;
+
 public class PermissionSet {
 
 	private String read;
@@ -60,4 +62,16 @@ public class PermissionSet {
 		return false;
 	}
 
+	public JSONArray toJSONArray() {
+		JSONArray res = new JSONArray();
+		res.put(read.toString());
+		res.put(write.toString());
+		res.put(delete.toString());
+		return res;
+	}
+
+	@Override
+	public String toString() {
+		return toJSONArray().toString();
+	}
 }

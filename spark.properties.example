@@ -36,14 +36,6 @@ validateData = false
 rejectUnvalidated = false
 
 
-#User Backend config
-baasboxEndpoint = http://myparseserver.com/parse
-baasboxPort = 80
-baasboxAppID = 66666666
-baasboxCollection = dashBoardCollection
-baasboxUser = UserBackendUser
-baasboxPass = UserBackendPass
-mappingsCollection = CollectionForTemplateSensors
 
 #Aggregation Service config
 aggregationServiceUrl = localhost

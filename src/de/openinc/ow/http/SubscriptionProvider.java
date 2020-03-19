@@ -13,11 +13,13 @@ import org.eclipse.jetty.websocket.api.annotations.OnWebSocketClose;
 import org.eclipse.jetty.websocket.api.annotations.OnWebSocketConnect;
 import org.eclipse.jetty.websocket.api.annotations.OnWebSocketMessage;
 import org.eclipse.jetty.websocket.api.annotations.WebSocket;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.core.api.DataSubscriber;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
+import de.openinc.ow.core.model.user.User;
 import de.openinc.ow.middleware.services.DataService;
 import de.openinc.ow.middleware.services.UserService;
 
@@ -76,15 +78,30 @@ public class SubscriptionProvider {
 		// Messages for subscription need fields action, sensor, user
 
 		if (msg.getString("action").equals("subscribe")) {
-			OpenWareInstance.getInstance().logInfo("New Subscriber");
-			List<OpenWareDataItem> items = DataService
-					.getItems(UserService.getInstance().getUser(msg.getString("user")));
-			for (OpenWareDataItem item : items) {
-				List<Session> cSessions = sessions.getOrDefault(item.getUser() + item.getId(), new ArrayList<>());
-				cSessions.add(user);
-				sessions.put(item.getUser() + item.getId(), cSessions);
+			String session = msg.getString("session");
+			JSONArray sourceFilter = msg.optJSONArray("sources");
+			ArrayList<String> sources = new ArrayList<String>();
+			for (int i = 0; i < sourceFilter.length(); i++) {
+				sources.add(sourceFilter.optString(i));
 			}
-			OpenWareInstance.getInstance().logInfo("Items subscribed: " + items.size());
+			User reqUser = UserService.getInstance().checkAuth(session);
+			OpenWareInstance.getInstance().logInfo("New Subscriber:" + reqUser.getName());
+			List<OpenWareDataItem> items = DataService
+					.getItems(reqUser);
+			int count = 0;
+			for (OpenWareDataItem item : items) {
+
+				if (sources.contains(item.getUser())) {
+					List<Session> cSessions = sessions.getOrDefault(item.getUser() + item.getId(), new ArrayList<>());
+					cSessions.add(user);
+					sessions.put(item.getUser() + item.getId(), cSessions);
+					count++;
+				}
+
+			}
+			OpenWareInstance.getInstance().logInfo(reqUser.getName() + " subscribed to " +
+													count +
+													" items");
 		}
 
 	}

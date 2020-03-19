@@ -291,4 +291,14 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		this.reference = reference;
 	}
 
+	public OpenWareDataItem reduceToSingleDimension(int dim) throws IllegalArgumentException {
+		if (dim >= this.valueTypes.size()) {
+			throw new IllegalArgumentException("Item has no Dimension " + dim);
+		}
+		List<OpenWareValueDimension> dim2keep = new ArrayList<OpenWareValueDimension>();
+		dim2keep.add(this.valueTypes.get(dim));
+		this.setValueTypes(dim2keep);
+		return this;
+	}
+
 }

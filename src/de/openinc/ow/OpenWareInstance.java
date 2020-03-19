@@ -1,5 +1,6 @@
 package de.openinc.ow;
 
+import static spark.Spark.after;
 import static spark.Spark.before;
 import static spark.Spark.exception;
 import static spark.Spark.externalStaticFileLocation;
@@ -259,8 +260,21 @@ public class OpenWareInstance {
 				OpenWareInstance.getInstance().logError("WEBSOCKET ERROR " + e.getLocalizedMessage(), e);
 			}
 
-			exception(Exception.class, (e, req, res) -> {
+			/*
+			notFound((req, res) -> {
+				String index = //Config.sparkFileDir
+				return null;
+			});
+			*/
+			after((req, res) -> {
+				if (req.url().contains("/api/transform")) {
+					System.out.println(
+							"-------------------------------------------Freeing Memory-----------------------------------------------------");
+					System.gc();
+				}
 
+			});
+			exception(Exception.class, (e, req, res) -> {
 				OpenWareInstance.getInstance().logError("ROUTING EXCEPTION " + e.getLocalizedMessage(), e);
 				res.status(400);
 				res.body(e.toString());

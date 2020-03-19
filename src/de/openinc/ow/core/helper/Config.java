@@ -16,6 +16,7 @@ public class Config {
 	public static String logLevelAPIs;
 	public static String timezone;
 	public static String language;
+	public static Boolean verbose;
 
 	// Spark config
 	public static boolean enableWebserver; // Location from which static files will be served
@@ -149,6 +150,7 @@ public class Config {
 
 		logLevel = properties.getProperty("logLevel", "INFO");
 		logLevelAPIs = properties.getProperty("logLevelAPIs", "ERROR");
+		verbose = Boolean.valueOf(properties.getProperty("verbose", "false"));
 		sparkFileDir = properties.getProperty("sparkFileDir", "httpdocs");
 		sparkPort = properties.getProperty("sparkPort", "4567");
 		sparkSSL = properties.getProperty("sparkSSL", "false");

@@ -30,6 +30,7 @@ import de.openinc.ow.core.model.data.OpenWareNumber;
 import de.openinc.ow.core.model.data.OpenWareValue;
 import de.openinc.ow.core.model.data.OpenWareValueDimension;
 import de.openinc.ow.core.model.user.User;
+import spark.QueryParamsMap;
 
 public class DataService {
 
@@ -313,8 +314,71 @@ public class DataService {
 		return toReturn;
 	}
 
-	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String user, long timestamp, long until) {
-		return adapter.getHistoricalSensorData(sensorName, user, timestamp, until);
+	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp,
+			long until) {
+		return adapter.getHistoricalSensorData(sensorName, source, timestamp, until);
+
+	}
+
+	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp, long until,
+			QueryParamsMap parameters) {
+		OpenWareDataItem data = getHistoricalSensorData(sensorName, source, timestamp, until);
+		ArrayList<OpenWareValue> toReturn = new ArrayList<>();
+
+		String mode = parameters.value("mode");
+		int maxAmount = parameters.get("maxValues").integerValue();
+		int dim = parameters.get("dimension").integerValue();
+
+		if (maxAmount >= data.value().size()) {
+			return data;
+		}
+
+		int bucketSize = (int) Math.ceil((double) data.value().size() / (double) (maxAmount / 2));
+
+		if (mode.toLowerCase().equals("minmax")) {
+			int count = 0;
+			double maxVal = Double.MIN_VALUE;
+			double minVal = Double.MAX_VALUE;
+			OpenWareValue max = null;
+			OpenWareValue min = null;
+			for (OpenWareValue val : data.value()) {
+				if (count == bucketSize) {
+					if (max == null || min == null) {
+						System.out.println(max);
+						System.out.println(min);
+					} else {
+						if (max.getDate() > min.getDate()) {
+							toReturn.add(min);
+							toReturn.add(max);
+						} else {
+							toReturn.add(max);
+							toReturn.add(min);
+						}
+					}
+					count = 0;
+					maxVal = Double.MIN_VALUE;
+					minVal = Double.MAX_VALUE;
+					max = null;
+					min = null;
+				}
+				double current = (double) val.get(dim).value();
+				if (current > maxVal) {
+					max = val;
+					maxVal = current;
+				}
+				if (current <= minVal) {
+					min = val;
+					minVal = current;
+				}
+				count++;
+
+			}
+
+			data.value(toReturn);
+			return data;
+		}
+
+		return data;
 
 	}
 
@@ -443,7 +507,10 @@ public class DataService {
 				DataService.storeData(item);
 				stored = true;
 			} else {
-				OpenWareInstance.getInstance().logWarn("Item was not Stored due to configuration\n" + item.toString());
+				OpenWareInstance.getInstance().logWarn("Item was not Stored due to configuration");
+				if (Config.verbose) {
+					OpenWareInstance.getInstance().logTrace("Item:" + item.toString());
+				}
 			}
 
 		} catch (Exception e) {

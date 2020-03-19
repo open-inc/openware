@@ -3,6 +3,7 @@ package de.openinc.ow.analytics.dataprocessing;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import de.openinc.ow.core.helper.DataConversion;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
@@ -13,35 +14,60 @@ import de.openinc.ow.core.model.data.OpenWareValue;
  */
 public class DataSplitter {
 
-	public static HashMap<Long, List<OpenWareValue>> split(OpenWareDataItem data, long interval) {
-		HashMap<Long, List<OpenWareValue>> sets = new HashMap<Long, List<OpenWareValue>>();
+	public static HashMap<Long, OpenWareDataItem> split(OpenWareDataItem data, long start, long end, int buckets) {
+		HashMap<Long, OpenWareDataItem> sets = new HashMap<Long, OpenWareDataItem>();
+		HashMap<Long, List<OpenWareValue>> bucketData = new HashMap<Long, List<OpenWareValue>>();
+		OpenWareDataItem tempItem = data.cloneItem();
+		tempItem.value().clear();
+		long interval = end - start;
+		long bucketInterval = interval / buckets;
+
+		for (OpenWareValue val : data.value()) {
+			long bucketIndex = (val.getDate() - start) / bucketInterval;
+			List<OpenWareValue> cBucket = bucketData.getOrDefault(bucketIndex,
+					new ArrayList<OpenWareValue>());
+			bucketData.put(bucketIndex, cBucket);
+			cBucket.add(val);
+		}
+		for (long index : bucketData.keySet()) {
+			OpenWareDataItem item = tempItem.cloneItem();
+			item.value(bucketData.get(index));
+			sets.put(start + (index * bucketInterval), item);
+		}
+		return sets;
+	}
+
+	public static Map<Long, OpenWareDataItem> split(OpenWareDataItem data, long interval) {
+		OpenWareDataItem templateItem = data.cloneItem();
+		templateItem.value().clear();
+		HashMap<Long, OpenWareDataItem> sets = new HashMap<Long, OpenWareDataItem>();
 		long min = Long.MAX_VALUE;
 		long max = Long.MIN_VALUE;
 		for (int i = 0; i < data.value().size(); i++) {
 			long floor = DataConversion.floorDate(data.value().get(i).getDate(), interval);
-			List<OpenWareValue> temp = sets.getOrDefault(floor, new ArrayList<OpenWareValue>());
-			temp.add(data.value().get(i));
+			OpenWareDataItem temp = sets.getOrDefault(floor, templateItem.cloneItem());
+			temp.value().add(data.value().get(i));
 			sets.put(floor, temp);
 			min = Math.min(floor, min);
 			max = Math.max(floor, max);
 		}
 		for (long j = min; j <= max; j = j + interval) {
 			if (sets.get(j) == null) {
-				sets.put(j, new ArrayList<OpenWareValue>());
+				sets.put(j, templateItem.cloneItem());
 			}
 		}
 		return sets;
 	}
 
-	public static HashMap<Long, List<OpenWareValue>> splitHourly(OpenWareDataItem data, double hours) {
+	public static Map<Long, OpenWareDataItem> splitHourly(OpenWareDataItem data, double hours) {
 		return split(data, (long) (1000l * 3600l * hours));
 	}
 
-	public static HashMap<Long, List<OpenWareValue>> splitDaily(OpenWareDataItem data, double days) {
+	public static Map<Long, OpenWareDataItem> splitDaily(OpenWareDataItem data, double days) {
 		return split(data, (long) (1000l * 3600l * 24l * days));
 	}
 
-	public static HashMap<Long, List<OpenWareValue>> splitWeekly(OpenWareDataItem data, double weeks) {
+	public static Map<Long, OpenWareDataItem> splitWeekly(OpenWareDataItem data, double weeks) {
 		return split(data, (long) (1000l * 3600l * 24l * 7l * weeks));
 	}
 	/*

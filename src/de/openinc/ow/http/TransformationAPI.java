@@ -14,8 +14,8 @@ import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.helper.HTTPResponseHelper;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.user.User;
-import de.openinc.ow.middleware.services.AggregationService;
 import de.openinc.ow.middleware.services.DataService;
+import de.openinc.ow.middleware.services.TransformationService;
 
 public class TransformationAPI implements OpenWareAPI {
 
@@ -26,7 +26,7 @@ public class TransformationAPI implements OpenWareAPI {
 		this.pipeOperators = new HashMap<String, Function<OpenWareDataItem, JSONObject, OpenWareDataItem>>();
 		this.pipeOperators.put("aggregate", (data, params) -> {
 			try {
-				return AggregationService.getInstance().createStatistics(data, params);
+				return TransformationService.getInstance().createStatistics(data, params);
 			} catch (Exception e) {
 				e.printStackTrace();
 				return null;
@@ -34,7 +34,7 @@ public class TransformationAPI implements OpenWareAPI {
 		});
 		this.pipeOperators.put("smooth", (data, params) -> {
 			try {
-				return AggregationService.getInstance().movingAverage(data, params);
+				return TransformationService.getInstance().movingAverage(data, params);
 			} catch (Exception e) {
 				e.printStackTrace();
 				return null;
@@ -68,12 +68,12 @@ public class TransformationAPI implements OpenWareAPI {
 					OpenWareDataItem data = DataService.getHistoricalSensorData(sensor, source, start, end);
 
 					String operation = req.queryParams("operation");
-					long interval;
+
 					int dim;
 					try {
 						if (operation == null || operation.equals(""))
 							throw new NumberFormatException("Operation parameter must not be empty!");
-						interval = Long.valueOf(req.queryParams("interval"));
+
 						dim = Integer.valueOf(req.queryParams("dimension"));
 						if (data.getValueTypes().size() < (dim + 1)) {
 							throw new NumberFormatException("Data source has no Dimension " + dim);
@@ -83,9 +83,36 @@ public class TransformationAPI implements OpenWareAPI {
 								"Could not parse query parameters!\n(" +			e.getMessage() +
 																					")");
 					}
+					String intervalParam = req.queryParams("interval");
+					String nrOfSplitsParam = req.queryParams("splits");
+					long interval = 0;
+					int splits = 0;
+					try {
+						if (intervalParam == null && nrOfSplitsParam == null)
+							throw new NumberFormatException(
+									"You need to provide an 'interval' or 'splits' parameter must not be empty!");
+						if (intervalParam != null) {
+							interval = Long.valueOf(intervalParam);
+						} else {
+							splits = Integer.parseInt(nrOfSplitsParam);
+						}
 
-					OpenWareDataItem res_data = AggregationService.getInstance().createStatistics(data, dim, operation,
-							interval);
+					} catch (NumberFormatException e) {
+						return HTTPResponseHelper.generateResponse(res, 422, null,
+								"Could not parse interval/splits parameters!\n(" +	e.getMessage() +
+																					")");
+					}
+					OpenWareDataItem res_data;
+					if (splits != 0) {
+						res_data = TransformationService.getInstance().createStatistics(data, dim, operation, start,
+								end, splits);
+					} else {
+						res_data = TransformationService.getInstance().createStatistics(data, dim,
+								operation,
+								interval);
+
+					}
+
 					return HTTPResponseHelper.generateResponse(res, 200, res_data.toJSON(), null);
 				});
 			});
@@ -127,7 +154,8 @@ public class TransformationAPI implements OpenWareAPI {
 																					")");
 					}
 
-					OpenWareDataItem res_data = AggregationService.getInstance().movingAverage(data, dim, windowSize);
+					OpenWareDataItem res_data = TransformationService.getInstance().movingAverage(data, dim,
+							windowSize);
 					return HTTPResponseHelper.generateResponse(res, 200, res_data.toJSON(), null);
 				});
 			});

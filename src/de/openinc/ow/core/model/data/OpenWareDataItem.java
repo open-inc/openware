@@ -243,7 +243,9 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 			item.value(owvalues);
 			return item;
 		} catch (JSONException e) {
-			OpenWareInstance.getInstance().logError(e.getMessage(), e);
+			OpenWareInstance.getInstance().logTrace("Error while Parsing JSON: " + e.getMessage() +
+													"\n" +
+													jobj.toString(2));
 			return null;
 
 		} catch (SecurityException e) {

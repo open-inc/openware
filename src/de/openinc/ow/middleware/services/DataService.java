@@ -23,7 +23,6 @@ import de.openinc.ow.core.api.DataHandler;
 import de.openinc.ow.core.api.DataSubscriber;
 import de.openinc.ow.core.api.PersistenceAdapter;
 import de.openinc.ow.core.api.ReferenceAdapter;
-import de.openinc.ow.core.api.analytics.AnalyticsService;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.data.OpenWareNumber;

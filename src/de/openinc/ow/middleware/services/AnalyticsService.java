@@ -1,4 +1,4 @@
-package de.openinc.ow.core.api.analytics;
+package de.openinc.ow.middleware.services;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -19,8 +19,6 @@ import de.openinc.ow.core.api.AnalyticsProvider;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.user.User;
-import de.openinc.ow.middleware.services.DataService;
-import de.openinc.ow.middleware.services.UserService;
 
 public class AnalyticsService {
 	Map<String, AnalyticsProvider> provider;

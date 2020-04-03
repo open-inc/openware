@@ -13,10 +13,10 @@ import org.json.JSONObject;
 
 import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.core.api.OpenWareAPI;
-import de.openinc.ow.core.api.analytics.AnalyticsService;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.user.User;
+import de.openinc.ow.middleware.services.AnalyticsService;
 import de.openinc.ow.middleware.services.DataService;
 import spark.Request;
 import spark.Response;
@@ -122,49 +122,33 @@ public class MiddlewareApi implements OpenWareAPI {
 						halt(403, "Not allowed to read data");
 				}
 
-				try {
-					res.header("Content-Encoding", "gzip");
-					String sensorID = req.params("sensorid");
-					String userID = req.params("userid");
+				res.header("Content-Encoding", "gzip");
+				String sensorID = req.params("sensorid");
+				String userID = req.params("userid");
+				OpenWareInstance.getInstance()
+						.logDebug("Received live data request for sensor: " + sensorID +
+									" and userID: " +
+									userID);
+
+				OpenWareDataItem items;
+				if (sensorID.startsWith(Config.analyticPrefix)) {
 					OpenWareInstance.getInstance()
-							.logDebug("Received live data request for sensor: " + sensorID +
+							.logDebug("Received live analytics data request for sensor: " + sensorID +
 										" and userID: " +
 										userID);
+					items = AnalyticsService.getInstance().handle(userID, sensorID);
+				} else {
+					OpenWareInstance.getInstance().logDebug(
+							"Received live data request for sensor: " + sensorID +
+															" and userID: " +
+															userID);
 
-					OpenWareDataItem items;
-					if (sensorID.startsWith(Config.analyticPrefix)) {
-						OpenWareInstance.getInstance()
-								.logDebug("Received live analytics data request for sensor: " + sensorID +
-											" and userID: " +
-											userID);
-						items = AnalyticsService.getInstance().handle(userID, sensorID);
-					} else {
-						OpenWareInstance.getInstance().logDebug(
-								"Received live data request for sensor: " + sensorID +
-																" and userID: " +
-																userID);
-
-						items = DataService.getLiveSensorData(sensorID, userID);
-					}
-					if (items == null) {
-						return new JSONObject();
-					} else {
-						return items;
-					}
-
-				} catch (Exception e) {
-					String errorRoute = "";
-					for (String param : req.params().keySet()) {
-						errorRoute += param + ":" +
-										req.queryParams(param) +
-										"\n";
-					}
-					;
-					OpenWareInstance.getInstance()
-							.logError("GET LIVE DATA REQUEST ERROR\n" + errorRoute +
-										e.getLocalizedMessage(),
-									e);
-					return null;
+					items = DataService.getLiveSensorData(sensorID, userID);
+				}
+				if (items == null) {
+					return new JSONObject();
+				} else {
+					return items;
 				}
 
 			});
@@ -256,45 +240,32 @@ public class MiddlewareApi implements OpenWareAPI {
 			if (user == null)
 				halt(403, "Not allowed to read data");
 		}
-		try {
-			res.type("application/json");
-			res.header("Content-Encoding", "gzip");
-			String source = req.params("source");
-			OpenWareInstance.getInstance()
-					.logDebug("Received getItems request for userid: " + source +
-								" and filtered by " +
-								filter);
 
-			Collection<OpenWareDataItem> items = DataService.getItems(user);
-			if (filter != null) {
-				Iterator<OpenWareDataItem> it = items.iterator();
-				while (it.hasNext()) {
-					OpenWareDataItem item = it.next();
-					if (!item.getUser().equals(filter)) {
-						it.remove();
-					}
+		res.type("application/json");
+		res.header("Content-Encoding", "gzip");
+		String source = req.params("source");
+		OpenWareInstance.getInstance()
+				.logDebug("Received getItems request for userid: " + source +
+							" and filtered by " +
+							filter);
+
+		Collection<OpenWareDataItem> items = DataService.getItems(user);
+		if (filter != null) {
+			Iterator<OpenWareDataItem> it = items.iterator();
+			while (it.hasNext()) {
+				OpenWareDataItem item = it.next();
+				if (!item.getUser().equals(filter)) {
+					it.remove();
 				}
 			}
-
-			if (items == null || items.size() == 0) {
-				return new JSONArray();
-			} else {
-				return items;
-			}
-
-		} catch (Exception e) {
-			String errorRoute = "";
-			for (String param : req.params().keySet()) {
-				errorRoute += param + ":" +
-								req.queryParams(param) +
-								"\n";
-			}
-			;
-			OpenWareInstance.getInstance().logError("GET ITEMS REQUEST ERROR \n" + errorRoute +
-													e.getLocalizedMessage(),
-					e);
-			return null;
 		}
+
+		if (items == null || items.size() == 0) {
+			return new JSONArray();
+		} else {
+			return items;
+		}
+
 	}
 
 }

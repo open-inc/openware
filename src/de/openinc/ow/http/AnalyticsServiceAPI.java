@@ -9,7 +9,7 @@ import org.json.JSONObject;
 
 import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.core.api.OpenWareAPI;
-import de.openinc.ow.core.api.analytics.AnalyticsService;
+import de.openinc.ow.middleware.services.AnalyticsService;
 import spark.Request;
 import spark.Response;
 

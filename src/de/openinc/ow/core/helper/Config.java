@@ -196,7 +196,7 @@ public class Config {
 		rmqTopic = properties.getProperty("rmqTopic", "#");
 		validateData = properties.getProperty("validateData", "false");
 		requeueUnvalidated = properties.getProperty("requeueUnvalidated", "false");
-		publishParsedData = Boolean.valueOf(properties.getProperty("publishParsedData", "true"));
+		publishParsedData = Boolean.valueOf(properties.getProperty("publishParsedData", "false"));
 		rmqvHost = properties.getProperty("rmqvHost", "/");
 
 		mqttAdresse = properties.getProperty("mqttAdresse", "localhost");

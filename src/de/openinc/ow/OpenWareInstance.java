@@ -4,6 +4,7 @@ import static spark.Spark.after;
 import static spark.Spark.before;
 import static spark.Spark.exception;
 import static spark.Spark.externalStaticFileLocation;
+import static spark.Spark.get;
 import static spark.Spark.halt;
 import static spark.Spark.init;
 import static spark.Spark.path;
@@ -12,15 +13,20 @@ import static spark.Spark.secure;
 import static spark.Spark.stop;
 import static spark.Spark.webSocket;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.TimeZone;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import org.json.JSONObject;
 
 import de.openinc.ow.core.api.OpenWareAPI;
 import de.openinc.ow.core.helper.Config;
+import de.openinc.ow.core.helper.HTTPResponseHelper;
 import de.openinc.ow.core.model.user.User;
 import de.openinc.ow.http.SubscriptionProvider;
 import de.openinc.ow.http.UserAPI;
@@ -248,24 +254,11 @@ public class OpenWareInstance {
 
 	public void startInstance() {
 		if (!isRunning()) {
+
 			OpenWareInstance.getInstance().logInfo("Using external file path: " + Config.sparkFileDir);
 			externalStaticFileLocation(Config.sparkFileDir); // index.html is served at localhost:4567 (default port)
+			webSocket(LIVE_API, SubscriptionProvider.class);
 
-			try {
-				webSocket(LIVE_API, SubscriptionProvider.class);
-
-			} catch (Exception e) {
-				e.printStackTrace();
-				OpenWareInstance.getInstance().logInfo("Subscription provider could not be initialized.");
-				OpenWareInstance.getInstance().logError("WEBSOCKET ERROR " + e.getLocalizedMessage(), e);
-			}
-
-			/*
-			notFound((req, res) -> {
-				String index = //Config.sparkFileDir
-				return null;
-			});
-			*/
 			after((req, res) -> {
 				if (req.url().contains("/api/transform")) {
 					System.out.println(
@@ -275,9 +268,34 @@ public class OpenWareInstance {
 
 			});
 			exception(Exception.class, (e, req, res) -> {
-				OpenWareInstance.getInstance().logError("ROUTING EXCEPTION " + e.getLocalizedMessage(), e);
-				res.status(400);
-				res.body(e.toString());
+				JSONObject details = new JSONObject();
+
+				JSONObject params = new JSONObject();
+				for (String key : req.params().keySet()) {
+					params.put(key, req.params(key));
+				}
+				details.put("urlParams", params);
+
+				JSONObject queryP = new JSONObject();
+				for (String key : req.queryMap().toMap().keySet()) {
+					queryP.put(key, req.params(key));
+				}
+				User user = (User) req.session().attribute("user");
+				JSONObject uInfo = new JSONObject();
+				if (user != null) {
+					uInfo = user.toJSON();
+				}
+				details.put("queryParams", queryP);
+				details.put("url", req.url());
+				details.put("user", uInfo);
+
+				OpenWareInstance.getInstance().logError("Error on " + req.url() +
+														": " +
+														e.getLocalizedMessage() +
+														"\n" +
+														details.toString(2),
+						e);
+				HTTPResponseHelper.generateResponse(res, 400, null, e.getMessage());
 			});
 
 			path("/api", () -> {
@@ -324,6 +342,20 @@ public class OpenWareInstance {
 			}
 
 			);
+			String index;
+			try {
+				index = new String(Files.readAllBytes(Paths.get(Config.sparkFileDir + "/index.html")));
+				get("*", (req, res) -> {
+					if (!req.pathInfo().startsWith("/static") && !req.pathInfo().startsWith("/subscription")) {
+						res.status(404);
+						return index;
+					}
+					return null;
+				});
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
 
 			init();
 

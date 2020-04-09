@@ -59,6 +59,7 @@ public class TransformationAPI implements OpenWareAPI {
 				int dim;
 				OpenWareDataItem res_data;
 				res_data = op.apply(null, params).getResult();
+
 				if (Config.accessControl && res_data != null) {
 					User user = req.session().attribute("user");
 					if (user == null || !user.canAccessRead(res_data.getUser(), res_data.getId()))
@@ -70,33 +71,19 @@ public class TransformationAPI implements OpenWareAPI {
 			post("/pipe", (req, res) -> {
 				JSONObject body = new JSONObject(req.body());
 				JSONArray stages = body.optJSONArray("stages");
-
+				User user = req.session().attribute("user");
 				if (stages == null) {
 					return HTTPResponseHelper.generateResponse(res, 422, null,
 							"Could not parse stages!");
 				}
-				OpenWareDataItem tempItem = null;
-				for (int i = 0; i < stages.length(); i++) {
-					TransformationOperation op = TransformationService.getInstance()
-							.getOperation(stages.getJSONObject(i).getString("action"));
-					if (op == null) {
-						return HTTPResponseHelper.generateResponse(res, 403, null,
-								"Unkown operation " + stages.getJSONObject(i).getString("action"));
-					}
-					tempItem = op.apply(tempItem, stages.getJSONObject(i).getJSONObject("params")).getResult();
-					if (tempItem == null) {
-						HTTPResponseHelper.generateResponse(res, 403, null,
-								"Error in Stage!" + stages.getJSONObject(i));
-					}
-					if (Config.accessControl && tempItem != null) {
-						User user = req.session().attribute("user");
-						if (user == null || !user.canAccessRead(tempItem.getUser(), tempItem.getId()))
-							return HTTPResponseHelper.generateResponse(res, 403, null, "Not allowed to add data");
-					}
-					op = null;
+				try {
+					return HTTPResponseHelper.generateResponse(res, 200,
+							TransformationService.getInstance().pipeOperations(user, null, body).toJSON(), null);
+
+				} catch (Exception e) {
+					return HTTPResponseHelper.generateResponse(res, 403, null, e.getMessage());
 				}
 
-				return HTTPResponseHelper.generateResponse(res, 200, tempItem.toJSON(), null);
 			});
 		});
 

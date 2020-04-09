@@ -2,8 +2,8 @@ package de.openinc.ow.core.model.data;
 
 public class OpenWareString extends OpenWareValueDimension {
 
-	private static final String TYPE = "String";
-	String value;
+	public static final String TYPE = "String";
+	private String value;
 
 	public OpenWareString(String name, String unit, String value) {
 		super(name, unit, TYPE);

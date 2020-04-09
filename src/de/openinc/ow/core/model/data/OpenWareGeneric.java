@@ -5,7 +5,7 @@ import org.json.JSONObject;
 
 public class OpenWareGeneric extends OpenWareValueDimension {
 
-	private static final String TYPE = "Object";
+	public static final String TYPE = "Object";
 	JSONObject value;
 
 	public OpenWareGeneric(String name, String unit, JSONObject value) {

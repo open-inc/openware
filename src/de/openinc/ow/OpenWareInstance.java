@@ -59,7 +59,7 @@ public class OpenWareInstance {
 
 	public void logInfo(Object info) {
 
-		this.debugLogger.info(info);
+		this.infoLogger.info(info);
 
 	}
 
@@ -71,37 +71,37 @@ public class OpenWareInstance {
 
 	public void logDebug(Object debug) {
 
-		this.debugLogger.debug(debug);
+		this.infoLogger.debug(debug);
 
 	}
 
 	public void logDebug(Object debug, Throwable t) {
 
-		debugLogger.debug(debug, t);
+		infoLogger.debug(debug, t);
 
 	}
 
 	public void logTrace(Object trace) {
 
-		debugLogger.trace(trace);
+		infoLogger.trace(trace);
 
 	}
 
 	public void logWarn(Object warn) {
 
-		debugLogger.warn(warn);
+		infoLogger.warn(warn);
 
 	}
 
 	public void logError(Object error) {
 
-		errorLogger.error(error);
+		infoLogger.error(error);
 
 	}
 
 	public void logError(Object error, Throwable t) {
 
-		errorLogger.error(error, t);
+		infoLogger.error(error, t);
 
 	}
 

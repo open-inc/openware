@@ -116,34 +116,35 @@ public class MiddlewareApi implements OpenWareAPI {
 			get(LIVE_DATA_API, (req, res) -> {
 				if (Config.accessControl) {
 					User user = req.session().attribute("user");
-					String strUser = req.params("userid");
+					String source = req.params("source");
 					String strID = req.params("sensorid");
-					if (user == null || !user.canAccessRead(strUser, strID))
+					if (user == null || !user.canAccessRead(source, strID))
 						halt(403, "Not allowed to read data");
 				}
 
 				res.header("Content-Encoding", "gzip");
+				res.type("application/json");
 				String sensorID = req.params("sensorid");
-				String userID = req.params("userid");
+				String source = req.params("source");
 				OpenWareInstance.getInstance()
 						.logDebug("Received live data request for sensor: " + sensorID +
-									" and userID: " +
-									userID);
+									" and source: " +
+									source);
 
 				OpenWareDataItem items;
 				if (sensorID.startsWith(Config.analyticPrefix)) {
 					OpenWareInstance.getInstance()
 							.logDebug("Received live analytics data request for sensor: " + sensorID +
 										" and userID: " +
-										userID);
-					items = AnalyticsService.getInstance().handle(userID, sensorID);
+										source);
+					items = AnalyticsService.getInstance().handle(source, sensorID);
 				} else {
 					OpenWareInstance.getInstance().logDebug(
 							"Received live data request for sensor: " + sensorID +
 															" and userID: " +
-															userID);
+															source);
 
-					items = DataService.getLiveSensorData(sensorID, userID);
+					items = DataService.getLiveSensorData(sensorID, source);
 				}
 				if (items == null) {
 					return new JSONObject();
@@ -163,6 +164,7 @@ public class MiddlewareApi implements OpenWareAPI {
 				}
 
 				res.header("Content-Encoding", "gzip");
+				res.type("application/json");
 				Long timestampStart = Long.valueOf(req.params("timestampStart"));
 				Long timestampEnd = Long.valueOf(req.params("timestampEnd"));
 				OpenWareDataItem items;
@@ -204,6 +206,7 @@ public class MiddlewareApi implements OpenWareAPI {
 
 				try {
 					res.header("Content-Encoding", "gzip");
+					res.type("application/json");
 					String deviceID = req.params("sensorid");
 					String userID = req.params("userid");
 					Long timestampStart = Long.valueOf(req.params("timestampStart"));

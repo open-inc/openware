@@ -139,7 +139,16 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		return res;
 	}
 
-	public OpenWareDataItem cloneItem() {
+	/**
+	 * Creates a copy of the Item. Members of the Item can be altered without
+	 * altering the original Object (new reference)
+	 * 
+	 * @param includeValues
+	 *            Item can be cloned with or without values (<b>Warning: values will
+	 *            be assigned by reference!</b>)
+	 * @return The copy of the original Item
+	 */
+	public OpenWareDataItem cloneItem(boolean includeValues) {
 		ArrayList<OpenWareValueDimension> valueTypesNew = new ArrayList<>();
 		for (OpenWareValueDimension dim : this.getValueTypes()) {
 			valueTypesNew.add(dim.cloneDimension());
@@ -148,11 +157,23 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 				new JSONObject(this.getMeta().toString()), valueTypesNew);
 
 		item.setReference(this.reference);
-		item.value().addAll(this.value());
+		if (includeValues)
+			item.value().addAll(this.value());
 		item.setPersist(this.persist);
 
 		return item;
 
+	}
+
+	/**
+	 * Creates a copy of the Item. Members of the Item can be altered without
+	 * altering the original Object (new reference). <b>Copy will include the values
+	 * by reference!</b>
+	 * 
+	 * @return The copy of the original Item
+	 */
+	public OpenWareDataItem cloneItem() {
+		return cloneItem(true);
 	}
 
 	public String getId() {

@@ -31,6 +31,21 @@ import de.openinc.ow.core.model.data.OpenWareValueDimension;
 import de.openinc.ow.core.model.user.User;
 import spark.QueryParamsMap;
 
+/**
+ * The DataService provides the central interface all data related actions of
+ * the middleware.
+ * 
+ * @author stein@openinc.de
+ *
+ */
+/**
+ * @author marti
+ *
+ */
+/**
+ * @author marti
+ *
+ */
 public class DataService {
 
 	private static PersistenceAdapter adapter = null;
@@ -43,6 +58,10 @@ public class DataService {
 	private static ExecutorService pool;
 	public static final String CONFIG_STORE_TYPE = "sensorconfig";
 
+	/**
+	 * The init methods needs be called once before all services can be used. It
+	 * initializes all caches and the ThreadPool for data processing
+	 */
 	public static void init() {
 		items = new HashMap<>();
 		handler = new ArrayList<>();
@@ -52,19 +71,45 @@ public class DataService {
 
 	}
 
+	/**
+	 * Can be used to access the current PersistenceAdpater
+	 * 
+	 * @return The current {@link de.openinc.ow.core.api.PersistenceAdapter}
+	 */
 	public static PersistenceAdapter getCurrentPersistenceAdapter() {
 		return adapter;
 	}
 
+	/**
+	 * Can be used to access the current ReferenceAdapter
+	 * 
+	 * @return The current {@link de.openinc.ow.core.api.ReferenceAdapter}
+	 */
 	public static ReferenceAdapter getReferenceAdapter() {
 		return reference;
 	}
 
+	/**
+	 * Can be used to set the ReferenceAdapter
+	 * 
+	 * @param ra
+	 *            Reference to the ReferenceAdapter that should be set.
+	 */
 	public static void setReferenceAdapter(ReferenceAdapter ra) {
 		reference = ra;
 		reference.init();
 	}
 
+	/**
+	 * Can be used to add a {@link de.openinc.ow.core.api.DataHandler}. If you
+	 * register a DataHandler, it will be called by the DataService when new
+	 * unstructured data arrives. The DataService will sequentially pass the
+	 * information to the DataHandlers until one handler can parse the data and
+	 * return a {@link de.openinc.ow.core.model.OpenWareDataItem} Object
+	 * 
+	 * @param dh
+	 * @return
+	 */
 	public static DataHandler addHandler(DataHandler dh) {
 		if (handler.add(dh)) {
 			return dh;
@@ -72,6 +117,20 @@ public class DataService {
 		return null;
 	}
 
+	/**
+	 * Can be used to apply configuration to OpenWareDataItems before they get
+	 * stored. E.g. to change the name or even the ID of an Item
+	 * 
+	 * @param user
+	 *            User used for authorization. Needs write Access
+	 * @param dataString
+	 *            JSONArray or JSONObject representing a OpenWareDataItem. This
+	 *            template will be applied to the respective OpenWareDataItems
+	 *            before they get persisted.
+	 * @return True, if the configuration is valid and could be stored
+	 * @throws JSONException
+	 *             If invalid JSON was provided
+	 */
 	public static boolean storeItemConfiguration(User user, String dataString) throws JSONException {
 		ArrayList<OpenWareDataItem> res = new ArrayList<>();
 		if (dataString.startsWith("[")) {
@@ -111,11 +170,37 @@ public class DataService {
 					item.getMeta().getString("source_source") + Config.idSeperator
 							+ item.getMeta().getString("id_source"),
 					item.toString());
+			//Get current Item to upadte the configuration immediately
+			OpenWareDataItem cItem = DataService.getLiveSensorData(item.getId(), item.getUser());
+			if (cItem == null) {
+				//No current item. ID or Source has been customized. Retrieve source item
+				cItem = DataService.getLiveSensorData(item.getMeta().getString("id_source"),
+						item.getMeta().getString("source_source"));
+			}
+
+			if (cItem == null) {
+				//Nothing to update, as source Item also does not exist...
+				continue;
+			}
+			OpenWareDataItem clonedConf = item.cloneItem();
+			clonedConf.value().clear();
+			clonedConf.value(cItem.value());
+			setCurrentItem(clonedConf);
 		}
 
 		return true;
 	}
 
+	/**
+	 * @param user
+	 *            User used to check authorization. Needs write Access
+	 * @param owner
+	 *            The original source field of the OpenWareDataItem
+	 *            (Pre-configuration)
+	 * @param sensorid_source
+	 *            The original id of the OpenWareDataItem (Pre-configuration)
+	 * @return True, if configuration was deleted
+	 */
 	public static boolean deleteItemConfig(User user, String owner, String sensorid_source) {
 		if (!user.canAccessWrite(owner, sensorid_source)) {
 			return false;
@@ -144,7 +229,10 @@ public class DataService {
 		if (!wellFormed)
 			throw new JSONException("Posted Configuration Object is missing parameters or valueTypes are incorrect");
 
-		String owner = item.getUser();
+		String owner = item.getMeta().optString("source_source");
+		if (owner.equals("")) {
+			owner = item.getUser();
+		}
 		String id_source = item.getMeta().getString("id_source");
 
 		if (!user.canAccessWrite(owner, id_source)) {
@@ -170,6 +258,13 @@ public class DataService {
 		}
 	}
 
+	/**
+	 * Retrieves a list of currently configured items as map
+	 * 
+	 * @param user
+	 *            User used for ACL Check
+	 * @return A map of configurations that the user can see.
+	 */
 	public static HashMap<String, OpenWareDataItem> getItemConfiguration(User user) {
 		List<OpenWareDataItem> items = DataService.getItems(user);
 		HashMap<String, OpenWareDataItem> res = new HashMap<>();
@@ -206,6 +301,14 @@ public class DataService {
 		return sourceID.equals(currentID);
 	}
 
+	/**
+	 * Removes a DataHandler from the DataHandler list. DataService will not use it
+	 * anymore while parsing new data.
+	 * 
+	 * @param dh
+	 *            The DataHandler to be removed
+	 * @return The data handler that was removed or null if it fails
+	 */
 	public static DataHandler removeHandler(DataHandler dh) {
 		if (handler.remove(dh)) {
 			return dh;
@@ -213,14 +316,34 @@ public class DataService {
 		return null;
 	}
 
+	/**
+	 * Adds an actuator
+	 * 
+	 * @param aa
+	 *            The Actuator to add
+	 * @return the previous ActuatorObject associated with the ID, or null if there
+	 *         was no mapping for the ID
+	 */
 	public static ActuatorAdapter addActuator(ActuatorAdapter aa) {
 		return actuators.put(aa.getID(), aa);
 	}
 
+	/**
+	 * Removes an Actuator
+	 * 
+	 * @param aa
+	 *            The Actuator to be removed
+	 * @return The removed Actuator
+	 */
 	public static ActuatorAdapter remove(ActuatorAdapter aa) {
 		return actuators.remove(aa.getID());
 	}
 
+	/**
+	 * Retrieve a list of available Actuators by ID
+	 * 
+	 * @return A Set of currently available Actuators
+	 */
 	public static Set<String> getActuators() {
 		return actuators.keySet();
 	}
@@ -516,12 +639,7 @@ public class DataService {
 			OpenWareInstance.getInstance().logError("Could not store new Date: " + e.getMessage(), e);
 			return false;
 		}
-
-		try {
-			DataService.notifySubscribers(item);
-		} catch (Exception e) {
-			OpenWareInstance.getInstance().logError("Exception in Subscriber", e);
-		}
+		pool.submit(new SubscriberRunnable(item));
 		//Acknowledge storing -> Either item was stored or was flagged to not be stored
 
 		return stored || !item.persist() || !Config.dbPersistValue;
@@ -655,4 +773,19 @@ class DataProcessTask implements Callable<Boolean> {
 		}
 		return DataService.processNewData(items);
 	}
+}
+
+class SubscriberRunnable implements Runnable {
+	OpenWareDataItem item;
+
+	public SubscriberRunnable(OpenWareDataItem item) {
+		this.item = item;
+	}
+
+	@Override
+	public void run() {
+		DataService.notifySubscribers(item);
+		item = null;
+	}
+
 }

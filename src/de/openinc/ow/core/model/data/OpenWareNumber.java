@@ -2,7 +2,7 @@ package de.openinc.ow.core.model.data;
 
 public class OpenWareNumber extends OpenWareValueDimension {
 
-	private static final String TYPE = "Number";
+	public static final String TYPE = "Number";
 	double value;
 
 	public OpenWareNumber(String name, String unit, Double value) {

@@ -12,7 +12,7 @@ import de.openinc.ow.OpenWareInstance;
 public class OpenWareGeo extends OpenWareValueDimension {
 
 	JSONObject value;
-	public static String TYPE = "Geo";
+	public static final String TYPE = "Geo";
 
 	public OpenWareGeo(String name, String unit, JSONObject value) {
 		super(name, unit, "Geo");

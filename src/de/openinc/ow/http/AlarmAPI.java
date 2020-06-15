@@ -241,7 +241,7 @@ class AlarmMonitorThread extends Thread {
 					OpenWareDataItem owdi = (OpenWareDataItem) item;
 					JSONArray alarm = alarms.get(item.getUser() + item.getId());
 					if (alarm != null && alarm.length() > 0) {
-						//Store all checked boolean indexes
+						// Store all checked boolean indexes
 						ArrayList<Integer> boolIndexes = new ArrayList<>();
 						for (int i = 0; i < alarm.length(); i++) {
 							JSONObject currentObj = alarm.getJSONObject(i);
@@ -269,18 +269,17 @@ class AlarmMonitorThread extends Thread {
 
 							long checkedTS = System.currentTimeMillis();
 
-							//Alarm was triggered
+							// Alarm was triggered
 							if (triggered) {
 								lastEventTriggered.put(currentObj.getString("alarmid"), true);
 								if (currentObj.getBoolean("save")) {
 									JSONObject meta = new JSONObject();
 									meta.put("alarm", true);
 									OpenWareDataItem alarmItem = owdi.cloneItem();
-									alarmItem.setId(owdi.getId() + "." +
-													currentObj.getString("alarmid"));
+									alarmItem.setId(owdi.getId() + "." + currentObj.getString("alarmid"));
 									alarmItem.setName("Alarm-" + currentObj.optString("name"));
 									alarmItem.value(owdi.value());
-									//DataService.onNewData(alarmItem);
+									// DataService.onNewData(alarmItem);
 								}
 
 								boolean shouldSendAgain = (!lastEventTriggeredAlso
@@ -289,18 +288,12 @@ class AlarmMonitorThread extends Thread {
 														.getLong("interval")));
 								// Notification needs to be send again
 								if (shouldSendAgain) {
-									String text = "Alarm " + currentObj.optString("name") +
-													" Sensor " +
-													owdi.getName() +
-													" :\n" +
-													"\nErfasste Werte:\n" +
-													owdi.getValueTypes().get(currentObj.getInt("dimension")).getName() +
-													": " +
-													owdi.value().get(0).get(currentObj.getInt("dimension")).value() +
-													" " +
-													owdi.getValueTypes().get(currentObj.getInt("dimension")).getUnit() +
-													"\nZeitpunkt:" +
-													new Date(owdi.value().get(0).getDate()).toLocaleString();
+									String text = "Alarm " + currentObj.optString("name") + " Sensor " + owdi.getName()
+											+ " :\n" + "\nErfasste Werte:\n"
+											+ owdi.getValueTypes().get(currentObj.getInt("dimension")).getName() + ": "
+											+ owdi.value().get(0).get(currentObj.getInt("dimension")).value() + " "
+											+ owdi.getValueTypes().get(currentObj.getInt("dimension")).getUnit()
+											+ "\nZeitpunkt:" + new Date(owdi.value().get(0).getDate()).toLocaleString();
 									;
 									OpenWareDataItem notifyItem = owdi.cloneItem();
 									notifyItem.value(owdi.value());
@@ -311,17 +304,17 @@ class AlarmMonitorThread extends Thread {
 
 									Map<JSONObject, OpenWareDataItem> relevantQueue = null;
 									switch (currentObj.getString("notificationType")) {
-									case "mail":
-										relevantQueue = mailProcessQueue;
-										break;
-									case "ticket":
-										relevantQueue = ticketProcessQueue;
-										break;
-									case "push":
-										relevantQueue = pushProcessQueue;
-										break;
-									default:
-										break;
+										case "mail":
+											relevantQueue = mailProcessQueue;
+											break;
+										case "ticket":
+											relevantQueue = ticketProcessQueue;
+											break;
+										case "push":
+											relevantQueue = pushProcessQueue;
+											break;
+										default:
+											break;
 									}
 
 									if (relevantQueue != null)
@@ -329,12 +322,12 @@ class AlarmMonitorThread extends Thread {
 									sentTS.put(currentObj.getString("alarmid"), checkedTS);
 								}
 							} else {
-								// Alarm löst nicht mehr aus; Werte wieder normal
+								// Alarm lï¿½st nicht mehr aus; Werte wieder normal
 								lastEventTriggered.put(currentObj.getString("alarmid"), false);
 							}
 
 						}
-						//Update Bools and clear list
+						// Update Bools and clear list
 						for (int dim : boolIndexes) {
 							lastBoolReceived.put(owdi.getUser() + owdi.getId(),
 									(boolean) owdi.value().get(0).get(dim).value());
@@ -386,16 +379,16 @@ class AlarmMonitorThread extends Thread {
 				: Double.MAX_VALUE;
 		overMax = toCheck > max;
 		switch (type.toLowerCase()) {
-		case "min": {
-			return underMin;
-		}
+			case "min": {
+				return underMin;
+			}
 
-		case "max": {
-			return overMax;
-		}
-		default:
-			//min-max
-			return underMin || overMax;
+			case "max": {
+				return overMax;
+			}
+			default:
+				// min-max
+				return underMin || overMax;
 		}
 	}
 
@@ -405,16 +398,16 @@ class AlarmMonitorThread extends Thread {
 		String match = owdi.value().get(0).get(currentObj.getInt("dimension")).value().toString().toLowerCase();
 		String val = currentObj.optString("string_match").toLowerCase();
 		switch (currentObj.getString("type")) {
-		case "string-equals":
-			return match.equals(val);
-		case "string-includes":
-			return match.indexOf(val) > -1;
-		case "string-starts-with":
-			return match.startsWith(val);
-		case "string-ends-with":
-			return match.endsWith(val);
-		default:
-			return false;
+			case "string-equals":
+				return match.equals(val);
+			case "string-includes":
+				return match.indexOf(val) > -1;
+			case "string-starts-with":
+				return match.startsWith(val);
+			case "string-ends-with":
+				return match.endsWith(val);
+			default:
+				return false;
 		}
 	}
 
@@ -428,14 +421,14 @@ class AlarmMonitorThread extends Thread {
 		}
 
 		switch (currentObj.getString("type")) {
-		case "boolean-rising-edge":
-			return !lastVal && newVal;
-		case "boolean-falling-edge":
-			return lastVal && !newVal;
-		case "boolean-rising-falling-edge":
-			return lastVal != newVal;
-		default:
-			return false;
+			case "boolean-rising-edge":
+				return !lastVal && newVal;
+			case "boolean-falling-edge":
+				return lastVal && !newVal;
+			case "boolean-rising-falling-edge":
+				return lastVal != newVal;
+			default:
+				return false;
 		}
 	}
 
@@ -500,8 +493,7 @@ class AlarmMonitorThread extends Thread {
 
 	private void processTickets() {
 		if (Config.ticketEnabled) {
-			String HOST = Config.ticketHost + ":" +
-							Config.ticketPort;
+			String HOST = Config.ticketHost + ":" + Config.ticketPort;
 			HashMap<JSONObject, OpenWareDataItem> temp = new HashMap<>();
 			temp.putAll(ticketProcessQueue);
 			ticketProcessQueue.clear();

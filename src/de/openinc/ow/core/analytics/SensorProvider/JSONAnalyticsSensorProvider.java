@@ -16,8 +16,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import de.openinc.api.AnalyticSensorProvider;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.api.AnalyticSensorProvider;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.data.OpenWareValueDimension;

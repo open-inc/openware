@@ -20,8 +20,8 @@ import com.mashape.unirest.http.JsonNode;
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
 
+import de.openinc.api.AnalyticSensorProvider;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.api.AnalyticSensorProvider;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.data.OpenWareValueDimension;
@@ -90,8 +90,8 @@ public class ParseAnalyticSensorProvider implements AnalyticSensorProvider {
 			OpenWareInstance.getInstance()
 					.logError("You should provide a parse.properties to configure the connection to your backend");
 			throw new FileNotFoundException(
-					"You should provide a parse.properties to configure the connection to your backend at the following location:"
-							+ new File("parse.properties").getAbsolutePath());
+					"You should provide a parse.properties to configure the connection to your backend at the following location:" +
+											new File("parse.properties").getAbsolutePath());
 		} catch (UnirestException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -102,7 +102,9 @@ public class ParseAnalyticSensorProvider implements AnalyticSensorProvider {
 	public Map<String, Map<String, OpenWareDataItem>> getAnalyticSensors() {
 		items = new HashMap<>();
 		try {
-			HttpResponse<JsonNode> res = Unirest.get(HOST + "/classes/" + Config.analyticSensors).headers(headers)
+			HttpResponse<JsonNode> res = Unirest.get(HOST + "/classes/" +
+														Config.analyticSensors)
+					.headers(headers)
 					.asJson();
 			JSONObject response = res.getBody().getObject();
 			JSONArray results = response.getJSONArray("results");
@@ -165,13 +167,20 @@ public class ParseAnalyticSensorProvider implements AnalyticSensorProvider {
 				return true;
 			try {
 				HttpResponse<JsonNode> res = Unirest
-						.delete(HOST + "/classes/" + Config.analyticSensors + "/" + item.getMeta().optString("POID"))
+						.delete(HOST + "/classes/" +
+								Config.analyticSensors +
+								"/" +
+								item.getMeta().optString("POID"))
 						.headers(headers).asJson();
 				if (res.getStatus() == 200)
 					return true;
 				return false;
 			} catch (Exception e) {
-				OpenWareInstance.getInstance().logError("Could not delete sensor " + sensorid + " (" + user + ")", e);
+				OpenWareInstance.getInstance().logError("Could not delete sensor " + sensorid +
+														" (" +
+														user +
+														")",
+						e);
 				return false;
 			}
 		}
@@ -188,7 +197,9 @@ public class ParseAnalyticSensorProvider implements AnalyticSensorProvider {
 		obj.put("sensorid", parameter.getString("sensorid"));
 		obj.put("operation", parameter.getString("operation"));
 		try {
-			HttpResponse<JsonNode> res = Unirest.post(HOST + "/classes/" + Config.analyticSensors).headers(headers)
+			HttpResponse<JsonNode> res = Unirest.post(HOST + "/classes/" +
+														Config.analyticSensors)
+					.headers(headers)
 					.header("Content-Type", "application/json").body(obj).asJson();
 			if (res.getStatus() == 201)
 				return true;

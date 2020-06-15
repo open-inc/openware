@@ -17,19 +17,46 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+import java.util.ServiceLoader;
 import java.util.TimeZone;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
-import de.openinc.ow.core.api.OpenWareAPI;
+import de.openinc.api.AnalyticSensorProvider;
+import de.openinc.api.AnalyticsProvider;
+import de.openinc.api.DataHandler;
+import de.openinc.api.OWServiceActivator;
+import de.openinc.api.OpenWareAPI;
+import de.openinc.api.OpenWarePlugin;
+import de.openinc.api.PersistenceAdapter;
+import de.openinc.api.ReferenceAdapter;
+import de.openinc.api.ReportInterface;
+import de.openinc.api.TransformationOperation;
+import de.openinc.api.UserAdapter;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.helper.HTTPResponseHelper;
 import de.openinc.ow.core.model.user.User;
+import de.openinc.ow.http.AdminAPI;
+import de.openinc.ow.http.AlarmAPI;
+import de.openinc.ow.http.AnalyticsServiceAPI;
+import de.openinc.ow.http.MiddlewareApi;
+import de.openinc.ow.http.ReferenceAPI;
+import de.openinc.ow.http.ReportsAPI;
 import de.openinc.ow.http.SubscriptionProvider;
+import de.openinc.ow.http.TransformationAPI;
 import de.openinc.ow.http.UserAPI;
+import de.openinc.ow.middleware.services.AnalyticsService;
+import de.openinc.ow.middleware.services.DataService;
+import de.openinc.ow.middleware.services.OWService;
+import de.openinc.ow.middleware.services.ReportsService;
+import de.openinc.ow.middleware.services.ServiceRegistry;
+import de.openinc.ow.middleware.services.TransformationService;
 import de.openinc.ow.middleware.services.UserService;
 
 public class OpenWareInstance {
@@ -42,20 +69,21 @@ public class OpenWareInstance {
 
 	protected Logger logger;
 
-	static Logger debugLogger;
-	static Logger infoLogger;
-	static Logger errorLogger;
-	static Logger mqttLogger;
+	Logger debugLogger;
+	Logger infoLogger;
+	Logger errorLogger;
+	Logger mqttLogger;
 
-	static Logger apacheLogger;
-	static Logger sparkLogger;
-	static Logger jettyLogger;
-	static Logger mongoLogger;
-	static Logger xdocLogger;
+	Logger apacheLogger;
+	Logger sparkLogger;
+	Logger jettyLogger;
+	Logger mongoLogger;
+	Logger xdocLogger;
 
 	private static OpenWareInstance me;
-	private static ArrayList<OpenWareAPI> services;
-	private static boolean running = false;
+	private ArrayList<OpenWareAPI> services;
+	private boolean running = false;
+	private JSONObject state;
 
 	public void logInfo(Object info) {
 
@@ -234,6 +262,61 @@ public class OpenWareInstance {
 			}
 		}
 
+		//------------------- Services & API -------------------- 
+		UserService userService = UserService.getInstance();
+		userService.setAdapter(loadUserAdapter());
+
+		DataService.init();
+		DataService.setPersistenceAdapter(loadPersistenceAdapter());
+		DataService.setReferenceAdapter(loadReferenceAdapterAdapter());
+
+		AnalyticsService.getInstance().setSensorProvider(loadAnalyticSensorProvider());
+		// Middleware Data API
+		MiddlewareApi middlewareApi = new MiddlewareApi();
+		OpenWareInstance.getInstance().registerService(middlewareApi);
+
+		// UserManagement API
+		UserAPI userAPI = new UserAPI();
+		OpenWareInstance.getInstance().registerService(userAPI);
+
+		// AnalyticsService API
+		AnalyticsServiceAPI asa = new AnalyticsServiceAPI();
+		OpenWareInstance.getInstance().registerService(asa);
+
+		// Admin API
+		AdminAPI adminApi = new AdminAPI();
+		OpenWareInstance.getInstance().registerService(adminApi);
+
+		//ReportsAPI
+		ReportsAPI rApi = new ReportsAPI();
+		OpenWareInstance.getInstance().registerService(rApi);
+
+		// Alarm & Event API
+		AlarmAPI as = AlarmAPI.getInstance();
+		OpenWareInstance.getInstance().registerService(as);
+
+		//TransformationAPI
+		TransformationAPI tApi = new TransformationAPI();
+		OpenWareInstance.getInstance().registerService(tApi);
+
+		//ReferenceAPI
+		ReferenceAPI refApi = new ReferenceAPI();
+		OpenWareInstance.getInstance().registerService(refApi);
+
+		//Plugins
+		loadPlugins();
+
+	}
+
+	private AnalyticSensorProvider loadAnalyticSensorProvider() {
+		ServiceLoader<AnalyticSensorProvider> loader = ServiceLoader.load(AnalyticSensorProvider.class);
+		try {
+			AnalyticSensorProvider provider = loader.iterator().next();
+			return provider;
+		} catch (NoSuchElementException e) {
+			return null;
+		}
+
 	}
 
 	public static OpenWareInstance getInstance() {
@@ -243,13 +326,32 @@ public class OpenWareInstance {
 		return me;
 	}
 
-	public static void registerService(OpenWareAPI service) {
+	public void registerService(OpenWareAPI service) {
 		services.add(service);
 
 		if (isRunning()) {
 			OpenWareInstance.getInstance().logError(
 					"Server already running! You need to restart the Instance to access newly registered Services");
 		}
+	}
+
+	public JSONObject getState() {
+		JSONObject state = new JSONObject();
+		ServiceRegistry registry = ServiceRegistry.getInstance();
+		JSONArray activeServices = new JSONArray();
+		JSONArray inactiveServices = new JSONArray();
+		for (OWService service : registry.getActiveServices()) {
+			activeServices.put(service.toJSONObject());
+		}
+		for (OWService service : registry.getInactiveServices()) {
+			inactiveServices.put(service.toJSONObject());
+		}
+		JSONObject cServices = new JSONObject();
+		cServices.put("active", activeServices);
+		cServices.put("inactive", inactiveServices);
+		state.put("services", cServices);
+		state.put("pesistence", DataService.getStats());
+		return state;
 	}
 
 	public void startInstance() {
@@ -261,8 +363,7 @@ public class OpenWareInstance {
 
 			after((req, res) -> {
 				if (req.url().contains("/api/transform")) {
-					System.out.println(
-							"-------------------------------------------Freeing Memory-----------------------------------------------------");
+
 					System.gc();
 				}
 
@@ -386,12 +487,244 @@ public class OpenWareInstance {
 		setRunning(false);
 	}
 
-	public static boolean isRunning() {
-		return running;
+	public boolean isRunning() {
+		return this.running;
 	}
 
-	public static void setRunning(boolean running) {
-		OpenWareInstance.running = running;
+	public void setRunning(boolean running) {
+		this.running = running;
+	}
+
+	private void loadPlugins() {
+		loadOWPlugins();
+		loadHTTPAPI();
+		loadAnalyticsProvider();
+		loadReportTypes();
+		loadTransformationOperations();
+		loadDataHandler();
+
+	}
+
+	private void loadDataHandler() {
+		logInfo("------- 		Loading Data Handler 		------");
+		ServiceLoader<DataHandler> loader = ServiceLoader.load(DataHandler.class);
+		Iterator<DataHandler> it = loader.iterator();
+
+		while (it.hasNext()) {
+			DataHandler handler = it.next();
+			OWService aHandler = new OWService(handler.getClass().getCanonicalName(), handler,
+					new OWServiceActivator() {
+
+						@Override
+						public boolean unload() throws Exception {
+							DataService.removeHandler(handler);
+							return true;
+						}
+
+						@Override
+						public Object load(Object prevInstance, JSONObject options) throws Exception {
+							if (prevInstance != null) {
+								DataService.removeHandler((DataHandler) prevInstance);
+							}
+							DataService.addHandler(handler);
+							logInfo(handler.getClass().getCanonicalName() + " loaded!");
+							return handler;
+						}
+					});
+			if (!aHandler.isDeactivated()) {
+				try {
+					aHandler.load(null);
+				} catch (Exception e) {
+					logError("Could not load DataHandler " + aHandler.getClass().getCanonicalName(), e);
+				}
+			}
+
+		}
+	}
+
+	private void loadTransformationOperations() {
+		logInfo("------- 		Loading Tranformation Operations 		------");
+		ServiceLoader<TransformationOperation> loader = ServiceLoader.load(TransformationOperation.class);
+		Iterator<TransformationOperation> it = loader.iterator();
+		while (it.hasNext()) {
+			TransformationOperation op = it.next();
+			OWService anOperation = new OWService(op.getClass().getCanonicalName(), op,
+					new OWServiceActivator() {
+
+						@Override
+						public boolean unload() throws Exception {
+							TransformationService.getInstance().removeOperation(op.getClass());
+							return true;
+						}
+
+						@Override
+						public Object load(Object prevInstance, JSONObject options) throws Exception {
+							if (prevInstance != null) {
+								TransformationService.getInstance().removeOperation(op.getClass());
+							}
+							TransformationService.getInstance().registerOperation(op.getClass());
+							logInfo(op.getClass().getCanonicalName() + " loaded!");
+							return op;
+						}
+					});
+			if (!anOperation.isDeactivated()) {
+				try {
+					anOperation.load(null);
+				} catch (Exception e) {
+					logError("Could not load TransformationOperation " + anOperation.getClass().getCanonicalName(), e);
+				}
+			}
+		}
+	}
+
+	private void loadReportTypes() {
+		logInfo("------- 			Loading Report Types 				------");
+		ServiceLoader<ReportInterface> loader = ServiceLoader.load(ReportInterface.class);
+		Iterator<ReportInterface> it = loader.iterator();
+		while (it.hasNext()) {
+			ReportInterface provider = it.next();
+			OWService aProvider = new OWService(provider.getClass().getCanonicalName(), provider,
+					new OWServiceActivator() {
+
+						@Override
+						public boolean unload() throws Exception {
+							ReportsService.getInstance().removeReportType(provider.getTag());
+							return true;
+						}
+
+						@Override
+						public Object load(Object prevInstance, JSONObject options) throws Exception {
+							if (prevInstance != null) {
+								ReportsService.getInstance().removeReportType(provider.getTag());
+							}
+							ReportsService.getInstance().addReportType(provider.getTag(), provider.getClass());
+							logInfo(provider.getClass().getCanonicalName() + " loaded!");
+							return provider;
+						}
+					});
+			if (!aProvider.isDeactivated()) {
+				try {
+					aProvider.load(null);
+				} catch (Exception e) {
+					logError("Could not load ReportType " + aProvider.getClass().getCanonicalName(), e);
+				}
+			}
+
+		}
+	}
+
+	// V-Sensor
+	private void loadAnalyticsProvider() {
+		logInfo("------- 			Loading Analytic Providers			------");
+		ServiceLoader<AnalyticsProvider> loader = ServiceLoader.load(AnalyticsProvider.class);
+		Iterator<AnalyticsProvider> it = loader.iterator();
+		while (it.hasNext()) {
+			AnalyticsProvider provider = it.next();
+			OWService aProviderService = new OWService(provider.getClass().getCanonicalName(), provider,
+					new OWServiceActivator() {
+
+						@Override
+						public boolean unload() throws Exception {
+							AnalyticsService.getInstance().deregisterAnalyticsProvider(provider.getOID());
+							logInfo(provider.getClass().getCanonicalName() + " loaded!");
+							return true;
+						}
+
+						@Override
+						public Object load(Object prevInstance, JSONObject options) throws Exception {
+							AnalyticsService.getInstance().registerAnalyticsProvider(provider.getOID(), provider);
+							logInfo(provider.getClass().getCanonicalName() + " loaded!");
+							return provider;
+						}
+					});
+			if (!aProviderService.isDeactivated()) {
+				try {
+					aProviderService.load(null);
+				} catch (Exception e) {
+					logError("Could not load AnalyticsProvider " + aProviderService.getClass().getCanonicalName(), e);
+				}
+			}
+		}
+	}
+
+	private void loadHTTPAPI() {
+		logInfo("------- 				Loading HTTP APIs 				------");
+		ServiceLoader<OpenWareAPI> loader = ServiceLoader.load(OpenWareAPI.class);
+		Iterator<OpenWareAPI> it = loader.iterator();
+		while (it.hasNext()) {
+			OpenWareAPI api = it.next();
+			registerService(api);
+			logInfo(api.getClass().getCanonicalName() + " loaded!");
+		}
+	}
+
+	private UserAdapter loadUserAdapter() {
+		logInfo("------- 				Loading User Adapter			------");
+		ServiceLoader<UserAdapter> loader = ServiceLoader.load(UserAdapter.class);
+		try {
+			UserAdapter adapter = loader.iterator().next();
+			logInfo(adapter.getClass().getCanonicalName() + " loaded!");
+			return adapter;
+		} catch (NoSuchElementException e) {
+			return null;
+		}
+
+	}
+
+	private PersistenceAdapter loadPersistenceAdapter() {
+		logInfo("------- 			Loading Persistence Adapter			------");
+		ServiceLoader<PersistenceAdapter> loader = ServiceLoader.load(PersistenceAdapter.class);
+		try {
+			PersistenceAdapter adapter = loader.iterator().next();
+			logInfo(adapter.getClass().getCanonicalName() + " loaded!");
+			return adapter;
+		} catch (NoSuchElementException e) {
+			return null;
+		}
+
+	}
+
+	private ReferenceAdapter loadReferenceAdapterAdapter() {
+		logInfo("------- 			Loading Reference Adapter			------");
+		ServiceLoader<ReferenceAdapter> loader = ServiceLoader.load(ReferenceAdapter.class);
+		try {
+			ReferenceAdapter adapter = loader.iterator().next();
+			logInfo(adapter.getClass().getCanonicalName() + " loaded!");
+			return adapter;
+		} catch (NoSuchElementException e) {
+			return null;
+		}
+
+	}
+
+	private void loadOWPlugins() {
+		logInfo("------- 				Loading OW Plugins			------");
+		ServiceLoader<OpenWarePlugin> pluginLoader = ServiceLoader.load(OpenWarePlugin.class);
+		for (OpenWarePlugin plugin : pluginLoader) {
+			try {
+				OWService pluginService = new OWService(plugin.getClass().getCanonicalName(),
+						plugin, new OWServiceActivator() {
+
+							@Override
+							public boolean unload() throws Exception {
+								plugin.disable();
+								return true;
+							}
+
+							@Override
+							public Object load(Object prevInstance, JSONObject options) throws Exception {
+								plugin.init(OpenWareInstance.getInstance(), options);
+								logInfo(plugin.getClass().getCanonicalName() + " loaded!");
+								return plugin;
+							}
+						});
+
+				if (!pluginService.isDeactivated())
+					pluginService.load(null);
+			} catch (Exception e) {
+				logError("Error while loading Plugin " + plugin.getClass().getCanonicalName(), e);
+			}
+		}
 	}
 
 }

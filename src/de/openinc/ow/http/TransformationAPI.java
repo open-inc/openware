@@ -7,8 +7,8 @@ import static spark.Spark.post;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import de.openinc.ow.core.api.OpenWareAPI;
-import de.openinc.ow.core.api.transformation.TransformationOperation;
+import de.openinc.api.OpenWareAPI;
+import de.openinc.api.TransformationOperation;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.helper.HTTPResponseHelper;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
@@ -58,7 +58,7 @@ public class TransformationAPI implements OpenWareAPI {
 				params.put("end", end);
 				int dim;
 				OpenWareDataItem res_data;
-				res_data = op.apply(null, params).getResult();
+				res_data = op.process(req.session().attribute("user"), null, params);
 
 				if (Config.accessControl && res_data != null) {
 					User user = req.session().attribute("user");

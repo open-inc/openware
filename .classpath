@@ -11,5 +11,6 @@
 		</attributes>
 	</classpathentry>
 	<classpathentry excluding="main/java/|test/java/" kind="src" path="src"/>
+	<classpathentry kind="src" path="resources"/>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>

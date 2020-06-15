@@ -1,7 +1,6 @@
 package de.openinc.ow.middleware.consumer;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.concurrent.TimeoutException;
 
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
@@ -23,9 +22,8 @@ public class MQTTConsumer {
 	private String HOST;
 	private int PORT;
 	private String TOPIC;
-	
+
 	int logQueue = 0;
-	
 
 	private String brokerUrl;
 	private String clientId;
@@ -33,44 +31,45 @@ public class MQTTConsumer {
 	private MqttConnectOptions conOpt;
 	private MemoryPersistence persistence;
 
-
 	public MQTTConsumer(String host, int port, String topic) throws IOException, TimeoutException {
 		System.out.println("--------------------------------------------------------------------");
 		System.out.println("Starting MQTT Consumer");
 		this.HOST = host;
 		this.PORT = port;
 		this.TOPIC = topic;
-		persistence =  new MemoryPersistence();
-		System.out.println("Connecting to Host: "+this.HOST);
-		System.out.println("Connecting to Port: "+this.PORT);
+		persistence = new MemoryPersistence();
+		System.out.println("Connecting to Host: " + this.HOST);
+		System.out.println("Connecting to Port: " + this.PORT);
 		System.out.println("--------------------------------------------------------------------");
-		brokerUrl = "tcp://" + this.HOST + ":" + this.PORT;
+		brokerUrl = "tcp://" + this.HOST +
+					":" +
+					this.PORT;
 
 		try {
-			setUpMqtt(); 
+			setUpMqtt();
 			client.setCallback(new MqttCallback() {
-			       @Override
-			       public void connectionLost(Throwable throwable) { 
-			    	   OpenWareInstance.getInstance().logError("Connection to Websocket lost...");
-			       }
-			 
-			       @Override
-			       public void messageArrived(String t, MqttMessage m) throws Exception {
-			    	   
-			    	   OpenWareInstance.getInstance().logInfo("New Value: " + new String(m.getPayload()));
-			    		  
-			    	   DataService.onNewData(t,new String(m.getPayload()));
-			       }
-			 
-			       @Override
-			       public void deliveryComplete(IMqttDeliveryToken t) {
-			    	   OpenWareInstance.getInstance().logInfo("Complete");
-			       }
+				@Override
+				public void connectionLost(Throwable throwable) {
+					OpenWareInstance.getInstance().logError("Connection to Websocket lost...");
+				}
+
+				@Override
+				public void messageArrived(String t, MqttMessage m) throws Exception {
+
+					OpenWareInstance.getInstance().logInfo("New Value: " + new String(m.getPayload()));
+
+					DataService.onNewData(t, new String(m.getPayload()));
+				}
+
+				@Override
+				public void deliveryComplete(IMqttDeliveryToken t) {
+					OpenWareInstance.getInstance().logInfo("Complete");
+				}
 			});
 			client.connect(conOpt);
 			OpenWareInstance.getInstance().logInfo("Connected");
 			Thread.sleep(1000);
-			client.subscribe(this.TOPIC,0);
+			client.subscribe(this.TOPIC, 0);
 			OpenWareInstance.getInstance().logInfo("Subscribed");
 
 		} catch (Exception mqe) {
@@ -80,27 +79,18 @@ public class MQTTConsumer {
 
 	public void setUpMqtt() throws MqttException {
 		clientId = getClass().getSimpleName() + ((int) (10000 * Math.random()));
-		client = new MqttAsyncClient(brokerUrl, clientId, persistence); 
+		client = new MqttAsyncClient(brokerUrl, clientId, persistence);
 		conOpt = new MqttConnectOptions();
 		setConOpts(conOpt);
 	}
 
 	private void setConOpts(MqttConnectOptions conOpts) {
-		conOpts.setCleanSession(false); 
+		conOpts.setCleanSession(false);
 		conOpts.setKeepAliveInterval(60);
 		conOpts.setAutomaticReconnect(true);
 		conOpts.setMaxInflight(65000);
 	}
 
-	
-	
-	
-	
-	
-	
-	
-	
-	
 	/*
 	 * Alt
 	 */

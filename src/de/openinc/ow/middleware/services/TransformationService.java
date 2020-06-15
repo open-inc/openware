@@ -5,7 +5,7 @@ import java.util.HashMap;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import de.openinc.ow.core.api.transformation.TransformationOperation;
+import de.openinc.api.TransformationOperation;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.user.User;
@@ -26,9 +26,9 @@ public class TransformationService {
 	 *            Class of Operation to add
 	 * @return previously associated operation class or null
 	 */
-	public Class registerOperation(String id, Class op) {
+	public Class registerOperation(Class op) {
 
-		return ops.put(id, op);
+		return ops.put(op.getCanonicalName(), op);
 	}
 
 	/**
@@ -36,8 +36,8 @@ public class TransformationService {
 	 *            Operation to be removed
 	 * @return Returns the class of the removed operation or null if not associated
 	 */
-	public Class<TransformationOperation> removeOperation(String id) {
-		return ops.remove(id);
+	public Class<TransformationOperation> removeOperation(Class op) {
+		return ops.remove(op.getCanonicalName());
 	}
 
 	/**
@@ -94,7 +94,7 @@ public class TransformationService {
 				throw new IllegalArgumentException("Unkown operation " + stages.getJSONObject(i).getString("action"));
 
 			}
-			tempItem = op.apply(tempItem, stages.getJSONObject(i).getJSONObject("params")).getResult();
+			tempItem = op.process(user, tempItem, stages.getJSONObject(i).getJSONObject("params"));
 			if (tempItem == null) {
 				throw new IllegalStateException("Could not perform stage " + i +
 												":\n" +

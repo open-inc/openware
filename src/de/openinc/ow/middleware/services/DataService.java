@@ -17,12 +17,12 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import de.openinc.api.ActuatorAdapter;
+import de.openinc.api.DataHandler;
+import de.openinc.api.DataSubscriber;
+import de.openinc.api.PersistenceAdapter;
+import de.openinc.api.ReferenceAdapter;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.api.ActuatorAdapter;
-import de.openinc.ow.core.api.DataHandler;
-import de.openinc.ow.core.api.DataSubscriber;
-import de.openinc.ow.core.api.PersistenceAdapter;
-import de.openinc.ow.core.api.ReferenceAdapter;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.data.OpenWareNumber;
@@ -438,6 +438,7 @@ public class DataService {
 
 	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp,
 			long until) {
+
 		return adapter.getHistoricalSensorData(sensorName, source, timestamp, until);
 
 	}
@@ -466,8 +467,8 @@ public class DataService {
 			for (OpenWareValue val : data.value()) {
 				if (count == bucketSize) {
 					if (max == null || min == null) {
-						System.out.println(max);
-						System.out.println(min);
+						//						System.out.println(max);
+						//						System.out.println(min);
 					} else {
 						if (max.getDate() > min.getDate()) {
 							toReturn.add(min);
@@ -768,6 +769,7 @@ class DataProcessTask implements Callable<Boolean> {
 	}
 
 	private boolean processItems(List<OpenWareDataItem> items) {
+		//([a-zA-Z\d]+\.)+: ID und source prüfen
 		if (items == null) {
 			return false;
 		}

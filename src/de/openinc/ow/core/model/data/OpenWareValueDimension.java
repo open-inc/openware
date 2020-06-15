@@ -1,6 +1,8 @@
 package de.openinc.ow.core.model.data;
 
-import java.lang.reflect.Constructor;
+import org.apache.commons.text.StringEscapeUtils;
+
+import de.openinc.ow.core.helper.DataConversion;
 
 public abstract class OpenWareValueDimension {
 
@@ -11,7 +13,6 @@ public abstract class OpenWareValueDimension {
 	private String name;
 	private String unit;
 	private String type;
-	private Constructor<?> constructor;
 
 	public OpenWareValueDimension(String name, String unit, String type) {
 		this.name = name;
@@ -55,4 +56,11 @@ public abstract class OpenWareValueDimension {
 		}
 	}
 
+	@Override
+	public String toString() {
+		return "{" + DataConversion.getJSONPartial("name", StringEscapeUtils.escapeJava(name), false, true) +
+				DataConversion.getJSONPartial("unit", StringEscapeUtils.escapeJava(unit), false, true) +
+				DataConversion.getJSONPartial("type", type, true, true) +
+				"}";
+	}
 }

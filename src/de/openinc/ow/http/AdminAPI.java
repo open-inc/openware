@@ -8,18 +8,19 @@ import static spark.Spark.post;
 
 import org.json.JSONObject;
 
+import de.openinc.api.OpenWareAPI;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.api.OpenWareAPI;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.helper.HTTPResponseHelper;
 import de.openinc.ow.core.model.user.User;
 import de.openinc.ow.middleware.services.DataService;
+import de.openinc.ow.middleware.services.ServiceRegistry;
 
 public class AdminAPI implements OpenWareAPI {
 	/**
 	 * API constants to use admin APIs
 	 */
-	public static final String GET_STATS = "/getStats";
+	public static final String GET_STATS = "/state";
 	public static final String GET_ANALYTIC_STATS = "/getAnalyticsStats";
 
 	/**
@@ -31,7 +32,7 @@ public class AdminAPI implements OpenWareAPI {
 	public void registerRoutes() {
 
 		path("/admin", () -> {
-			post(SENSOR_CONFIG + "/:owner+/:sensor", (req, res) -> {
+			post(SENSOR_CONFIG, (req, res) -> {
 
 				User user = null;
 				if (Config.accessControl) {
@@ -107,7 +108,9 @@ public class AdminAPI implements OpenWareAPI {
 			});
 
 			get(GET_STATS, (req, res) -> {
-				return DataService.getStats();
+				ServiceRegistry.getInstance().getService("de.openinc.owee.datahandler.IoTGatewayHandler").unload();
+				return HTTPResponseHelper.generateResponse(res, 200, OpenWareInstance.getInstance().getState(), null);
+
 			});
 
 			get(GET_ANALYTIC_STATS, (req, res) -> {

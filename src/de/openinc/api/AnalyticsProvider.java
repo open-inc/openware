@@ -1,4 +1,4 @@
-package de.openinc.ow.core.api;
+package de.openinc.api;
 
 import java.util.List;
 
@@ -9,5 +9,7 @@ public interface AnalyticsProvider {
 	public OpenWareDataItem process(OpenWareDataItem base, List<OpenWareDataItem> data) throws Exception;
 
 	public String getFormTemplate();
+
+	public String getOID();
 
 }

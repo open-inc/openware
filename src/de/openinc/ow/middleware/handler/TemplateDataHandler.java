@@ -14,8 +14,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import de.openinc.api.DataHandler;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.api.DataHandler;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.data.OpenWareValue;
@@ -98,7 +98,8 @@ public class TemplateDataHandler implements DataHandler {
 
 		} catch (Exception e) {
 			OpenWareInstance.getInstance()
-					.logTrace(this.options.get(TYPE) + "-TemplateDataHandler could not handle data from " + id);
+					.logTrace(this.options.get(TYPE) + "-TemplateDataHandler could not handle data from " +
+								id);
 			OpenWareInstance.getInstance().logDebug("TEMPLATE_DATA_HANDLER " + e.getLocalizedMessage(), e);
 			return null;
 		}
@@ -255,6 +256,12 @@ public class TemplateDataHandler implements DataHandler {
 		}
 
 		return res;
+	}
+
+	@Override
+	public boolean setOptions(JSONObject options) throws Exception {
+		// TODO Auto-generated method stub
+		return false;
 	}
 
 }

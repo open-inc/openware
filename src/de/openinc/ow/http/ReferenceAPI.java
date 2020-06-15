@@ -8,7 +8,7 @@ import java.util.Map;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import de.openinc.ow.core.api.OpenWareAPI;
+import de.openinc.api.OpenWareAPI;
 import de.openinc.ow.core.helper.HTTPResponseHelper;
 import de.openinc.ow.core.model.data.ReferenceDataItem;
 import de.openinc.ow.core.model.user.User;

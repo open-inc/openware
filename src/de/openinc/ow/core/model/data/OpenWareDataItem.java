@@ -1,43 +1,61 @@
 package de.openinc.ow.core.model.data;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import org.apache.commons.text.StringEscapeUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.api.DataHandler;
-import de.openinc.ow.core.helper.Config;
+import de.openinc.ow.core.helper.DataConversion;
 
+/**
+ * @author marti
+ *
+ */
 public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	private List<OpenWareValue> values;
 	private List<OpenWareValueDimension> valueTypes;
-
 	private boolean persist;
-	private static DataHandler jsonHandler = null;
 	private String id;
 	private String name;
 	private JSONObject meta;
 	private String user;
 	private String reference;
 
-	public OpenWareDataItem(String id, String user, String name, JSONObject meta,
+	/**
+	 * Can be used to generate OpenWareItems. Be Careful: Objects are *NOT*
+	 * immutable. If an Item is recieved via an Service (e.g. DataService) best
+	 * practice is to use clone() before altering Objects.
+	 * 
+	 * @param id
+	 *            ID of the item. It needs to be unique within the source
+	 * @param source
+	 *            Source of the item. Can be used to group items. Combination of
+	 *            Source and ID need to be globally unique.
+	 * @param name
+	 *            Human-readable name of the item.
+	 * @param meta
+	 *            Custom data that will be available within all requests. Can be
+	 *            used to store data, e.g. for 3rd party apps.
+	 * @param valueTypes
+	 *            Description of the different {@link OpenWareValueDimension}
+	 */
+	public OpenWareDataItem(String id, String source, String name, JSONObject meta,
 			List<OpenWareValueDimension> valueTypes) {
 		this.setId(id);
 		this.setName(name);
 		this.setMeta(meta);
-		this.setUser(user);
+		this.setUser(source);
 		this.valueTypes = valueTypes;
 		this.values = new ArrayList<OpenWareValue>();
 		this.persist = true;
 		this.reference = null;
-	}
-
-	public OpenWareDataItem(String id, String name, JSONObject meta, List<OpenWareValueDimension> valueTypes) {
-		this(id, Config.standardUser, name, meta, valueTypes);
 	}
 
 	public List<OpenWareValue> value() {
@@ -71,62 +89,6 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 
 	public void setPersist(boolean persist) {
 		this.persist = persist;
-	}
-
-	@Override
-	public String toString() {
-		return toJSON().toString(4);
-	}
-
-	public JSONObject toJSON() {
-		JSONObject obj = new JSONObject();
-		obj.put("id", this.getId());
-		obj.put("name", this.getName());
-		obj.put("meta", this.getMeta());
-		obj.put("user", this.getUser());
-		if (reference != null) {
-			obj.put("reference", this.getReference());
-		}
-		JSONArray parents = new JSONArray();
-
-		obj.put("parent", parents);
-		JSONArray values = new JSONArray();
-		JSONArray vtypes = new JSONArray();
-		for (OpenWareValue val : value()) {
-			JSONArray value = new JSONArray();
-			for (OpenWareValueDimension dimen : val) {
-				value.put(dimen.value());
-			}
-			JSONObject valueWithDate = new JSONObject();
-			valueWithDate.put("date", val.getDate());
-			valueWithDate.put("value", value);
-			values.put(valueWithDate);
-		}
-		for (int i = 0; i < this.valueTypes.size(); i++) {
-			JSONObject dimen = new JSONObject();
-			dimen.put("type", "Object");
-			if (valueTypes.get(i) != null) {
-				dimen.put("type", valueTypes.get(i).type());
-			}
-
-			dimen.put("name", this.getName() + "Value " +
-								i);
-			if (valueTypes.get(i) != null) {
-				dimen.put("name", valueTypes.get(i).getName());
-
-			}
-
-			dimen.put("unit", "");
-			if (valueTypes.get(i) != null) {
-				dimen.put("unit", valueTypes.get(i).getUnit());
-			}
-
-			vtypes.put(dimen);
-		}
-
-		obj.put("values", values);
-		obj.put("valueTypes", vtypes);
-		return obj;
 	}
 
 	public List<Integer> hasUnitDimension(String unit) {
@@ -322,6 +284,166 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		dim2keep.add(this.valueTypes.get(dim));
 		this.setValueTypes(dim2keep);
 		return this;
+	}
+
+	/*
+		public OpenWareValue getCurrentValueAt(long ts) {
+			ArrayList<OpenWareValue> vals = new ArrayList<>();
+			vals.addAll(this.value());
+			vals.sort(new Comparator<OpenWareValue>() {
+	
+				@Override
+				public int compare(OpenWareValue o1, OpenWareValue o2) {
+					// TODO Auto-generated method stub
+					return 0;
+				}
+			});
+	
+			int start = 0, end = vals.size();
+	
+			int ans = -1;
+			while (start <= end) {
+				int mid = (start + end) / 2;
+	
+				// Move to right side if target is  
+				// greater.  
+				if (item.value().get(mid).getDate() <= targetTS) {
+					start = mid + 1;
+				}
+	
+				// Move left side.  
+				else {
+					ans = mid;
+					end = mid - 1;
+				}
+			}
+			return ans;
+	
+		}
+	*/
+	@Override
+	public String toString() {
+		StringBuffer res = new StringBuffer("{");
+		res.append(DataConversion.getJSONPartial("id", StringEscapeUtils.escapeJava(this.id), false, true));
+		res.append(DataConversion.getJSONPartial("name", this.name, false, true));
+		res.append(DataConversion.getJSONPartial("meta", this.meta.toString(), false, false));
+		res.append(DataConversion.getJSONPartial("user", this.user, false, true));
+		if (reference != null) {
+			res.append(DataConversion.getJSONPartial("reference", this.getReference(), false, true));
+		}
+		res.append("\"valueTypes\":");
+		boolean first = true;
+		res.append("[");
+		for (OpenWareValueDimension val : this.valueTypes) {
+			if (!first) {
+				res.append(",");
+			}
+			res.append(val.toString());
+			first = false;
+		}
+		res.append("],");
+		res.append("\"values\": [");
+		first = true;
+		for (OpenWareValue val : this.values) {
+			if (!first) {
+				res.append(",");
+			}
+			res.append(val.toString());
+
+			first = false;
+		}
+		res.append("]}");
+		return res.toString();
+	}
+
+	public void streamPrint(OutputStream out) throws IOException {
+		StringBuffer res = new StringBuffer("{");
+		res.append(DataConversion.getJSONPartial("id", StringEscapeUtils.escapeJava(this.id), false, true));
+		res.append(DataConversion.getJSONPartial("name", StringEscapeUtils.escapeJava(this.name), false, true));
+		res.append(DataConversion.getJSONPartial("meta", StringEscapeUtils.escapeJava(this.meta.toString()), false,
+				false));
+		res.append(DataConversion.getJSONPartial("user", StringEscapeUtils.escapeJava(this.user), false, true));
+		if (reference != null) {
+			res.append(DataConversion.getJSONPartial("reference", StringEscapeUtils.escapeJava(this.getReference()),
+					false, true));
+		}
+		res.append("\"valueTypes\":");
+		boolean first = true;
+		res.append("[");
+		for (OpenWareValueDimension val : this.valueTypes) {
+
+			if (!first) {
+				res.append(",");
+			}
+			res.append(val.toString());
+
+			first = false;
+		}
+		res.append("],");
+		res.append("\"values\": [");
+		out.write(res.toString().getBytes());
+
+		first = true;
+		for (OpenWareValue val : this.values) {
+
+			if (!first) {
+				out.write(",".getBytes());
+			}
+			out.write(val.toString().getBytes());
+			first = false;
+		}
+		out.write("]}".getBytes());
+		out.flush();
+		out.close();
+
+	}
+
+	public JSONObject toJSON() {
+		JSONObject obj = new JSONObject();
+		obj.put("id", this.getId());
+		obj.put("name", this.getName());
+		obj.put("meta", this.getMeta());
+		obj.put("user", this.getUser());
+		if (reference != null) {
+			obj.put("reference", this.getReference());
+		}
+		JSONArray values = new JSONArray();
+		JSONArray vtypes = new JSONArray();
+		for (OpenWareValue val : value()) {
+			JSONArray value = new JSONArray();
+			for (OpenWareValueDimension dimen : val) {
+				value.put(dimen.value());
+			}
+			JSONObject valueWithDate = new JSONObject();
+			valueWithDate.put("date", val.getDate());
+			valueWithDate.put("value", value);
+			values.put(valueWithDate);
+		}
+		for (int i = 0; i < this.valueTypes.size(); i++) {
+			JSONObject dimen = new JSONObject();
+			dimen.put("type", "Object");
+			if (valueTypes.get(i) != null) {
+				dimen.put("type", valueTypes.get(i).type());
+			}
+
+			dimen.put("name", this.getName() + "Value " +
+								i);
+			if (valueTypes.get(i) != null) {
+				dimen.put("name", valueTypes.get(i).getName());
+
+			}
+
+			dimen.put("unit", "");
+			if (valueTypes.get(i) != null) {
+				dimen.put("unit", valueTypes.get(i).getUnit());
+			}
+
+			vtypes.put(dimen);
+		}
+
+		obj.put("values", values);
+		obj.put("valueTypes", vtypes);
+		return obj;
 	}
 
 }

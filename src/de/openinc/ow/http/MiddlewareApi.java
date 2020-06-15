@@ -5,14 +5,19 @@ import static spark.Spark.halt;
 import static spark.Spark.path;
 import static spark.Spark.post;
 
+import java.io.BufferedOutputStream;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.zip.GZIPOutputStream;
+
+import javax.servlet.ServletOutputStream;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import de.openinc.api.OpenWareAPI;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.api.OpenWareAPI;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.user.User;
@@ -167,13 +172,13 @@ public class MiddlewareApi implements OpenWareAPI {
 				res.type("application/json");
 				Long timestampStart = Long.valueOf(req.params("timestampStart"));
 				Long timestampEnd = Long.valueOf(req.params("timestampEnd"));
-				OpenWareDataItem items;
+				OpenWareDataItem item;
 				if (sensorid.startsWith(Config.analyticPrefix)) {
 					OpenWareInstance.getInstance().logDebug(
 							"Received analytics data request for sensor: " + sensorid +
 															" and source: " +
 															source);
-					items = AnalyticsService.getInstance().handle(source, sensorid, timestampStart, timestampEnd);
+					item = AnalyticsService.getInstance().handle(source, sensorid, timestampStart, timestampEnd);
 				} else {
 					OpenWareInstance.getInstance().logDebug(
 							"Received historical data request for sensor: " + sensorid +
@@ -181,17 +186,19 @@ public class MiddlewareApi implements OpenWareAPI {
 															source);
 					if (req.queryParams().size() > 0) {
 
-						items = DataService.getHistoricalSensorData(sensorid, source, timestampStart, timestampEnd,
+						item = DataService.getHistoricalSensorData(sensorid, source, timestampStart, timestampEnd,
 								req.queryMap());
 					} else {
-						items = DataService.getHistoricalSensorData(sensorid, source, timestampStart, timestampEnd);
+						item = DataService.getHistoricalSensorData(sensorid, source, timestampStart, timestampEnd);
 					}
 
 				}
-				if (items == null) {
+				if (item == null) {
 					return new JSONObject();
 				} else {
-					return items;
+					res.status(200);
+					streamResponse(res, item);
+					return null;
 				}
 			});
 
@@ -268,6 +275,16 @@ public class MiddlewareApi implements OpenWareAPI {
 		} else {
 			return items;
 		}
+
+	}
+
+	private void streamResponse(Response res, OpenWareDataItem item) throws IOException {
+
+		ServletOutputStream writer = res.raw().getOutputStream();
+		BufferedOutputStream bout = new BufferedOutputStream(writer);
+		GZIPOutputStream outZip = new GZIPOutputStream(bout);
+		item.streamPrint(outZip);
+		bout.flush();
 
 	}
 

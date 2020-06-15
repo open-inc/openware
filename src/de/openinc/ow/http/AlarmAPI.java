@@ -23,10 +23,11 @@ import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.async.Callback;
 import com.mashape.unirest.http.exceptions.UnirestException;
 
+import de.openinc.api.DataSubscriber;
+import de.openinc.api.OpenWareAPI;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.api.DataSubscriber;
-import de.openinc.ow.core.api.OpenWareAPI;
 import de.openinc.ow.core.helper.Config;
+import de.openinc.ow.core.helper.HTTPResponseHelper;
 import de.openinc.ow.core.helper.UsernameConverter;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.user.User;
@@ -81,7 +82,7 @@ public class AlarmAPI implements OpenWareAPI {
 
 	}
 
-	private boolean registerAlarm(User user, JSONObject parameter) {
+	private String registerAlarm(User user, JSONObject parameter) {
 
 		if (parameter != null) {
 			if (parameter.has("toNotify") && parameter.has("sensorid") && parameter.has("user")
@@ -93,11 +94,11 @@ public class AlarmAPI implements OpenWareAPI {
 					DataService.storeGenericData(ALARMS, id, parameter.toString());
 					initialAlarms.put(parameter);
 					amt.updateMonitors(initialAlarms);
-					return true;
+					return id;
 				}
 			}
 		}
-		return false;
+		return null;
 	}
 
 	private boolean deleteAlarm(String userID, String alarmid) {
@@ -134,25 +135,32 @@ public class AlarmAPI implements OpenWareAPI {
 				}
 
 				parameter.put("toNotify", userID);
-				boolean success = registerAlarm(req.session().attribute("user"), parameter);
-				if (success) {
-					res.status(200);
-					return "Successfully registered alarm";
+				String success = registerAlarm(req.session().attribute("user"), parameter);
+				if (success != null) {
+					JSONObject result = new JSONObject();
+					result.put("message", "Succesfully created Alarm");
+					result.put("id", success);
+					return HTTPResponseHelper.generateResponse(res, 200, result, null);
 				} else {
-					res.status(300);
+					JSONObject result = new JSONObject();
+					result.put("message", "Could not create Alarm");
+					return HTTPResponseHelper.generateResponse(res, 300, null, result);
 				}
 			} else {
 				parameter.put("toNotify", userID);
-				boolean success = registerAlarm(user, parameter);
-				if (success) {
-					res.status(200);
-					return "Successfully registered alarm";
+				String success = registerAlarm(user, parameter);
+				if (success != null) {
+					JSONObject result = new JSONObject();
+					result.put("message", "Succesfully created Alarm");
+					result.put("id", success);
+					return HTTPResponseHelper.generateResponse(res, 200, result, null);
 				} else {
-					res.status(300);
+					JSONObject result = new JSONObject();
+					result.put("message", "Could not create Alarm");
+					return HTTPResponseHelper.generateResponse(res, 300, null, result);
 				}
 			}
 
-			return null;
 		});
 
 		delete(ALARM_EVENT_DELETE_API, (req, res) -> {
@@ -434,7 +442,6 @@ class AlarmMonitorThread extends Thread {
 	public HashMap<String, JSONArray> updateMonitors(JSONArray alarms) {
 		this.alarms = new HashMap<String, JSONArray>();
 		for (int i = 0; i < alarms.length(); i++) {
-
 			JSONObject current = alarms.getJSONObject(i);
 			String cUser = current.getString("user");
 			String cSensor = current.getString("sensorid");
@@ -446,9 +453,7 @@ class AlarmMonitorThread extends Thread {
 				idAlarms.put(current);
 				this.alarms.put(tempIndex, idAlarms);
 			}
-
 		}
-
 		return this.alarms;
 	}
 

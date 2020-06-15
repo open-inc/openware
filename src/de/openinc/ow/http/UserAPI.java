@@ -5,7 +5,7 @@ import static spark.Spark.post;
 
 import org.json.JSONObject;
 
-import de.openinc.ow.core.api.OpenWareAPI;
+import de.openinc.api.OpenWareAPI;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.helper.HTTPResponseHelper;
 import de.openinc.ow.core.model.user.User;

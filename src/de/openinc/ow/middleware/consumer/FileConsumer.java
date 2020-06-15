@@ -53,7 +53,8 @@ class FileWatchRunner implements Runnable {
 			watcher = FileSystems.getDefault().newWatchService();
 			pathToBeWatched = new HashMap<>();
 		} catch (IOException e) {
-			OpenWareInstance.getInstance().logError(this.getClass().getName() + ":" + e.getMessage());
+			OpenWareInstance.getInstance().logError(this.getClass().getName() + ":" +
+													e.getMessage());
 			e.printStackTrace();
 		}
 
@@ -106,7 +107,9 @@ class FileWatchRunner implements Runnable {
 				Path filename = ev.context();
 				Path file = Paths.get(
 						pathToBeWatched.get(key).toFile().getAbsoluteFile() + File.separator + filename.getFileName());
-				OpenWareInstance.getInstance().logInfo("" + kind + ": " + file.toAbsolutePath().toString());
+				OpenWareInstance.getInstance().logInfo("" + kind +
+														": " +
+														file.toAbsolutePath().toString());
 				CSVFileReader csvreader = new CSVFileReader(file);
 				new Thread(csvreader).start();
 
@@ -167,7 +170,8 @@ class CSVFileReader implements Runnable {
 
 			}
 			br.close();
-			OpenWareInstance.getInstance().logInfo("File " + toRead.toAbsolutePath().toString() + " was read!");
+			OpenWareInstance.getInstance().logInfo("File " + toRead.toAbsolutePath().toString() +
+													" was read!");
 			DataService.onNewData(toRead.toAbsolutePath().toFile().getParentFile().getName(), data);
 
 		} catch (Exception e) {

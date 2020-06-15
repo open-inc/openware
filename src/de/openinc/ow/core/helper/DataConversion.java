@@ -1,25 +1,17 @@
 package de.openinc.ow.core.helper;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 
-import de.openinc.ow.analytics.model.Dataset;
-import de.openinc.ow.analytics.model.Instance;
+import de.openinc.ow.core.model.data.OpenWareDataItem;
+import de.openinc.ow.core.model.data.OpenWareNumber;
+import de.openinc.ow.core.model.data.OpenWareValue;
+import de.openinc.ow.core.model.data.OpenWareValueDimension;
 
 public class DataConversion {
-
-	public static JSONArray dataset2JSON(Dataset dataset) {
-		JSONArray res = new JSONArray();
-		for (Instance x : dataset) {
-			JSONObject obj = new JSONObject();
-			obj.put("time", x.getTime());
-			obj.put("value", x.values);
-			res.put(obj);
-		}
-		return res;
-	}
 
 	public static long floorDate(long dateInMillis) {
 		return floorDate(dateInMillis, Config.baseTimeInterval);
@@ -59,5 +51,33 @@ public class DataConversion {
 		mapping.put("BOOL", "boolean");
 
 		return mapping.get(type.toUpperCase());
+	}
+
+	public static String getJSONPartial(String key, Object value, boolean last, boolean isString) {
+		if (isString) {
+			value = "\"" + value +
+					"\"";
+		}
+		return String.format("\"%s\" : %s", key, value) + (last ? "" : ",");
+	}
+
+	public static OpenWareDataItem getNoiseData(String id, String source, String name, int nrOfVals) {
+		List<OpenWareValueDimension> valueTypes = new ArrayList<>();
+		OpenWareNumber nr = new OpenWareNumber("tste", "kmh", 5.0);
+		valueTypes.add(nr);
+
+		OpenWareDataItem item = new OpenWareDataItem(id, source, name, new JSONObject(), valueTypes);
+
+		long now = System.currentTimeMillis();
+		long initialNow = now;
+		List<OpenWareValue> vals = new ArrayList<OpenWareValue>();
+		while ((initialNow + nrOfVals) > now) {
+			OpenWareValue value = new OpenWareValue(now++);
+			value.addValueDimension(nr);
+			vals.add(value);
+		}
+		item.value(vals);
+		return item;
+
 	}
 }

@@ -4,8 +4,11 @@ import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.text.StringEscapeUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
+
+import de.openinc.ow.core.helper.DataConversion;
 
 public class OpenWareValue extends AbstractList<OpenWareValueDimension> implements Comparable<OpenWareValue> {
 
@@ -24,9 +27,14 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 
 	}
 
-	public void addValueDimension(OpenWareValueDimension value) {
-		this.value.add(value);
+	public boolean addValueDimension(OpenWareValueDimension element) {
+		return this.value.add(element);
 
+	}
+
+	@Override
+	public boolean add(OpenWareValueDimension element) {
+		return this.addValueDimension(element);
 	}
 
 	/*
@@ -150,7 +158,27 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 	}
 
 	public String toString() {
-		return this.toJSON().toString(4);
+		StringBuffer valueString = new StringBuffer("[");
+		boolean first = true;
+		for (OpenWareValueDimension dim : this) {
+			if (!first) {
+				valueString.append(",");
+
+			}
+			if (dim instanceof OpenWareString) {
+				valueString.append("\"" + dim.value() +
+									"\"");
+			} else {
+				valueString.append(dim.value());
+			}
+
+			first = false;
+		}
+		valueString.append("]");
+		return "{" + DataConversion.getJSONPartial("date", date, false, false) +
+				DataConversion.getJSONPartial("value", StringEscapeUtils.escapeJava(valueString.toString()), true,
+						false) +
+				"}";
 	}
 
 	public JSONObject toJSON() {

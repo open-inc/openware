@@ -1,4 +1,4 @@
-package de.openinc.ow.core.api;
+package de.openinc.api;
 
 import java.util.Map;
 

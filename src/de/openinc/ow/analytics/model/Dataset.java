@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.data.OpenWareNumber;
@@ -83,6 +85,17 @@ public class Dataset extends AbstractList<Instance> {
 			vals.add(val);
 		}
 		return vals;
+	}
+
+	public JSONArray dataset2JSON() {
+		JSONArray res = new JSONArray();
+		for (Instance x : this) {
+			JSONObject obj = new JSONObject();
+			obj.put("time", x.getTime());
+			obj.put("value", x.values);
+			res.put(obj);
+		}
+		return res;
 	}
 
 }

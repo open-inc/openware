@@ -6,7 +6,6 @@ import static spark.Spark.halt;
 import static spark.Spark.post;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -215,7 +214,7 @@ class AlarmMonitorThread extends Thread {
 	private HashMap<JSONObject, OpenWareDataItem> ticketProcessQueue;
 	private HashMap<String, Long> sentTS;
 	private HashMap<String, Boolean> lastEventTriggered;
-	private HashMap<String, Boolean> lastBoolReceived;
+	private HashMap<String, OpenWareDataItem> lastDataItemReceived;
 	private MailSender ms;
 
 	public AlarmMonitorThread(JSONArray alarms) {
@@ -227,7 +226,7 @@ class AlarmMonitorThread extends Thread {
 		pushProcessQueue = new HashMap<>();
 		sentTS = new HashMap<>();
 		lastEventTriggered = new HashMap<>();
-		lastBoolReceived = new HashMap<>();
+		lastDataItemReceived = new HashMap<>();
 
 	}
 
@@ -238,30 +237,26 @@ class AlarmMonitorThread extends Thread {
 			@Override
 			public void receive(OpenWareDataItem item) throws Exception {
 				if (item instanceof OpenWareDataItem) {
-					OpenWareDataItem owdi = (OpenWareDataItem) item;
+					OpenWareDataItem currentItem = (OpenWareDataItem) item;
+					OpenWareDataItem lastItem = (OpenWareDataItem) lastDataItemReceived
+							.get(currentItem.getUser() + currentItem.getId());
+
 					JSONArray alarm = alarms.get(item.getUser() + item.getId());
 					if (alarm != null && alarm.length() > 0) {
 						// Store all checked boolean indexes
-						ArrayList<Integer> boolIndexes = new ArrayList<>();
 						for (int i = 0; i < alarm.length(); i++) {
 							JSONObject currentObj = alarm.getJSONObject(i);
 							String type = currentObj.getString("type").toLowerCase();
 							boolean triggered = false;
-							if (type.equals("always")) {
+							if (type.equals("always") || type.endsWith("_always")) {
 								triggered = true;
-							}
-							if (type.equals("min") || type.equals("max") || type.equals("min-max")) {
-								triggered = checkNumeric(type, currentObj, owdi);
-							}
-							if (type.equals("boolean-rising-edge") || type.equals("boolean-falling-edge")
-									|| type.equals("boolean-rising-falling-edge")) {
-								triggered = checkBool(currentObj, owdi);
-								if (!boolIndexes.contains(currentObj.getInt("dimension")))
-									boolIndexes.add(currentObj.getInt("dimension"));
-							}
-							if (type.equals("string-equals") || type.equals("string-includes")
-									|| type.equals("string-starts-with") || type.equals("string-ends-with")) {
-								triggered = checkString(currentObj, owdi);
+							} else if (type.startsWith("number") || type.equals("min") || type.equals("max")
+									|| type.equals("min-max")) {
+								triggered = checkNumeric(currentObj, currentItem, lastItem);
+							} else if (type.startsWith("boolean")) {
+								triggered = checkBool(currentObj, currentItem, lastItem);
+							} else if (type.startsWith("string")) {
+								triggered = checkString(currentObj, currentItem, lastItem);
 							}
 
 							boolean lastEventTriggeredAlso = lastEventTriggered
@@ -275,10 +270,10 @@ class AlarmMonitorThread extends Thread {
 								if (currentObj.getBoolean("save")) {
 									JSONObject meta = new JSONObject();
 									meta.put("alarm", true);
-									OpenWareDataItem alarmItem = owdi.cloneItem();
-									alarmItem.setId(owdi.getId() + "." + currentObj.getString("alarmid"));
+									OpenWareDataItem alarmItem = currentItem.cloneItem();
+									alarmItem.setId(currentItem.getId() + "." + currentObj.getString("alarmid"));
 									alarmItem.setName("Alarm-" + currentObj.optString("name"));
-									alarmItem.value(owdi.value());
+									alarmItem.value(currentItem.value());
 									// DataService.onNewData(alarmItem);
 								}
 
@@ -288,15 +283,18 @@ class AlarmMonitorThread extends Thread {
 														.getLong("interval")));
 								// Notification needs to be send again
 								if (shouldSendAgain) {
-									String text = "Alarm " + currentObj.optString("name") + " Sensor " + owdi.getName()
-											+ " :\n" + "\nErfasste Werte:\n"
-											+ owdi.getValueTypes().get(currentObj.getInt("dimension")).getName() + ": "
-											+ owdi.value().get(0).get(currentObj.getInt("dimension")).value() + " "
-											+ owdi.getValueTypes().get(currentObj.getInt("dimension")).getUnit()
-											+ "\nZeitpunkt:" + new Date(owdi.value().get(0).getDate()).toLocaleString();
+									String text = "Alarm " + currentObj.optString("name") + " Sensor "
+											+ currentItem.getName() + " :\n" + "\nErfasste Werte:\n"
+											+ currentItem.getValueTypes().get(currentObj.getInt("dimension")).getName()
+											+ ": "
+											+ currentItem.value().get(0).get(currentObj.getInt("dimension")).value()
+											+ " "
+											+ currentItem.getValueTypes().get(currentObj.getInt("dimension")).getUnit()
+											+ "\nZeitpunkt:"
+											+ new Date(currentItem.value().get(0).getDate()).toLocaleString();
 									;
-									OpenWareDataItem notifyItem = owdi.cloneItem();
-									notifyItem.value(owdi.value());
+									OpenWareDataItem notifyItem = currentItem.cloneItem();
+									notifyItem.value(currentItem.value());
 
 									String title = "Alarm - " + currentObj.optString("name");
 									notifyItem.getMeta().put("alarmTitle", title);
@@ -328,11 +326,7 @@ class AlarmMonitorThread extends Thread {
 
 						}
 						// Update Bools and clear list
-						for (int dim : boolIndexes) {
-							lastBoolReceived.put(owdi.getUser() + owdi.getId(),
-									(boolean) owdi.value().get(0).get(dim).value());
-						}
-						boolIndexes.clear();
+						lastDataItemReceived.put(currentItem.getUser() + currentItem.getId(), currentItem);
 					}
 
 				}
@@ -366,67 +360,111 @@ class AlarmMonitorThread extends Thread {
 		this.RUNNING = false;
 	}
 
-	private boolean checkNumeric(String type, JSONObject currentObj, OpenWareDataItem owdi) {
-		boolean underMin = false;
-		boolean overMax = false;
-		double toCheck = (double) owdi.value().get(0).get(currentObj.getInt("dimension")).value();
+	private boolean checkNumeric(JSONObject currentObj, OpenWareDataItem currentItem, OpenWareDataItem lastItem) {
+		double currentValue = (double) currentItem.value().get(0).get(currentObj.getInt("dimension")).value();
+		double lastValue = (double) lastItem.value().get(0).get(currentObj.getInt("dimension")).value();
+
+		double value = currentObj.has("value") && !currentObj.get("value").equals(JSONObject.NULL)
+				? currentObj.getDouble("value")
+				: Double.MIN_VALUE;
+
 		double min = currentObj.has("min") && !currentObj.get("min").equals(JSONObject.NULL)
 				? currentObj.getDouble("min")
 				: Double.MIN_VALUE;
-		underMin = toCheck < min;
+
 		double max = currentObj.has("max") && !currentObj.get("max").equals(JSONObject.NULL)
 				? currentObj.getDouble("max")
 				: Double.MAX_VALUE;
-		overMax = toCheck > max;
-		switch (type.toLowerCase()) {
-			case "min": {
-				return underMin;
-			}
 
-			case "max": {
-				return overMax;
-			}
-			default:
-				// min-max
-				return underMin || overMax;
-		}
-	}
-
-	private boolean checkString(JSONObject currentObj, OpenWareDataItem owdi) {
-		if (!currentObj.has("string_match"))
-			return false;
-		String match = owdi.value().get(0).get(currentObj.getInt("dimension")).value().toString().toLowerCase();
-		String val = currentObj.optString("string_match").toLowerCase();
 		switch (currentObj.getString("type")) {
-			case "string-equals":
-				return match.equals(val);
-			case "string-includes":
-				return match.indexOf(val) > -1;
-			case "string-starts-with":
-				return match.startsWith(val);
-			case "string-ends-with":
-				return match.endsWith(val);
+			case "number_change":
+				return currentValue != lastValue;
+			case "number_equals":
+				return currentValue == value;
+			case "number_equals_not":
+				return currentValue != value;
+			case "number_in_range":
+				return currentValue > min && currentValue < max;
+			case "number_out_of_range":
+			case "min-max":
+				return currentValue < min || currentValue > max;
+			case "min":
+			case "number_lt":
+				return currentValue < min;
+			case "max":
+			case "number_gt":
+				return currentValue > max;
 			default:
 				return false;
 		}
 	}
 
-	private boolean checkBool(JSONObject currentObj, OpenWareDataItem owdi) {
-		boolean newVal;
-		boolean lastVal = lastBoolReceived.getOrDefault(owdi.getUser() + owdi.getId(), false);
+	private boolean checkString(JSONObject currentObj, OpenWareDataItem currentItem, OpenWareDataItem lastItem) {
+		if (!currentObj.has("string_match"))
+			return false;
+
+		String currentValue = currentItem.value().get(0).get(currentObj.getInt("dimension")).value().toString()
+				.toLowerCase();
+		String lastValue = lastItem.value().get(0).get(currentObj.getInt("dimension")).value().toString().toLowerCase();
+		String match = currentObj.optString("string_match").toLowerCase();
+
+		switch (currentObj.getString("type")) {
+			case "string_change":
+				return !currentValue.equals(lastValue);
+			case "string_equals":
+			case "string-equals":
+				return currentValue.equals(match);
+			case "string-equals-not":
+			case "string_equals_not":
+				return !currentValue.equals(match);
+			case "string-includes":
+			case "string_includes":
+				return currentValue.indexOf(match) > -1;
+			case "string-includes-not":
+			case "string_includes_not":
+				return currentValue.indexOf(match) == -1;
+			case "string-starts-with":
+			case "string_starts_with":
+				return currentValue.startsWith(match);
+			case "string-starts-with-not":
+			case "string_starts_with_not":
+				return !currentValue.startsWith(match);
+			case "string-ends-with":
+			case "string_ends_with":
+				return currentValue.endsWith(match);
+			case "string-ends-with-not":
+			case "string_ends_with_not":
+				return !currentValue.endsWith(match);
+			default:
+				return false;
+		}
+	}
+
+	private boolean checkBool(JSONObject currentObj, OpenWareDataItem currentItem, OpenWareDataItem lastItem) {
+		boolean currentValue;
+		boolean lastValue;
+
 		try {
-			newVal = (boolean) owdi.value().get(0).get(currentObj.getInt("dimension")).value();
+			currentValue = (boolean) currentItem.value().get(0).get(currentObj.getInt("dimension")).value();
+			lastValue = (boolean) lastItem.value().get(0).get(currentObj.getInt("dimension")).value();
 		} catch (ClassCastException e) {
 			return false;
 		}
 
 		switch (currentObj.getString("type")) {
+			case "boolean_true":
+				return currentValue;
+			case "boolean_false":
+				return !currentValue;
 			case "boolean-rising-edge":
-				return !lastVal && newVal;
+			case "boolean_rising_edge":
+				return !lastValue && currentValue;
 			case "boolean-falling-edge":
-				return lastVal && !newVal;
+			case "boolean_falling_edge":
+				return lastValue && !currentValue;
+			case "boolean_change":
 			case "boolean-rising-falling-edge":
-				return lastVal != newVal;
+				return lastValue != currentValue;
 			default:
 				return false;
 		}

@@ -4,6 +4,6 @@ import de.openinc.ow.core.model.data.OpenWareDataItem;
 
 public interface DataSubscriber {
 
-	public void receive(OpenWareDataItem item) throws Exception;
+	public void receive(OpenWareDataItem oldItem, OpenWareDataItem newItem) throws Exception;
 
 }

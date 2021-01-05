@@ -21,11 +21,11 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 
 	}
 
-	public OpenWareValue(long date, int initialDimensions) {
-		this.date = date;
-		this.value = new ArrayList<OpenWareValueDimension>(initialDimensions);
-
-	}
+	//	public OpenWareValue(long date, int initialDimensions) {
+	//		this.date = date;
+	//		this.value = new ArrayList<OpenWareValueDimension>(initialDimensions);
+	//
+	//	}
 
 	public boolean addValueDimension(OpenWareValueDimension element) {
 		return this.value.add(element);
@@ -166,7 +166,7 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 
 			}
 			if (dim instanceof OpenWareString) {
-				valueString.append("\"" + dim.value() +
+				valueString.append("\"" +	StringEscapeUtils.escapeJava((String) dim.value()) +
 									"\"");
 			} else {
 				valueString.append(dim.value());
@@ -175,8 +175,8 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 			first = false;
 		}
 		valueString.append("]");
-		return "{" + DataConversion.getJSONPartial("date", date, false, false) +
-				DataConversion.getJSONPartial("value", StringEscapeUtils.escapeJava(valueString.toString()), true,
+		return "{" +	DataConversion.getJSONPartial("date", date, false, false) +
+				DataConversion.getJSONPartial("value", valueString.toString(), true,
 						false) +
 				"}";
 	}

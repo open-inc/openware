@@ -1,5 +1,7 @@
 package de.openinc.ow.core.model.data;
 
+import static de.openinc.ow.core.helper.DataConversion.cleanAndValidate;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -12,10 +14,12 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.helper.DataConversion;
+import de.openinc.ow.core.helper.DataConversion;;
 
 /**
- * @author marti
+ * Basic data structure of the open.WARE Middleware
+ * 
+ * @author open.INC
  *
  */
 public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
@@ -56,6 +60,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		this.values = new ArrayList<OpenWareValue>();
 		this.persist = true;
 		this.reference = null;
+
 	}
 
 	public List<OpenWareValue> value() {
@@ -88,6 +93,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	}
 
 	public void setPersist(boolean persist) {
+		this.meta.put("persist", persist);
 		this.persist = persist;
 	}
 
@@ -163,7 +169,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	}
 
 	public int compareTo(OpenWareDataItem o) {
-		return this.getId().compareTo(o.getId());
+		return (this.getUser() + this.getId()).compareTo(o.getUser() + o.getId());
 	}
 
 	@Override
@@ -187,18 +193,38 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 			ArrayList<OpenWareValueDimension> valueTypes = new ArrayList<>();
 			JSONArray vTypes = jobj.getJSONArray("valueTypes");
 			for (int i = 0; i < vTypes.length(); i++) {
-				valueTypes.add(OpenWareValueDimension.createNewDimension(vTypes.getJSONObject(i).getString("name"),
-						vTypes.getJSONObject(i).optString("unit"), vTypes.getJSONObject(i).getString("type")));
+				valueTypes.add(OpenWareValueDimension.createNewDimension(
+						cleanAndValidate(vTypes.getJSONObject(i).getString("name")),
+						cleanAndValidate(vTypes.getJSONObject(i).optString("unit")),
+						cleanAndValidate(vTypes.getJSONObject(i).getString("type"))));
 
 			}
+
 			if (jobj.has("annotations")) {
 				jobj.getJSONObject("meta").put("annotations", jobj.get("annotations"));
 			}
+			String source;
+			if (jobj.has("source")) {
+				source = cleanAndValidate(jobj.getString("source"));
+			} else {
+				source = cleanAndValidate(jobj.getString("user"));
+			}
 
-			OpenWareDataItem item = new OpenWareDataItem(jobj.getString("id"), jobj.getString("user"),
-					jobj.getString("name"), jobj.getJSONObject("meta"), valueTypes);
+			JSONObject meta;
+			boolean persist = true;
+			if (jobj.has("meta")) {
+				meta = jobj.getJSONObject("meta");
+				if (meta.has("persist")) {
+					persist = meta.optBoolean("persist");
+				}
+			} else {
+				meta = new JSONObject();
+			}
+			OpenWareDataItem item = new OpenWareDataItem(cleanAndValidate(jobj.getString("id")), source,
+					cleanAndValidate(jobj.getString("name")), meta, valueTypes);
+			item.setPersist(persist);
 			if (jobj.has("reference")) {
-				item.setReference(jobj.getString("reference"));
+				item.setReference(cleanAndValidate(jobj.getString("reference")));
 			}
 
 			ArrayList<OpenWareValue> owvalues = new ArrayList<>();
@@ -226,7 +252,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 			item.value(owvalues);
 			return item;
 		} catch (JSONException e) {
-			OpenWareInstance.getInstance().logTrace("Error while Parsing JSON: " + e.getMessage() +
+			OpenWareInstance.getInstance().logTrace("Error while Parsing JSON: " +	e.getMessage() +
 													"\n" +
 													jobj.toString(2));
 			return null;
@@ -360,7 +386,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		StringBuffer res = new StringBuffer("{");
 		res.append(DataConversion.getJSONPartial("id", StringEscapeUtils.escapeJava(this.id), false, true));
 		res.append(DataConversion.getJSONPartial("name", StringEscapeUtils.escapeJava(this.name), false, true));
-		res.append(DataConversion.getJSONPartial("meta", StringEscapeUtils.escapeJava(this.meta.toString()), false,
+		res.append(DataConversion.getJSONPartial("meta", this.meta.toString(), false,
 				false));
 		res.append(DataConversion.getJSONPartial("user", StringEscapeUtils.escapeJava(this.user), false, true));
 		if (reference != null) {
@@ -426,7 +452,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 				dimen.put("type", valueTypes.get(i).type());
 			}
 
-			dimen.put("name", this.getName() + "Value " +
+			dimen.put("name", this.getName() +	"Value " +
 								i);
 			if (valueTypes.get(i) != null) {
 				dimen.put("name", valueTypes.get(i).getName());
@@ -444,6 +470,52 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		obj.put("values", values);
 		obj.put("valueTypes", vtypes);
 		return obj;
+	}
+
+	/**
+	 * Will compare the last value(s) of this item with the last value of
+	 * {@code newValue}
+	 * 
+	 * @param newValue
+	 *            The new {@link OpenWareDataItem} whose values will be compared to
+	 *            this item's values
+	 * @param threshold
+	 *            A threshold in milliseconds which will additionally be checked to
+	 *            invalidate equality if {@code newValue} is much newer then this
+	 *            value
+	 * @return true if values are equal or time between values is over threshold.
+	 *         Otherwise false
+	 */
+	public boolean equalsLastValue(OpenWareDataItem newValue, long threshold) {
+		if (this.valueTypes.size() == newValue.valueTypes.size()) {
+			for (int i = 0; i < this.value().get(0).size(); i++) {
+				boolean equal = this.value().get(0).get(i).value().equals(newValue.value().get(0).get(i).value());
+				boolean toOld = (newValue.value().get(0).getDate() - this.value().get(0).getDate()) > threshold;
+				if (!equal || toOld) {
+					return false;
+				}
+			}
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Will compare the last value(s) of this item with the last value of
+	 * {@code newValue}
+	 * 
+	 * @param newValue
+	 *            The new {@link OpenWareDataItem} whose values will be compared to
+	 *            this items values
+	 * @return true if values are equal otherwise false
+	 */
+	public boolean equalsLastValue(OpenWareDataItem newValue) {
+		return equalsLastValue(newValue, Long.MAX_VALUE);
+	}
+
+	public OpenWareValueDimension newValueForDimension(int dim, Object value) {
+		return this.getValueTypes().get(dim).createValueForDimension(value);
+
 	}
 
 }

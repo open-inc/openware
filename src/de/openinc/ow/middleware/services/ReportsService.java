@@ -69,7 +69,7 @@ public class ReportsService {
 			if (!(o instanceof ReportInterface))
 				return null;
 			clazz = (ReportInterface) o;
-			clazz.init(parameter);
+			clazz.init(parameter, user);
 		} catch (Exception e1) {
 			OpenWareInstance.getInstance().logError("Error while handling report", e1);// TODO Auto-generated catch block
 
@@ -82,7 +82,7 @@ public class ReportsService {
 				OpenWareDataItem item = it.next();
 				if (!user.canAccessRead(item.getUser(), item.getId())) {
 					OpenWareInstance.getInstance()
-							.logError(user.getName() + "tried to access data without permission:" +
+							.logError(user.getName() +	"tried to access data without permission:" +
 										item.getUser() +
 										":" +
 										item.getId());
@@ -94,7 +94,7 @@ public class ReportsService {
 		try {
 			clazz.generate(out, data);
 		} catch (Exception e) {
-			OpenWareInstance.getInstance().logError("Report generation error:\n" + clazz.getClass().toString() +
+			OpenWareInstance.getInstance().logError("Report generation error:\n" +	clazz.getClass().toString() +
 													"\n",
 					e);
 			return null;

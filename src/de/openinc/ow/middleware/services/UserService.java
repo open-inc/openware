@@ -41,16 +41,16 @@ public class UserService {
 		return adapter.login(user, pw);
 	}
 
-	public boolean storeData(String session, String key, String value) {
+	public boolean storeData(String session, JSONObject data) {
 		if (adapter == null)
 			return false;
-		return adapter.storeData(session, key, value);
+		return adapter.storeOptionalData(session, data);
 	}
 
-	public String readData(String session, String key) {
+	public JSONObject readData(String session) {
 		if (adapter == null)
 			return null;
-		return adapter.readData(session, key);
+		return adapter.readOptionalData(session);
 	}
 
 	public boolean logout(String session) {
@@ -74,9 +74,17 @@ public class UserService {
 		return adapter.getAllUsers();
 	}
 
-	public User getUser(String name) {
+	public User getUserByUsername(String name) {
 		for (User user : getActiveUsers()) {
 			if (user.getName().equals(name))
+				return user;
+		}
+		return null;
+	}
+
+	public User getUserByUID(String uid) {
+		for (User user : getActiveUsers()) {
+			if (user.getUID().equals(uid))
 				return user;
 		}
 		return null;

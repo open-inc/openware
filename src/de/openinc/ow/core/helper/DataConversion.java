@@ -6,12 +6,15 @@ import java.util.List;
 
 import org.json.JSONObject;
 
+import com.google.common.base.CharMatcher;
+
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.data.OpenWareNumber;
 import de.openinc.ow.core.model.data.OpenWareValue;
 import de.openinc.ow.core.model.data.OpenWareValueDimension;
 
 public class DataConversion {
+	private static CharMatcher isoMatcher = CharMatcher.javaIsoControl();
 
 	public static long floorDate(long dateInMillis) {
 		return floorDate(dateInMillis, Config.baseTimeInterval);
@@ -55,7 +58,7 @@ public class DataConversion {
 
 	public static String getJSONPartial(String key, Object value, boolean last, boolean isString) {
 		if (isString) {
-			value = "\"" + value +
+			value = "\"" +	value +
 					"\"";
 		}
 		return String.format("\"%s\" : %s", key, value) + (last ? "" : ",");
@@ -79,5 +82,9 @@ public class DataConversion {
 		item.value(vals);
 		return item;
 
+	}
+
+	public static String cleanAndValidate(String s) {
+		return isoMatcher.removeFrom(s);
 	}
 }

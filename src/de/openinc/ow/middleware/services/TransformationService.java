@@ -3,6 +3,7 @@ package de.openinc.ow.middleware.services;
 import java.util.HashMap;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import de.openinc.api.TransformationOperation;
@@ -78,21 +79,38 @@ public class TransformationService {
 	 *            during each stage
 	 * @param optionalData
 	 *            Optional initial Data that will be passed into first stage
-	 * @param stages
-	 *            JSON description of the stages
-	 * @return The result of the pipe as
-	 *         {@link de.openinc.ow.core.model.data.OpenWareDataItem}
+	 * @param options
+	 *            JSON object including of the an array named "stages", which
+	 *            describes which operation to perform, an number value "start" and
+	 *            "end" which represent hold an unix timestamp in milliseconds
+	 *            indicating the optional start/end of the period the operations
+	 *            should be performed with.
+	 * @return The result of the pipe as {@link OpenWareDataItem}
 	 */
 	public OpenWareDataItem pipeOperations(User user, OpenWareDataItem optionalData, JSONObject options)
 			throws Exception {
 		OpenWareDataItem tempItem = null;
 		JSONArray stages = options.getJSONArray("stages");
+		Long start = null;
+		Long end = null;
+		try {
+			start = options.getLong("start");
+			end = options.getLong("end");
+		} catch (JSONException e) {
+			start = null;
+			end = null;
+		}
+
 		for (int i = 0; i < stages.length(); i++) {
 			TransformationOperation op = TransformationService.getInstance()
 					.getOperation(stages.getJSONObject(i).getString("action"));
 			if (op == null) {
 				throw new IllegalArgumentException("Unkown operation " + stages.getJSONObject(i).getString("action"));
 
+			}
+			if (start != null) {
+				op.setStart(start);
+				op.setEnd(end);
 			}
 			tempItem = op.process(user, tempItem, stages.getJSONObject(i).getJSONObject("params"));
 			if (tempItem == null) {

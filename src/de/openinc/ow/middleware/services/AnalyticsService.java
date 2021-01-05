@@ -55,7 +55,7 @@ public class AnalyticsService {
 			data.add(me.handle(owner, analItem.getMeta().getString("sensor")));
 		} else {
 			if (Config.accessControl) {
-				if (!UserService.getInstance().getUser(user).canAccessRead(owner, sensorToAccess))
+				if (!UserService.getInstance().getUserByUsername(user).canAccessRead(owner, sensorToAccess))
 					return null;
 			}
 			data.add(DataService.getLiveSensorData(sensorToAccess, owner));
@@ -82,7 +82,7 @@ public class AnalyticsService {
 					data.add(me.handle(user, sensorToAccess, start, end));
 				} else {
 					if (Config.accessControl) {
-						if (!UserService.getInstance().getUser(user).canAccessRead(owner, sensorToAccess))
+						if (!UserService.getInstance().getUserByUsername(user).canAccessRead(owner, sensorToAccess))
 							return null;
 					}
 					OpenWareDataItem dataItem = DataService.getHistoricalSensorData(sensorToAccess, owner, start, end);

@@ -28,6 +28,7 @@ import org.apache.log4j.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import de.openinc.api.ActuatorAdapter;
 import de.openinc.api.AnalyticSensorProvider;
 import de.openinc.api.AnalyticsProvider;
 import de.openinc.api.DataHandler;
@@ -250,7 +251,7 @@ public class OpenWareInstance {
 		//System.out.println(zone.getDisplayName());
 		//System.out.println(zone.getID());
 		if (Config.enableWebserver) {
-			logInfo("Initializing open.WARE v" + OpenWareInstance.getInstance().VERSION +
+			logInfo("Initializing open.WARE v" +	OpenWareInstance.getInstance().VERSION +
 					" on port " +
 					Config.sparkPort);
 			port(Integer.valueOf(Config.sparkPort));
@@ -390,7 +391,7 @@ public class OpenWareInstance {
 				details.put("url", req.url());
 				details.put("user", uInfo);
 
-				OpenWareInstance.getInstance().logError("Error on " + req.url() +
+				OpenWareInstance.getInstance().logError("Error on " +	req.url() +
 														": " +
 														e.getLocalizedMessage() +
 														"\n" +
@@ -502,6 +503,7 @@ public class OpenWareInstance {
 		loadReportTypes();
 		loadTransformationOperations();
 		loadDataHandler();
+		loadActuators();
 
 	}
 
@@ -517,8 +519,7 @@ public class OpenWareInstance {
 
 						@Override
 						public boolean unload() throws Exception {
-							DataService.removeHandler(handler);
-							return true;
+							return DataService.removeHandler(handler) != null;
 						}
 
 						@Override
@@ -526,6 +527,7 @@ public class OpenWareInstance {
 							if (prevInstance != null) {
 								DataService.removeHandler((DataHandler) prevInstance);
 							}
+							handler.setOptions(options);
 							DataService.addHandler(handler);
 							logInfo(handler.getClass().getCanonicalName() + " loaded!");
 							return handler;
@@ -572,6 +574,39 @@ public class OpenWareInstance {
 					anOperation.load(null);
 				} catch (Exception e) {
 					logError("Could not load TransformationOperation " + anOperation.getClass().getCanonicalName(), e);
+				}
+			}
+		}
+	}
+
+	private void loadActuators() {
+		logInfo("------- 		Loading Actuators 		------");
+		ServiceLoader<ActuatorAdapter> loader = ServiceLoader.load(ActuatorAdapter.class);
+		Iterator<ActuatorAdapter> it = loader.iterator();
+		while (it.hasNext()) {
+			ActuatorAdapter actor = it.next();
+			OWService anActuator = new OWService(actor.getClass().getCanonicalName(), actor,
+					new OWServiceActivator() {
+
+						@Override
+						public boolean unload() throws Exception {
+							DataService.remove(actor);
+							return true;
+						}
+
+						@Override
+						public Object load(Object prevInstance, JSONObject options) throws Exception {
+							actor.init(options);
+							DataService.addActuator(actor);
+							logInfo(actor.getClass().getCanonicalName() + " loaded!");
+							return actor;
+						}
+					});
+			if (!anActuator.isDeactivated()) {
+				try {
+					anActuator.load(null);
+				} catch (Exception e) {
+					logError("Could not load Actuator " + anActuator.getClass().getCanonicalName(), e);
 				}
 			}
 		}

@@ -13,9 +13,9 @@ public interface UserAdapter {
 
 	public User login(String user, String pw);
 
-	public boolean storeData(String session, String key, String value);
+	public boolean storeOptionalData(String session, JSONObject data);
 
-	public String readData(String session, String key);
+	public JSONObject readOptionalData(String session);
 
 	public boolean logout(String session);
 

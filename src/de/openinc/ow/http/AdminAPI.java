@@ -14,7 +14,6 @@ import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.helper.HTTPResponseHelper;
 import de.openinc.ow.core.model.user.User;
 import de.openinc.ow.middleware.services.DataService;
-import de.openinc.ow.middleware.services.ServiceRegistry;
 
 public class AdminAPI implements OpenWareAPI {
 	/**
@@ -108,7 +107,6 @@ public class AdminAPI implements OpenWareAPI {
 			});
 
 			get(GET_STATS, (req, res) -> {
-				ServiceRegistry.getInstance().getService("de.openinc.owee.datahandler.IoTGatewayHandler").unload();
 				return HTTPResponseHelper.generateResponse(res, 200, OpenWareInstance.getInstance().getState(), null);
 
 			});

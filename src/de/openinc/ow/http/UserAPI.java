@@ -36,7 +36,7 @@ public class UserAPI implements OpenWareAPI {
 		String key = request.params("oid");
 		switch (op) {
 		case OPERATION_DATA: {
-			boolean success = UserService.getInstance().storeData(header, key, parameter.getString("value"));
+			boolean success = UserService.getInstance().storeData(header, parameter);
 			if (success) {
 				response.status(200);
 				return "Successfully saved value";
@@ -139,7 +139,7 @@ public class UserAPI implements OpenWareAPI {
 		String header = request.headers(OD_SESSION);
 		switch (op) {
 		case OPERATION_DATA: {
-			String value = UserService.getInstance().readData(header, key);
+			JSONObject value = UserService.getInstance().readData(header);
 			if (value != null) {
 				response.status(200);
 				return value;
@@ -161,17 +161,15 @@ public class UserAPI implements OpenWareAPI {
 		get(USER_API, (req, res) -> {
 			return handleUserGet(req, res);
 		});
-		/*
-		post(Constants.USER_API,(req,res)->{
-			return handlePostData(req, res);
-		});
-		*/
+
 		get(USER_API_OBJECT, (req, res) -> {
 			return handleSpecifcDataGet(req, res);
 		});
+
 		post(USER_API_OBJECT, (req, res) -> {
 			return handlePostData(req, res);
 		});
+
 		get(USER_API_ACCESS_OBJECT, (req, res) -> {
 			return handleUserGet(req, res);
 		});

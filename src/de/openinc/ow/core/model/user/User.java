@@ -10,14 +10,14 @@ public class User {
 	private String name;
 	private String email;
 	private String session;
-	private String data;
+	private JSONObject data;
 	private HashSet<Role> roles;
 	private boolean selfPermission;
 	private boolean allAccess;
 	private AccessPermission permissions;
 	private String uid;
 
-	public User(String name, String email, String session, String data, boolean selfPermission, boolean allAccess) {
+	public User(String name, String email, String session, JSONObject data, boolean selfPermission, boolean allAccess) {
 		this.name = name;
 		this.email = email;
 		this.session = session;
@@ -36,7 +36,7 @@ public class User {
 		this.roles = roles;
 	}
 
-	public User(String name, String email, String session, String data) {
+	public User(String name, String email, String session, JSONObject data) {
 		this(name, email, session, data, true, false);
 	}
 
@@ -46,7 +46,7 @@ public class User {
 
 	public void setName(String name) {
 		if (selfPermission) {
-			permissions.changeOwnerOfPermission(getName(), name);
+			permissions.changeSourceOfPermission(getName(), name);
 		}
 		this.name = name;
 	}
@@ -67,11 +67,11 @@ public class User {
 		this.session = session;
 	}
 
-	public String getData() {
+	public JSONObject getData() {
 		return data;
 	}
 
-	public void setData(String data) {
+	public void setData(JSONObject data) {
 		this.data = data;
 	}
 

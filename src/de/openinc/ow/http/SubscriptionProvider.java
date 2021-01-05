@@ -37,7 +37,7 @@ public class SubscriptionProvider {
 		ds = new DataSubscriber() {
 
 			@Override
-			public void receive(OpenWareDataItem item) throws Exception {
+			public void receive(OpenWareDataItem old, OpenWareDataItem item) throws Exception {
 				if (sessions.containsKey(item.getUser() + item.getId())) {
 					HashMap<String, List<Session>> tempSession = new HashMap<>();
 					tempSession.putAll(sessions);

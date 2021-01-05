@@ -6,10 +6,11 @@ import java.util.List;
 import org.json.JSONObject;
 
 import de.openinc.ow.core.model.data.OpenWareDataItem;
+import de.openinc.ow.core.model.user.User;
 
 public abstract class ReportInterface {
 
-	public abstract void init(JSONObject options) throws Exception;
+	public abstract void init(JSONObject options, User user) throws Exception;
 
 	public abstract String getTitle();
 

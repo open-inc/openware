@@ -46,6 +46,10 @@ import spark.QueryParamsMap;
  * @author marti
  *
  */
+/**
+ * @author marti
+ *
+ */
 public class DataService {
 
 	private static PersistenceAdapter adapter = null;
@@ -171,42 +175,54 @@ public class DataService {
 							+ item.getMeta().getString("id_source"),
 					item.toString());
 			//Get current Item to upadte the configuration immediately
-			OpenWareDataItem cItem = DataService.getLiveSensorData(item.getId(), item.getUser());
-			if (cItem == null) {
-				//No current item. ID or Source has been customized. Retrieve source item
-				cItem = DataService.getLiveSensorData(item.getMeta().getString("id_source"),
-						item.getMeta().getString("source_source"));
-			}
+			refreshConfigurationOfItem(item);
 
-			if (cItem == null) {
-				//Nothing to update, as source Item also does not exist...
-				continue;
-			}
-			OpenWareDataItem clonedConf = item.cloneItem();
-			clonedConf.value().clear();
-			clonedConf.value(cItem.value());
-			setCurrentItem(clonedConf);
 		}
 
 		return true;
 	}
 
+	private static void refreshConfigurationOfItem(OpenWareDataItem item) {
+		OpenWareDataItem cItem = DataService.getLiveSensorData(item.getId(), item.getUser());
+		if (cItem == null) {
+			//No current item. ID or Source has been customized. Retrieve source item
+			String source_source = item.getMeta().optString("source_source");
+			String id_source = item.getMeta().optString("id_source");
+			if (source_source.equals("") || id_source.equals("")) {
+				OpenWareInstance.getInstance()
+						.logWarn("Malformed configuration in item:\n" + item.toJSON().toString(2));
+				return;
+			}
+			cItem = DataService.getLiveSensorData(id_source, source_source);
+			cItem = applyItemConfiguration(cItem);
+		}
+
+		if (cItem == null) {
+			//Nothing to update, as source Item also does not exist...
+			return;
+		}
+		OpenWareDataItem clonedConf = item.cloneItem();
+		clonedConf.value().clear();
+		clonedConf.value(cItem.value());
+		setCurrentItem(clonedConf);
+	}
+
 	/**
 	 * @param user
 	 *            User used to check authorization. Needs write Access
-	 * @param owner
+	 * @param source_source
 	 *            The original source field of the OpenWareDataItem
 	 *            (Pre-configuration)
 	 * @param sensorid_source
 	 *            The original id of the OpenWareDataItem (Pre-configuration)
 	 * @return True, if configuration was deleted
 	 */
-	public static boolean deleteItemConfig(User user, String owner, String sensorid_source) {
-		if (!user.canAccessWrite(owner, sensorid_source)) {
+	public static boolean deleteItemConfig(User user, String source_source, String sensorid_source) {
+		if (!user.canAccessWrite(source_source, sensorid_source)) {
 			return false;
 		}
-		DataService.removeGenericData(CONFIG_STORE_TYPE, owner + Config.idSeperator + sensorid_source);
-		OpenWareDataItem deleted = itemConfigs.remove(owner + Config.idSeperator + sensorid_source);
+		DataService.removeGenericData(CONFIG_STORE_TYPE, source_source + Config.idSeperator + sensorid_source);
+		OpenWareDataItem deleted = itemConfigs.remove(source_source + Config.idSeperator + sensorid_source);
 		return deleted != null;
 	}
 
@@ -236,7 +252,7 @@ public class DataService {
 		String id_source = item.getMeta().getString("id_source");
 
 		if (!user.canAccessWrite(owner, id_source)) {
-			throw new SecurityException("No Permission to configure item " + owner +
+			throw new SecurityException("No Permission to configure item " +	owner +
 										Config.idSeperator +
 										id_source);
 		}
@@ -251,10 +267,12 @@ public class DataService {
 			if (source_source.equals("")) {
 				source_source = o.getString("user");
 			}
+			OpenWareDataItem configItem = OpenWareDataItem.fromJSON(o.toString());
 			itemConfigs.put(
 					source_source + Config.idSeperator
 							+ o.getJSONObject("meta").getString("id_source"),
-					OpenWareDataItem.fromJSON(o.toString()));
+					configItem);
+			refreshConfigurationOfItem(configItem);
 		}
 	}
 
@@ -280,7 +298,7 @@ public class DataService {
 					continue;
 			}
 			res.put(source + Config.idSeperator + id, item);
-			String[] temp = DataService.getGenericData(CONFIG_STORE_TYPE, item.getUser() + Config.idSeperator + id);
+			String[] temp = DataService.getGenericData(CONFIG_STORE_TYPE, source + Config.idSeperator + id);
 			if (temp != null && temp.length > 0) {
 				OpenWareDataItem custom = OpenWareDataItem.fromJSON(temp[0]);
 				if (!custom.getMeta().has("source_source")) {
@@ -297,8 +315,8 @@ public class DataService {
 		String sourceID = toTest.getMeta().getString("id_source");
 		String sourceSource = toTest.getMeta().optString("source_source").equals("") ? toTest.getUser()
 				: toTest.getMeta().optString("source_source");
-		String currentID = itemConfigs.get(sourceSource + Config.idSeperator + sourceID).getId();
-		return sourceID.equals(currentID);
+		OpenWareDataItem currentConfiged = itemConfigs.get(sourceSource + Config.idSeperator + sourceID);
+		return toTest.equals(currentConfiged);
 	}
 
 	/**
@@ -325,7 +343,18 @@ public class DataService {
 	 *         was no mapping for the ID
 	 */
 	public static ActuatorAdapter addActuator(ActuatorAdapter aa) {
-		return actuators.put(aa.getID(), aa);
+		return actuators.put(aa.getType(), aa);
+	}
+
+	/**
+	 * Retrieves an actuator
+	 * 
+	 * @param id
+	 *            The id of the actuator
+	 * @return the actuator associated with the {@code id}
+	 */
+	public static ActuatorAdapter getActuator(String id) {
+		return actuators.get(id);
 	}
 
 	/**
@@ -336,7 +365,7 @@ public class DataService {
 	 * @return The removed Actuator
 	 */
 	public static ActuatorAdapter remove(ActuatorAdapter aa) {
-		return actuators.remove(aa.getID());
+		return actuators.remove(aa.getType());
 	}
 
 	/**
@@ -392,14 +421,25 @@ public class DataService {
 		return ConcurrentUtils.constantFuture(false);
 	}
 
+	public static Future<Boolean> onNewData(OpenWareDataItem item) {
+		try {
+			if (item != null) {
+				return pool.submit(new DataProcessTask(item));
+			}
+		} catch (Exception e) {
+			OpenWareInstance.getInstance().logError("Exception while processing new Data \n", e);
+		}
+		return ConcurrentUtils.constantFuture(false);
+	}
+
 	protected static List<DataHandler> getHandler() {
 		return handler;
 	}
 
-	protected static void notifySubscribers(OpenWareDataItem item) {
+	protected static void notifySubscribers(OpenWareDataItem old, OpenWareDataItem newitem) {
 		for (DataSubscriber ds : subscriptions) {
 			try {
-				ds.receive(item);
+				ds.receive(old, newitem);
 			} catch (Exception e) {
 				OpenWareInstance.getInstance().logError("Subscriber Error: " + e.getMessage(), e);
 			}
@@ -525,10 +565,19 @@ public class DataService {
 	 * @return
 	 */
 	private static OpenWareDataItem applyItemConfiguration(OpenWareDataItem item) {
+		if (item == null)
+			return null;
 		OpenWareDataItem conf = itemConfigs.get(item.getUser() + Config.idSeperator + item.getId());
 		if (conf != null) {
 			if (!(conf.getMeta().has("active") && conf.getMeta().getBoolean("active"))) {
 				return null;
+			}
+			if (conf.getMeta().optBoolean("onChange")) {
+				if (conf.equalsLastValue(item, (60000l * 60l))) {
+					OpenWareInstance.getInstance()
+							.logDebug("Item was not stored due to 'onChange' flag and same value");
+					return null;
+				}
 			}
 			JSONArray vTypes = conf.getMeta().optJSONArray("valueBounds");
 			if (vTypes != null) {
@@ -573,15 +622,16 @@ public class DataService {
 	 *            The item to be stored
 	 * @return true if Item was stored
 	 */
-	private static boolean processNewData(OpenWareDataItem item) {
+	public static boolean processNewData(OpenWareDataItem item) {
 
 		item = applyItemConfiguration(item);
 		if (item == null) {
-			OpenWareInstance.getInstance().logDebug("Item was not stored due to 'active' flag");
+			OpenWareInstance.getInstance().logDebug("Item was not stored after applying configuration");
 			return true;
 		}
 		boolean stored = false;
 		OpenWareDataItem lastItem = DataService.getLiveSensorData(item.getId(), item.getUser());
+
 		String lastHash = null;
 		// Ensuring vTypeHash in existing Item,e.g. if stored Item was not Hashed before
 		if (lastItem == null) {
@@ -640,7 +690,7 @@ public class DataService {
 			OpenWareInstance.getInstance().logError("Could not store new Date: " + e.getMessage(), e);
 			return false;
 		}
-		pool.submit(new SubscriberRunnable(item));
+		pool.submit(new SubscriberRunnable(lastItem, item));
 		//Acknowledge storing -> Either item was stored or was flagged to not be stored
 
 		return stored || !item.persist() || !Config.dbPersistValue;
@@ -651,8 +701,8 @@ public class DataService {
 		return adapter.getStats();
 	}
 
-	public static OpenWareDataItem getLiveSensorData(String sensorName, String user) {
-		return items.get(user + sensorName);
+	public static OpenWareDataItem getLiveSensorData(String sensorID, String source) {
+		return items.get(source + sensorID);
 	}
 
 	public static boolean deleteDeviceData(String sensorName, String user, Long from, Long until) {
@@ -672,7 +722,7 @@ public class DataService {
 
 	public static void storeGenericData(String type, String key, String value) {
 		adapter.storeGenericData(type, key, value);
-		OpenWareInstance.getInstance().logDebug("Stored Generic Data " + type +
+		OpenWareInstance.getInstance().logDebug("Stored Generic Data " +	type +
 												":" +
 												key +
 												"\n" +
@@ -681,21 +731,13 @@ public class DataService {
 
 	public static void removeGenericData(String type, String key) {
 		adapter.removeGenericData(type, key);
-		OpenWareInstance.getInstance().logDebug("Removed Generic Data " + type +
+		OpenWareInstance.getInstance().logDebug("Removed Generic Data " +	type +
 												":" +
 												key);
 	}
 
 	public static String[] getGenericData(String type, String key) {
 		return adapter.getGenericData(type, key);
-	}
-
-	public static boolean sendData(String actuatorID, String address, String target, String payload) {
-		ActuatorAdapter aa = actuators.get(actuatorID);
-		if (aa != null) {
-			return aa.send(address, target, payload);
-		}
-		return false;
 	}
 
 	public static String getValueTypeHash(OpenWareDataItem item, boolean includeValueNames) {
@@ -733,11 +775,16 @@ public class DataService {
 class DataProcessTask implements Callable<Boolean> {
 
 	private List<OpenWareDataItem> item;
+	private OpenWareDataItem singleItem;
 	private String id;
 	private String data;
 
 	public DataProcessTask(List<OpenWareDataItem> item) {
 		this.item = item;
+	}
+
+	public DataProcessTask(OpenWareDataItem sItem) {
+		this.singleItem = sItem;
 	}
 
 	public DataProcessTask(String id, String data) {
@@ -749,6 +796,9 @@ class DataProcessTask implements Callable<Boolean> {
 	public Boolean call() throws Exception {
 		if (item != null) {
 			return processItems(item);
+		}
+		if (singleItem != null) {
+			return processItem(singleItem);
 		}
 		if (data != null) {
 			List<OpenWareDataItem> toProcess = null;
@@ -775,19 +825,30 @@ class DataProcessTask implements Callable<Boolean> {
 		}
 		return DataService.processNewData(items);
 	}
+
+	private boolean processItem(OpenWareDataItem item) {
+		//([a-zA-Z\d]+\.)+: ID und source prüfen
+		if (item == null) {
+			return false;
+		}
+		return DataService.processNewData(item);
+	}
 }
 
 class SubscriberRunnable implements Runnable {
 	OpenWareDataItem item;
+	OpenWareDataItem old;
 
-	public SubscriberRunnable(OpenWareDataItem item) {
+	public SubscriberRunnable(OpenWareDataItem old, OpenWareDataItem item) {
 		this.item = item;
+		this.old = old;
 	}
 
 	@Override
 	public void run() {
-		DataService.notifySubscribers(item);
+		DataService.notifySubscribers(old, item);
 		item = null;
+		old = null;
 	}
 
 }

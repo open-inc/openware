@@ -19,6 +19,7 @@ import org.json.JSONObject;
 import de.openinc.api.OpenWareAPI;
 import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.core.helper.Config;
+import de.openinc.ow.core.helper.HTTPResponseHelper;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.user.User;
 import de.openinc.ow.middleware.services.AnalyticsService;
@@ -46,7 +47,7 @@ public class MiddlewareApi implements OpenWareAPI {
 	public static final String ITEMS_API = "/items";
 
 	/**
-	 * API constant to get all the registered sensor items for the user
+	 * API constant to get all the registered actuator items for the user
 	 */
 	public static final String ACTUATOR_TRIGGER_API = "/actuators/:aaid";
 	public static final String ACTUATOR_LIST_API = "/actuators";
@@ -54,7 +55,7 @@ public class MiddlewareApi implements OpenWareAPI {
 	/**
 	 * API constant to push data via HTTP
 	 */
-	public static final String PUSH_DATA = "/add/:extID";
+	public static final String PUSH_DATA = "/push";
 
 	// Status Codes
 	public static final int SUCCESS_CODE = 200;
@@ -69,42 +70,39 @@ public class MiddlewareApi implements OpenWareAPI {
 		path("/data", () -> {
 
 			post(PUSH_DATA, (req, res) -> {
+				OpenWareDataItem item = OpenWareDataItem.fromJSON(req.body());
 				if (Config.accessControl) {
 					User user = req.session().attribute("user");
-					String strUser = req.params("source");
-					JSONObject obj = Config.mapId(req.params("extID"));
-					String id = obj.getString("id");
-					if (user == null || !user.canAccessWrite(strUser, id))
-						halt(403, "Not allowed to add data");
+					if (user == null || !user.canAccessWrite(item.getUser(), item.getId()))
+						return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
+								"No write permission for source/sensor");
 				}
-				String id = req.params("extID");
-				String data = req.body();
-				DataService.onNewData(id, data);
+				DataService.onNewData(item);
 				res.status(200);
 				return SUCCESS_CODE;
 			});
-
+			/*
 			post(ACTUATOR_TRIGGER_API, (req, res) -> {
 				// TODO: Implement Access Control
-				/*
-				 * if(Config.accessControl) { User user =req.session().attribute("user"); String
-				 * strUser= req.params("source"); JSONObject obj=
-				 * Config.mapId(req.params("extID")); String id = obj.getString("id");
-				 * if(user==null||!user.canAccessWrite(strUser, id)) halt(403,
-				 * "Not allowed to add data"); }
-				 */
+				//
+			//				  if(Config.accessControl) { User user =req.session().attribute("user"); String
+			//				  strUser= req.params("source"); JSONObject obj=
+			//				  Config.mapId(req.params("extID")); String id = obj.getString("id");
+			//				  if(user==null||!user.canAccessWrite(strUser, id)) halt(403,
+			//				  "Not allowed to add data"); }
+			//				 
 				String aaid = req.params("aaid");
 				JSONObject data = new JSONObject(req.body());
 				boolean validParameter = data.has("address") && data.has("target") && data.has("payload");
-				if (validParameter && DataService.sendData(aaid, data.optString("address"), data.optString("target"),
-						data.optString("payload"))) {
+				if (validParameter) {
+					DataService.getActuator(aaid).send(data.optString("payload"), data.getJSONObject("address"), null);
 					res.status(200);
 					return SUCCESS_CODE;
 				}
 				res.status(INVALID_PARAMETERS);
 				return "Parameters must contain 'address', 'target' & 'payload'";
 			});
-
+			*/
 			path(ITEMS_API, () -> {
 
 				get("/:user/:source", (req, res) -> {
@@ -132,7 +130,7 @@ public class MiddlewareApi implements OpenWareAPI {
 				String sensorID = req.params("sensorid");
 				String source = req.params("source");
 				OpenWareInstance.getInstance()
-						.logDebug("Received live data request for sensor: " + sensorID +
+						.logDebug("Received live data request for sensor: " +	sensorID +
 									" and source: " +
 									source);
 
@@ -175,13 +173,13 @@ public class MiddlewareApi implements OpenWareAPI {
 				OpenWareDataItem item;
 				if (sensorid.startsWith(Config.analyticPrefix)) {
 					OpenWareInstance.getInstance().logDebug(
-							"Received analytics data request for sensor: " + sensorid +
+							"Received analytics data request for sensor: " +	sensorid +
 															" and source: " +
 															source);
 					item = AnalyticsService.getInstance().handle(source, sensorid, timestampStart, timestampEnd);
 				} else {
 					OpenWareInstance.getInstance().logDebug(
-							"Received historical data request for sensor: " + sensorid +
+							"Received historical data request for sensor: " +	sensorid +
 															" and source: " +
 															source);
 					if (req.queryParams().size() > 0) {
@@ -219,7 +217,7 @@ public class MiddlewareApi implements OpenWareAPI {
 					Long timestampStart = Long.valueOf(req.params("timestampStart"));
 					Long timestampEnd = Long.valueOf(req.params("timestampEnd"));
 					OpenWareInstance.getInstance().logDebug(
-							"Received delete device data request for device: " + deviceID +
+							"Received delete device data request for device: " +	deviceID +
 															" and user: " +
 															userID);
 
@@ -255,7 +253,7 @@ public class MiddlewareApi implements OpenWareAPI {
 		res.header("Content-Encoding", "gzip");
 		String source = req.params("source");
 		OpenWareInstance.getInstance()
-				.logDebug("Received getItems request for userid: " + source +
+				.logDebug("Received getItems request for userid: " +	source +
 							" and filtered by " +
 							filter);
 

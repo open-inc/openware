@@ -84,6 +84,9 @@ public class Config {
 	public static String mailserverUser;
 	public static String mailserverPassword;
 
+	//Webhook
+	public static String webhookClass;
+
 	// Analytics
 	public static HashMap<String, JSONObject> idMappings;
 	public static HashMap<String, JSONObject> analyticOperations;
@@ -100,6 +103,10 @@ public class Config {
 	public static String ticketType;
 	public static String ticketWorkerGroup;
 	public static String ticketAccessToken;
+
+	//Actuator
+	public static String templatingRegexSelector;
+	public static String templatingSectionRegexSelector;
 
 	// Chart Exporter
 	public static String chartExporterURL;
@@ -218,6 +225,10 @@ public class Config {
 			OpenWareInstance.getInstance().logInfo("Info: DB or RMQ password seems to be undefined.");
 		}
 
+		webhookClass = properties.getProperty("webhookClass", "OD3AlarmWebhook");
+		templatingRegexSelector = properties.getProperty("templatingRegexSelector", "\\{\\{(.*?)\\}\\}");
+		templatingSectionRegexSelector = properties.getProperty("templatingSectionRegexSelector",
+				"\\{\\{##(.*?)##\\}\\}");
 	}
 
 	public static JSONObject mapId(String external) {

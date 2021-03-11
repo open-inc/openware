@@ -2,6 +2,7 @@ package de.openinc.ow.monitoring;
 
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.Future;
 
 import org.json.JSONArray;
@@ -13,39 +14,53 @@ import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.user.User;
+import de.openinc.ow.http.AlarmAPI;
 import de.openinc.ow.middleware.services.DataService;
 import de.openinc.ow.middleware.services.UserService;
 
-public class AlarmMonitorThreadV2 extends Thread {
+public class AlarmMonitorThreadV2 {
 	private boolean RUNNING;
 	private HashMap<String, JSONArray> alarms;
 	private HashMap<String, Long> sentTS;
 	private HashMap<String, Boolean> lastEventTriggered;
+	private long lastUpdate;
 
 	public AlarmMonitorThreadV2(JSONArray alarms) {
 		this.alarms = updateMonitors(alarms);
 		sentTS = new HashMap<>();
 		lastEventTriggered = new HashMap<>();
-
+		init();
 	}
 
-	@Override
-	public void run() {
+	public void init() {
 		DataService.addSubscription(new DataSubscriber() {
 
 			@Override
 			public void receive(OpenWareDataItem old, OpenWareDataItem item) throws Exception {
+
 				OpenWareDataItem currentItem = (OpenWareDataItem) item;
 				OpenWareDataItem lastItem = old;
 
+				//Looking for Alarm of item that was just received
 				JSONArray alarm = alarms.get(item.getUser() + item.getId());
 				if (alarm == null || alarm.length() == 0)
 					return;
+				//An alarm exists... Better check if update is necessary
+				refresh();
+
+				// re-check alarms to see if alarm is still there...
+				alarm = alarms.get(item.getUser() + item.getId());
+				if (alarm == null || alarm.length() == 0)
+					return;
+
+				OpenWareInstance.getInstance().logTrace("Checking Alarms triggered: " + item.getUser() +
+														"." +
+														item.getId());
 				for (int i = 0; i < alarm.length(); i++) {
 					JSONObject currentObj = alarm.getJSONObject(i);
 					String type = currentObj.getJSONObject("trigger").getString("type").toLowerCase();
 					boolean lastTriggered = lastEventTriggered
-							.getOrDefault(currentObj.getString("alarmid"), false);
+							.getOrDefault(currentObj.getString("_id"), false);
 					boolean triggered = false;
 
 					if (type.equals("always") || type.endsWith("_always")) {
@@ -63,21 +78,21 @@ public class AlarmMonitorThreadV2 extends Thread {
 
 					if (triggered) {
 						// Alarm was triggered
-						lastEventTriggered.put(currentObj.getString("alarmid"), true);
+						lastEventTriggered.put(currentObj.getString("_id"), true);
 						if (currentObj.optBoolean("save")) {
 							JSONObject meta = new JSONObject();
 							meta.put("alarm", true);
 							OpenWareDataItem alarmItem = currentItem.cloneItem();
-							alarmItem.setId(currentObj.getString("alarmid"));
+							alarmItem.setId(currentObj.getString("_id"));
 							alarmItem.setName(currentItem.getName() +	" (Alarm " +
-												currentObj.getString("alarmid"));
+												currentObj.getString("_id"));
 							alarmItem.value(currentItem.value());
 							DataService.onNewData(alarmItem);
 						}
 
 						boolean shouldSendAgain = (!lastTriggered
 								|| (lastTriggered && checkedTS
-										- sentTS.getOrDefault(currentObj.getString("alarmid"), 0l) > currentObj
+										- sentTS.getOrDefault(currentObj.getString("_id"), 0l) > currentObj
 												.getJSONObject("trigger").getLong("interval")));
 
 						User toNotify = UserService.getInstance()
@@ -113,13 +128,24 @@ public class AlarmMonitorThreadV2 extends Thread {
 											")";
 							notifyItem.getMeta().put("alarmTitle", title);
 							notifyItem.getMeta().put("alarmText", text);
+
 							ActuatorAdapter actor = DataService
 									.getActuator(currentObj.getJSONObject("action").getString("type"));
 							JSONObject options = currentObj.getJSONObject("action");
 							JSONObject optionsItem = new JSONObject();
-							optionsItem.put("item_source", currentObj.get("item_source"));
-							optionsItem.put("item_id", currentObj.get("item_id"));
-							optionsItem.put("item_dimension", currentObj.get("item_dimension"));
+							optionsItem.put("source", currentObj.get("item_source"));
+							optionsItem.put("id", currentObj.get("item_id"));
+							optionsItem.put("dimension", currentObj.get("item_dimension"));
+							optionsItem.put("unit", currentItem.getValueTypes().get(currentObj.getInt("item_dimension"))
+									.getUnit());
+							optionsItem.put("datetime",
+									new Date(currentItem.value().get(0).getDate()).toLocaleString());
+							optionsItem.put("timestamp", currentItem.value().get(0).getDate());
+							optionsItem.put("value",
+									currentItem.value().get(0).get(currentObj.getInt("item_dimension")).value());
+							optionsItem.put("valuename",
+									currentItem.getValueTypes().get(currentObj.getInt("item_dimension"))
+											.getName());
 							options.put("item", optionsItem);
 							options.put("trigger", currentObj.get("trigger"));
 							options.put("user", toNotify.toJSON());
@@ -132,11 +158,11 @@ public class AlarmMonitorThreadV2 extends Thread {
 
 							}
 
-							sentTS.put(currentObj.getString("alarmid"), checkedTS);
+							sentTS.put(currentObj.getString("_id"), checkedTS);
 						}
 					} else {
 						// Alarm loest nicht mehr aus; Werte wieder normal
-						lastEventTriggered.put(currentObj.getString("alarmid"), false);
+						lastEventTriggered.put(currentObj.getString("_id"), false);
 					}
 
 				}
@@ -144,8 +170,9 @@ public class AlarmMonitorThreadV2 extends Thread {
 
 		});
 
+		/*
 		RUNNING = true;
-
+		
 		while (RUNNING) {
 			try {
 				Thread.sleep(1000);
@@ -155,10 +182,7 @@ public class AlarmMonitorThreadV2 extends Thread {
 			}
 		}
 		OpenWareInstance.getInstance().logError("Killing AlarmMonitorThread");
-	}
-
-	public void stopThread() {
-		this.RUNNING = false;
+		*/
 	}
 
 	private boolean checkNumeric(JSONObject currentObj, OpenWareDataItem currentItem, OpenWareDataItem lastItem) {
@@ -289,7 +313,9 @@ public class AlarmMonitorThreadV2 extends Thread {
 	}
 
 	public HashMap<String, JSONArray> updateMonitors(JSONArray alarms) {
-		this.alarms = new HashMap<String, JSONArray>();
+		lastUpdate = System.currentTimeMillis();
+		HashMap<String, JSONArray> newAlarms = new HashMap<String, JSONArray>();
+
 		for (int i = 0; i < alarms.length(); i++) {
 			JSONObject current = alarms.getJSONObject(i);
 			String item_source = current.getString("item_source");
@@ -299,12 +325,31 @@ public class AlarmMonitorThreadV2 extends Thread {
 			boolean userIsAllowed = toNotify != null && toNotify.canAccessRead(item_source, item_id);
 			if (!Config.accessControl || userIsAllowed) {
 				String tempIndex = item_source + item_id;
-				JSONArray idAlarms = this.alarms.getOrDefault(tempIndex, new JSONArray());
+				JSONArray idAlarms = newAlarms.getOrDefault(tempIndex, new JSONArray());
 				idAlarms.put(current);
-				this.alarms.put(tempIndex, idAlarms);
+				newAlarms.put(tempIndex, idAlarms);
 			}
 		}
+		this.alarms = newAlarms;
 		return this.alarms;
+	}
+
+	private void refresh() {
+		if (System.currentTimeMillis() - lastUpdate < 30000)
+			return;
+		OpenWareInstance.getInstance().logDebug("Refreshing alarms...");
+		List<JSONObject> alarmsCheck;
+		try {
+			alarmsCheck = DataService.getGenericData(AlarmAPI.ALARMSV2, null);
+			JSONArray update = new JSONArray();
+			for (JSONObject o : alarmsCheck) {
+				update.put(o);
+			}
+			updateMonitors(update);
+		} catch (Exception e) {
+			OpenWareInstance.getInstance().logWarn("Could not refresh alarms");
+		}
+
 	}
 
 	/*

@@ -10,9 +10,11 @@ import org.json.JSONObject;
 
 import de.openinc.api.OpenWareAPI;
 import de.openinc.ow.core.helper.HTTPResponseHelper;
+import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.data.ReferenceDataItem;
 import de.openinc.ow.core.model.user.User;
 import de.openinc.ow.middleware.services.DataService;
+import spark.QueryParamsMap;
 
 public class ReferenceAPI implements OpenWareAPI {
 	public static String SERVICE_ACCESS_ID = "SERVICE_REFERENCE";
@@ -20,18 +22,62 @@ public class ReferenceAPI implements OpenWareAPI {
 
 	@Override
 	public void registerRoutes() {
+		get(REF_URL + "/:reference/:start/:end", (req, res) -> {
+			QueryParamsMap params = req.queryMap();
+			if (params.hasKey("sensor") && params.hasKey("source")) {
+				try {
+					ReferenceDataItem rdi = DataService.getReferenceAdapter().getReferencedData(
+							req.params("reference"),
+							req.session().attribute("user"), params.get("source").value(), params.get("sensor").value(),
+							Long.valueOf(req.params("start")),
+							Long.valueOf(req.params("end")));
+					return HTTPResponseHelper.generateResponse(res, 200, rdi.toJSON(), null);
+				} catch (Exception e) {
+					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_INTERNAL_ERROR, null, e);
+				}
+			} else {
+				try {
+					ReferenceDataItem rdi = DataService.getReferenceAdapter().getAllReferencedData(
+							req.params("reference"),
+							req.session().attribute("user"), Long.valueOf(req.params("start")),
+							Long.valueOf(req.params("end")));
+					return HTTPResponseHelper.generateResponse(res, 200, rdi.toJSON(), null);
+				} catch (Exception e) {
+					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_INTERNAL_ERROR, null, e);
+				}
+			}
+
+		});
+
 		get(REF_URL + "/:reference", (req, res) -> {
 			ReferenceDataItem rdi = DataService.getReferenceAdapter().getReferenceInfo(req.params("reference"),
 					req.session().attribute("user"));
 			return HTTPResponseHelper.generateResponse(res, 200, rdi.toJSON(), null);
 		});
+
 		get(REF_URL, (req, res) -> {
 			JSONArray refs = new JSONArray();
-			Map<String, String> cRefs = DataService.getReferenceAdapter().getCurrentReferences();
-			for (String source : cRefs.keySet()) {
+			Map<String, OpenWareDataItem> cRefs = DataService.getReferenceAdapter()
+					.getCurrentReferences(req.session().attribute("user"));
+			/*
+			Set<String> sources = DataService.getItems(req.session().attribute("user")).stream().map(item -> {
+				return item.getUser();
+			}).collect(Collectors.toSet());
+			
+			for (String ref : cRefs.keySet()) {
+				if (sources.contains(ref)) {
+					JSONObject toPut = new JSONObject();
+					toPut.put("item", cRefs.get(ref).toJSON());
+					toPut.put("reference", ref);
+					refs.put(toPut);
+				}
+			
+			}
+			*/
+			for (String ref : cRefs.keySet()) {
 				JSONObject toPut = new JSONObject();
-				toPut.put("source", source);
-				toPut.put("reference", cRefs.get(source));
+				toPut.put("item", cRefs.get(ref).toJSON());
+				toPut.put("reference", ref);
 				refs.put(toPut);
 			}
 			return HTTPResponseHelper.generateResponse(res, 200, refs, null);
@@ -45,13 +91,12 @@ public class ReferenceAPI implements OpenWareAPI {
 				return HTTPResponseHelper.generateResponse(res, 422, null, "Missing source parameter");
 			}
 			String source = body.getString("source");
-			JSONObject info = body.optJSONObject("info");
 			User user = (User) req.session().attribute("user");
 			if (!user.canAccessWrite(SERVICE_ACCESS_ID, source)) {
 				return HTTPResponseHelper.generateResponse(res, 405, null,
 						"Missing access permission to set reference for " + source);
 			}
-			DataService.getReferenceAdapter().setReferenceForSource(source, ref);
+			DataService.getReferenceAdapter().setReferenceGlobalReferenceForSource(source, ref);
 			return HTTPResponseHelper.generateResponse(res, 200, "Reference set for " + source, null);
 		});
 	}

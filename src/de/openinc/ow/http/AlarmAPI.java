@@ -5,7 +5,7 @@ import static spark.Spark.get;
 import static spark.Spark.post;
 
 import java.util.Iterator;
-import java.util.UUID;
+import java.util.List;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -57,22 +57,21 @@ public class AlarmAPI implements OpenWareAPI {
 
 		OpenWareInstance.getInstance().logInfo("Starting AlarmService");
 		try {
-			String[] alarms = DataService.getGenericData(ALARMS, null);
-			String[] alarms2 = DataService.getGenericData(ALARMSV2, null);
+			List<JSONObject> alarms = DataService.getGenericData(ALARMS, null);
+			List<JSONObject> alarms2 = DataService.getGenericData(ALARMSV2, null);
 
 			initialAlarms = new JSONArray();
-			for (String alarm : alarms) {
-				initialAlarms.put(new JSONObject(alarm));
+			for (JSONObject alarm : alarms) {
+				initialAlarms.put(alarm);
 			}
 			amt = new AlarmMonitorThreadV1(initialAlarms);
 			amt.start();
 
 			initialAlarmsV2 = new JSONArray();
-			for (String alarm : alarms2) {
-				initialAlarmsV2.put(new JSONObject(alarm));
+			for (JSONObject alarm : alarms2) {
+				initialAlarmsV2.put(alarm);
 			}
 			amt2 = new AlarmMonitorThreadV2(initialAlarmsV2);
-			amt2.start();
 
 			OpenWareInstance.getInstance().logInfo("Started AlarmServices V1&V2");
 		} catch (Exception e) {
@@ -83,6 +82,7 @@ public class AlarmAPI implements OpenWareAPI {
 
 	private String registerAlarmV1(User user, JSONObject parameter)
 			throws IllegalArgumentException, IllegalAccessError {
+		/*
 		if (parameter == null) {
 			throw new IllegalArgumentException(
 					"Could not create Alarm due to missing all of the following parameters:\n trigger, action, item_source, item_id, item_dimension, owner");
@@ -94,41 +94,48 @@ public class AlarmAPI implements OpenWareAPI {
 			throw new IllegalArgumentException(
 					"API is deprecated and will not be maintained! Please use new AlarmV2 API");
 		}
-
+		
 		if ((user == null
 				|| !(user.canAccessRead(parameter.getString("user"), parameter.getString("sensorid"))))) {
 			//Not authorized
 			throw new IllegalAccessError("Not authorized to create alarm for this data source / sensor");
-
+		
 		}
-
+		
 		String id = "alarm" + System.currentTimeMillis();
 		parameter.put("alarmid", id);
 		DataService.storeGenericData(ALARMS, id, parameter.toString());
 		initialAlarms.put(parameter);
 		amt.updateMonitors(initialAlarms);
 		return id;
-
+		 */
+		throw new IllegalAccessError("Please Use AlarmV2 API");
 	}
 
 	private boolean deleteAlarm(User user, String alarmid) {
 		if (user != null && alarmid != null) {
-			String[] data = DataService.getGenericData(ALARMS, alarmid);
-			if (data != null && data.length > 0) {
-				JSONObject alarm = new JSONObject(data[0]);
+			try {
+				List<JSONObject> data = DataService.getGenericData(ALARMS, alarmid);
+				if (data != null && data.size() > 0) {
+					JSONObject alarm = data.get(0);
 
-				String user2check = alarm.getString("toNotify");
+					String user2check = alarm.getString("toNotify");
 
-				if (user2check.equals(user.getName())) {
-					DataService.removeGenericData(ALARMS, alarmid);
-					String[] alarms = DataService.getGenericData(ALARMS, null);
-					initialAlarms = new JSONArray();
-					for (String alarm2 : alarms) {
-						initialAlarms.put(new JSONObject(alarm2));
+					if (user2check.equals(user.getName())) {
+						DataService.removeGenericData(ALARMS, alarmid);
+						List<JSONObject> alarms = DataService.getGenericData(ALARMS, null);
+						initialAlarms = new JSONArray();
+						for (JSONObject alarm2 : alarms) {
+							initialAlarms.put(alarm2);
+						}
+						amt.updateMonitors(initialAlarms);
+						return true;
 					}
-					amt.updateMonitors(initialAlarms);
-					return true;
 				}
+
+			} catch (Exception e) {
+				OpenWareInstance.getInstance().logError("Could not delete alarm", e);
+				return false;
 			}
 		}
 		return false;
@@ -136,21 +143,27 @@ public class AlarmAPI implements OpenWareAPI {
 
 	private boolean deleteAlarmV2(User user, String alarmid) {
 		if (user != null && alarmid != null) {
-			String[] data = DataService.getGenericData(ALARMSV2, alarmid);
-			if (data != null && data.length > 0) {
-				JSONObject alarm = new JSONObject(data[0]);
+			try {
+				List<JSONObject> data = DataService.getGenericData(ALARMSV2, alarmid);
+				if (data != null && data.size() > 0) {
+					JSONObject alarm = data.get(0);
 
-				String user2check = alarm.getJSONObject("owner").getString("objectId");
-				if (user2check.equals(user.getUID())) {
-					DataService.removeGenericData(ALARMSV2, alarmid);
-					String[] alarms = DataService.getGenericData(ALARMSV2, null);
-					initialAlarmsV2 = new JSONArray();
-					for (String alarm2 : alarms) {
-						initialAlarmsV2.put(new JSONObject(alarm2));
+					String user2check = alarm.getJSONObject("owner").getString("objectId");
+					if (user2check.equals(user.getUID())) {
+						DataService.removeGenericData(ALARMSV2, alarmid);
+						List<JSONObject> alarms = DataService.getGenericData(ALARMSV2, null);
+						initialAlarmsV2 = new JSONArray();
+						for (JSONObject alarm2 : alarms) {
+							initialAlarmsV2.put(alarm2);
+						}
+						amt2.updateMonitors(initialAlarmsV2);
+						return true;
 					}
-					amt2.updateMonitors(initialAlarmsV2);
-					return true;
 				}
+
+			} catch (Exception e) {
+				OpenWareInstance.getInstance().logError("Could not delete Alarm", e);
+				return false;
 			}
 		}
 		return false;
@@ -186,16 +199,34 @@ public class AlarmAPI implements OpenWareAPI {
 
 		}
 
-		String id = parameter.optString("owid");
-		if (id.equals("")) {
-			id = "ALM" + UUID.randomUUID();
+		String id = parameter.optString("objectId");
+		if (id.equals(""))
+			id = parameter.optString("_id");
+		if (id.equals(""))
+			id = null;
+		parameter.remove("objectId");
+		parameter.remove("_id");
+		parameter.getJSONObject("owner").put("__type", "Pointer");
+		parameter.getJSONObject("owner").put("className", "_User");
+		JSONObject acl = new JSONObject();
+		JSONObject userAcl = new JSONObject();
+		userAcl.put("read", true);
+		userAcl.put("write", true);
+		acl.put(user.getUID(), userAcl);
+		parameter.put("ACL", acl);
+		try {
+			id = DataService.storeGenericData(ALARMSV2, id, parameter);
+		} catch (Exception e) {
+			throw new IllegalArgumentException(e);
 		}
-		parameter.put("alarmid", id);
-		DataService.storeGenericData(ALARMSV2, id, parameter.toString());
+
+		if (id == null)
+			throw new IllegalArgumentException("Could not store alarm");
+		parameter.put("_id", id);
 		Iterator it = initialAlarmsV2.iterator();
 		while (it.hasNext()) {
 			JSONObject curr = (JSONObject) it.next();
-			if (curr.getString("alarmid").equals(id)) {
+			if (curr.getString("_id").equals(id)) {
 				it.remove();
 			}
 		}
@@ -234,7 +265,8 @@ public class AlarmAPI implements OpenWareAPI {
 			}
 
 		});
-
+		OpenWareInstance.getInstance().logTrace("[ROUTE]" + "POST:" +
+												ALARM_EVENT_GET_APIV2);
 		post(ALARM_EVENT_GET_APIV2, (req, res) -> {
 			String userID = req.params("userid");
 			User user = req.session().attribute("user");
@@ -264,7 +296,8 @@ public class AlarmAPI implements OpenWareAPI {
 			}
 
 		});
-
+		OpenWareInstance.getInstance().logTrace("[ROUTE]" + "DELETE:" +
+												ALARM_EVENT_DELETE_API);
 		delete(ALARM_EVENT_DELETE_API, (req, res) -> {
 
 			String userID = req.params("userid");
@@ -285,11 +318,13 @@ public class AlarmAPI implements OpenWareAPI {
 			} else {
 
 				return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_BAD_REQUEST, null,
-						"You must provide a user and alarm id");
+						"You must provide a user and existing alarm id");
 
 			}
 
 		});
+		OpenWareInstance.getInstance().logTrace("[ROUTE]" + "DELETE:" +
+												ALARM_EVENT_DELETE_APIV2);
 		delete(ALARM_EVENT_DELETE_APIV2, (req, res) -> {
 
 			String userID = req.params("userid");
@@ -312,6 +347,8 @@ public class AlarmAPI implements OpenWareAPI {
 					"You must provide a user and alarm id");
 
 		});
+		OpenWareInstance.getInstance().logTrace("[ROUTE]" + "GET:" +
+												ALARM_EVENT_GET_API);
 		get(ALARM_EVENT_GET_API, (req, res) -> {
 			String userID = req.params("userid");
 			User user = req.session().attribute("user");
@@ -334,12 +371,12 @@ public class AlarmAPI implements OpenWareAPI {
 			res.status(200);
 			return userAlarms;
 		});
-
+		OpenWareInstance.getInstance().logTrace("[ROUTE]" + "GET:" +
+												ALARM_EVENT_GET_APIV2);
 		get(ALARM_EVENT_GET_APIV2, (req, res) -> {
 			String userID = req.params("userid");
 			User user = req.session().attribute("user");
 			if (Config.accessControl) {
-
 				boolean canRead = userID.equals(user.getName());
 				if (!canRead) {
 					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
@@ -358,7 +395,7 @@ public class AlarmAPI implements OpenWareAPI {
 			res.status(200);
 			return userAlarms;
 		});
-
+		OpenWareInstance.getInstance().logTrace("Alarm routes have been registered");
 	}
 
 }

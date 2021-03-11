@@ -10,16 +10,19 @@ public interface ReferenceAdapter {
 
 	void init();
 
-	ReferenceDataItem getReferencedData(String ref, User user, long start, long end) throws Exception;
+	ReferenceDataItem getAllReferencedData(String ref, User user, long start, long end) throws Exception;
+
+	ReferenceDataItem getReferencedData(String ref, User user, String sensor, String source, long start, long end)
+			throws Exception;
 
 	ReferenceDataItem getReferenceInfo(String ref, User user) throws Exception;
 
-	boolean setReferenceForSource(String source, String ref) throws IllegalArgumentException;
+	boolean updateReference(OpenWareDataItem item) throws IllegalArgumentException;
 
-	boolean setReferenceForSource(OpenWareDataItem item) throws IllegalArgumentException;
+	boolean setReferenceGlobalReferenceForSource(String ref, String source) throws Exception;
 
 	String getReferenceForSource(String source);
 
-	Map<String, String> getCurrentReferences();
+	Map<String, OpenWareDataItem> getCurrentReferences(User user);
 
 }

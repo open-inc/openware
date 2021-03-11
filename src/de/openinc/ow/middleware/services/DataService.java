@@ -168,14 +168,32 @@ public class DataService {
 		}
 
 		for (OpenWareDataItem item : res) {
-			itemConfigs.put(item.getMeta().getString("source_source") + Config.idSeperator
-					+ item.getMeta().getString("id_source"), item);
-			DataService.storeGenericData(CONFIG_STORE_TYPE,
-					item.getMeta().getString("source_source") + Config.idSeperator
-							+ item.getMeta().getString("id_source"),
-					item.toString());
-			//Get current Item to upadte the configuration immediately
-			refreshConfigurationOfItem(item);
+			try {
+				String saved_id;
+				OpenWareDataItem previous = itemConfigs
+						.get(item.getMeta().getString("source_source") + Config.idSeperator
+								+ item.getMeta().getString("id_source"));
+
+				String id = null;
+				if (previous != null) {
+					id = previous.getMeta().getString("configuration_id");
+				}
+				saved_id = DataService.storeGenericData(CONFIG_STORE_TYPE,
+						id,
+						item.toJSON());
+
+				item.getMeta().put("configuration_id", saved_id);
+				itemConfigs.put(item.getMeta().getString("source_source") + Config.idSeperator
+						+ item.getMeta().getString("id_source"), item);
+				//Get current Item to upadte the configuration immediately
+				refreshConfigurationOfItem(item);
+			} catch (JSONException e) {
+				e.printStackTrace();
+				return false;
+			} catch (Exception e) {
+				e.printStackTrace();
+				return false;
+			}
 
 		}
 
@@ -216,13 +234,17 @@ public class DataService {
 	 * @param sensorid_source
 	 *            The original id of the OpenWareDataItem (Pre-configuration)
 	 * @return True, if configuration was deleted
+	 * @throws Exception
+	 * @throws JSONException
 	 */
-	public static boolean deleteItemConfig(User user, String source_source, String sensorid_source) {
+	public static boolean deleteItemConfig(User user, String source_source, String sensorid_source)
+			throws JSONException, Exception {
 		if (!user.canAccessWrite(source_source, sensorid_source)) {
 			return false;
 		}
-		DataService.removeGenericData(CONFIG_STORE_TYPE, source_source + Config.idSeperator + sensorid_source);
 		OpenWareDataItem deleted = itemConfigs.remove(source_source + Config.idSeperator + sensorid_source);
+		DataService.removeGenericData(CONFIG_STORE_TYPE, deleted.getMeta().getString("configuration_id"));
+
 		return deleted != null;
 	}
 
@@ -260,20 +282,25 @@ public class DataService {
 	}
 
 	private static void initItemConfiguration() {
-		String[] temp = DataService.getGenericData(CONFIG_STORE_TYPE, null);
-		for (String conf : temp) {
-			JSONObject o = new JSONObject(conf);
-			String source_source = o.getJSONObject("meta").optString("source_source");
-			if (source_source.equals("")) {
-				source_source = o.getString("user");
+		try {
+			List<JSONObject> temp = DataService.getGenericData(CONFIG_STORE_TYPE, null);
+			for (JSONObject o : temp) {
+				String source_source = o.getJSONObject("meta").optString("source_source");
+				if (source_source.equals("")) {
+					source_source = o.getString("user");
+				}
+				OpenWareDataItem configItem = OpenWareDataItem.fromJSON(o.toString());
+				configItem.getMeta().put("configuration_id", o.getString("_id"));
+				itemConfigs.put(
+						source_source + Config.idSeperator
+								+ o.getJSONObject("meta").getString("id_source"),
+						configItem);
+				refreshConfigurationOfItem(configItem);
 			}
-			OpenWareDataItem configItem = OpenWareDataItem.fromJSON(o.toString());
-			itemConfigs.put(
-					source_source + Config.idSeperator
-							+ o.getJSONObject("meta").getString("id_source"),
-					configItem);
-			refreshConfigurationOfItem(configItem);
+		} catch (Exception e) {
+			OpenWareInstance.getInstance().logWarn("Could not load Item Configurations");
 		}
+
 	}
 
 	/**
@@ -298,14 +325,23 @@ public class DataService {
 					continue;
 			}
 			res.put(source + Config.idSeperator + id, item);
-			String[] temp = DataService.getGenericData(CONFIG_STORE_TYPE, source + Config.idSeperator + id);
-			if (temp != null && temp.length > 0) {
-				OpenWareDataItem custom = OpenWareDataItem.fromJSON(temp[0]);
-				if (!custom.getMeta().has("source_source")) {
-					custom.getMeta().put("source_source", custom.getUser());
+			List<JSONObject> temp;
+			try {
+				temp = DataService.getGenericData(CONFIG_STORE_TYPE,
+						item.getMeta().getString("configuration_id"));
+
+				if (temp != null && temp.size() > 0) {
+					OpenWareDataItem custom = OpenWareDataItem.fromJSON(temp.get(0));
+					if (!custom.getMeta().has("source_source")) {
+						custom.getMeta().put("source_source", custom.getUser());
+					}
+					res.put(custom.getMeta().getString("source_source") + Config.idSeperator
+							+ custom.getMeta().getString("id_source"), custom);
 				}
-				res.put(custom.getMeta().getString("source_source") + Config.idSeperator
-						+ custom.getMeta().getString("id_source"), custom);
+			} catch (JSONException e) {
+				continue;
+			} catch (Exception e) {
+				continue;
 			}
 		}
 		return res;
@@ -495,6 +531,9 @@ public class DataService {
 		if (maxAmount >= data.value().size()) {
 			return data;
 		}
+		if (!data.getValueTypes().get(dim).type().equals(OpenWareNumber.TYPE)) {
+			return data;
+		}
 
 		int bucketSize = (int) Math.ceil((double) data.value().size() / (double) (maxAmount / 2));
 
@@ -651,14 +690,14 @@ public class DataService {
 		boolean referenceChange = false;
 		//Check and/or Set the reference
 		if (item.getReference() != null) {
-			reference.setReferenceForSource(item);
+			reference.updateReference(item);
 			//Item has reference so compare if differs from lastItem's reference
 			referenceChange = !item.getReference().equals(lastItem.getReference());
 		} else {
 			//Item had no reference and new potential reference is set
 			String ref = reference.getReferenceForSource(item.getUser());
 			item.setReference(ref);
-
+			reference.updateReference(item);
 			if (lastItem.getReference() == null) {
 				//Check if lastItem had no reference, so check if newItem has one now
 				referenceChange = item.getReference() != null;
@@ -680,7 +719,9 @@ public class DataService {
 				DataService.storeData(item);
 				stored = true;
 			} else {
-				OpenWareInstance.getInstance().logWarn("Item was not Stored due to configuration");
+				OpenWareInstance.getInstance().logWarn("Item was not Stored due to configuration: " +	item.getUser() +
+														Config.idSeperator +
+														item.getId());
 				if (Config.verbose) {
 					OpenWareInstance.getInstance().logTrace("Item:" + item.toString());
 				}
@@ -720,23 +761,27 @@ public class DataService {
 
 	}
 
-	public static void storeGenericData(String type, String key, String value) {
-		adapter.storeGenericData(type, key, value);
-		OpenWareInstance.getInstance().logDebug("Stored Generic Data " +	type +
-												":" +
-												key +
-												"\n" +
-												value);
+	public static String storeGenericData(String type, String key, JSONObject value) throws Exception {
+		String res = adapter.storeGenericData(type, key, value);
+		if (res != null) {
+			OpenWareInstance.getInstance().logDebug("Stored Generic Data " +	type +
+													":" +
+													res +
+													"\n" +
+													value);
+
+		}
+		return res;
 	}
 
-	public static void removeGenericData(String type, String key) {
+	public static void removeGenericData(String type, String key) throws Exception {
 		adapter.removeGenericData(type, key);
 		OpenWareInstance.getInstance().logDebug("Removed Generic Data " +	type +
 												":" +
 												key);
 	}
 
-	public static String[] getGenericData(String type, String key) {
+	public static List<JSONObject> getGenericData(String type, String key) throws Exception {
 		return adapter.getGenericData(type, key);
 	}
 

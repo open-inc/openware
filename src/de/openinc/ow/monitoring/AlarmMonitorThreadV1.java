@@ -4,26 +4,18 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.Future;
 
 import org.apache.commons.mail.EmailException;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import com.mashape.unirest.http.HttpResponse;
-import com.mashape.unirest.http.JsonNode;
-import com.mashape.unirest.http.Unirest;
-import com.mashape.unirest.http.async.Callback;
-import com.mashape.unirest.http.exceptions.UnirestException;
-
 import de.openinc.api.DataSubscriber;
 import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.user.User;
-import de.openinc.ow.http.AlarmAPI;
-import de.openinc.ow.middleware.sender.MailSender;
+import de.openinc.ow.middleware.io.MailSender;
 import de.openinc.ow.middleware.services.DataService;
 import de.openinc.ow.middleware.services.UserService;
 
@@ -88,7 +80,7 @@ public class AlarmMonitorThreadV1 extends Thread {
 								JSONObject meta = new JSONObject();
 								meta.put("alarm", true);
 								OpenWareDataItem alarmItem = currentItem.cloneItem();
-								alarmItem.setId(currentItem.getId() + "." +
+								alarmItem.setId(currentItem.getId() +	"." +
 												currentObj.getString("alarmid"));
 								alarmItem.setName("Alarm-" + currentObj.optString("name"));
 								alarmItem.value(currentItem.value());
@@ -101,7 +93,7 @@ public class AlarmMonitorThreadV1 extends Thread {
 													.getLong("interval")));
 							// Notification needs to be send again
 							if (shouldSendAgain) {
-								String text = "Alarm " + currentObj.optString("name") +
+								String text = "Alarm " +	currentObj.optString("name") +
 												" Sensor " +
 												currentItem.getName() +
 												" :\n" +
@@ -161,7 +153,7 @@ public class AlarmMonitorThreadV1 extends Thread {
 
 		{
 			processMail();
-			processTickets();
+			//processTickets();
 			processPush();
 			try {
 				Thread.sleep(1000);
@@ -358,75 +350,4 @@ public class AlarmMonitorThreadV1 extends Thread {
 
 	}
 
-	private void processTickets() {
-		if (Config.ticketEnabled) {
-			String HOST = Config.ticketHost + ":" +
-							Config.ticketPort;
-			HashMap<JSONObject, OpenWareDataItem> temp = new HashMap<>();
-			temp.putAll(ticketProcessQueue);
-			ticketProcessQueue.clear();
-			for (JSONObject key : temp.keySet()) {
-				String subject = temp.get(key).getMeta().optString("alarmTitle");
-				String message = temp.get(key).getMeta().optString("alarmText");
-				String apiKey = temp.get(key).getMeta().optString("ticketUser");
-				if (apiKey.equals("")) {
-					apiKey = Config.ticketAccessToken;
-				}
-				try {
-					Future<HttpResponse<JsonNode>> res;
-					// HttpResponse<JsonNode> res;
-					HashMap<String, String> headers = new HashMap<>();
-					headers.put("accesstoken", apiKey);
-					headers.put("Content-Type", "application/json");
-					JSONObject ticket = new JSONObject();
-					ticket.put("subject", subject);
-					ticket.put("issue", message);
-					ticket.put("owner", Config.ticketUser);
-					ticket.put("group", Config.ticketWorkerGroup);
-					ticket.put("type", Config.ticketType);
-					ticket.put("priority", 1);
-					try {
-						res = Unirest.post(HOST + "/api/v1/tickets/create").headers(headers).body(ticket)
-								.asJsonAsync(new Callback<JsonNode>() {
-
-									@Override
-									public void failed(UnirestException e) {
-										// TODO Auto-generated method stub
-
-									}
-
-									@Override
-									public void completed(HttpResponse<JsonNode> response) {
-										JSONObject ticketData = response.getBody().getObject();
-										if (ticketData.optBoolean("success")) {
-											key.put("ticketUID", ticketData.optJSONObject("ticket").opt("uid"));
-											DataService.storeGenericData(AlarmAPI.ALARMS, key.getString("alarmid"),
-													key.toString());
-										}
-
-									}
-
-									@Override
-									public void cancelled() {
-										// TODO Auto-generated method stub
-
-									}
-								});
-
-						// JSONObject response = res.get().getBody().getObject();
-						// JSONObject response = res.getBody().getObject();
-						// OpenWareInstance.getInstance().logDebug(response.toString());
-
-					} catch (JSONException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-				} catch (JSONException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
-
-		}
-	}
 }

@@ -70,7 +70,6 @@ public class OpenWareInstance {
 
 	protected Logger logger;
 
-	Logger debugLogger;
 	Logger infoLogger;
 	Logger errorLogger;
 	Logger mqttLogger;
@@ -80,6 +79,7 @@ public class OpenWareInstance {
 	Logger jettyLogger;
 	Logger mongoLogger;
 	Logger xdocLogger;
+	Logger apiLogger;
 
 	private static OpenWareInstance me;
 	private ArrayList<OpenWareAPI> services;
@@ -118,13 +118,13 @@ public class OpenWareInstance {
 
 	public void logWarn(Object warn) {
 
-		infoLogger.warn(warn);
+		errorLogger.warn(warn);
 
 	}
 
 	public void logError(Object error) {
 
-		infoLogger.error(error);
+		errorLogger.error(error);
 
 	}
 
@@ -140,9 +140,10 @@ public class OpenWareInstance {
 
 		//this.infoLogger = LogManager.getRootLogger();
 		this.infoLogger = LogManager.getLogger(OpenWareInstance.class);
-		this.debugLogger = LogManager.getLogger("requestLogger");
+
 		this.errorLogger = LogManager.getLogger("errorLogger");
 		this.mqttLogger = LogManager.getLogger("mqttLogger");
+		this.apiLogger = LogManager.getLogger("apiLogger");
 
 		this.apacheLogger = LogManager.getLogger("org.apache.http");
 		this.sparkLogger = LogManager.getLogger("spark");
@@ -272,41 +273,157 @@ public class OpenWareInstance {
 		DataService.setReferenceAdapter(loadReferenceAdapterAdapter());
 
 		AnalyticsService.getInstance().setSensorProvider(loadAnalyticSensorProvider());
+
+		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Middleware loading...");
 		// Middleware Data API
 		MiddlewareApi middlewareApi = new MiddlewareApi();
 		OpenWareInstance.getInstance().registerService(middlewareApi);
 
+		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Userservice loading...");
 		// UserManagement API
 		UserAPI userAPI = new UserAPI();
 		OpenWareInstance.getInstance().registerService(userAPI);
 
+		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Analyticservice loading...");
 		// AnalyticsService API
 		AnalyticsServiceAPI asa = new AnalyticsServiceAPI();
 		OpenWareInstance.getInstance().registerService(asa);
 
+		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Admin API loading...");
 		// Admin API
 		AdminAPI adminApi = new AdminAPI();
 		OpenWareInstance.getInstance().registerService(adminApi);
 
+		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Reportservice loading...");
 		//ReportsAPI
 		ReportsAPI rApi = new ReportsAPI();
 		OpenWareInstance.getInstance().registerService(rApi);
 
+		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Alarmservice loading...");
 		// Alarm & Event API
 		AlarmAPI as = AlarmAPI.getInstance();
 		OpenWareInstance.getInstance().registerService(as);
 
+		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Transformationservice loading...");
 		//TransformationAPI
 		TransformationAPI tApi = new TransformationAPI();
 		OpenWareInstance.getInstance().registerService(tApi);
 
+		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Referenceservice loading...");
 		//ReferenceAPI
 		ReferenceAPI refApi = new ReferenceAPI();
 		OpenWareInstance.getInstance().registerService(refApi);
 
+		OpenWareInstance.getInstance()
+				.logTrace("[PlUGINS] " + "------------------Plugins loading...-------------------------");
 		//Plugins
 		loadPlugins();
+		OpenWareInstance.getInstance()
+				.logTrace("[PLUGINS] " + "------------------Plugins loaded...-------------------------");
+		OpenWareInstance.getInstance().logInfo("Using external file path: " + Config.sparkFileDir);
+		externalStaticFileLocation(Config.sparkFileDir); // index.html is served at localhost:4567 (default port)
+		webSocket(LIVE_API, SubscriptionProvider.class);
 
+		after((req, res) -> {
+			if (req.url().contains("/api/transform")) {
+
+				System.gc();
+			}
+
+		});
+
+		exception(Exception.class, (e, req, res) -> {
+			JSONObject details = new JSONObject();
+
+			JSONObject params = new JSONObject();
+			for (String key : req.params().keySet()) {
+				params.put(key, req.params(key));
+			}
+			details.put("urlParams", params);
+
+			JSONObject queryP = new JSONObject();
+			for (String key : req.queryMap().toMap().keySet()) {
+				queryP.put(key, req.params(key));
+			}
+			User user = (User) req.session().attribute("user");
+			JSONObject uInfo = new JSONObject();
+			if (user != null) {
+				uInfo = user.toJSON();
+			}
+			details.put("queryParams", queryP);
+			details.put("url", req.url());
+			details.put("user", uInfo);
+
+			OpenWareInstance.getInstance().logError("Error on " +	req.url() +
+													": " +
+													e.getLocalizedMessage() +
+													"\n" +
+													details.toString(2),
+					e);
+			HTTPResponseHelper.generateResponse(res, 400, null, e.getMessage());
+		});
+
+		path("/api", () -> {
+			for (OpenWareAPI os : services) {
+				os.registerRoutes();
+			}
+		});
+
+		before("/api/*", (request, response) -> {
+			apiLogger.debug("[API-ACCESS][SOURCE:" +	request.ip() +
+							"][" +
+							request.requestMethod() +
+							"]" +
+							request.pathInfo());
+			response.header("Access-Control-Allow-Origin", "*");
+
+			if (request.requestMethod().equals("OPTIONS")) {
+				String accessControlRequestHeaders = request.headers("Access-Control-Request-Headers");
+				if (accessControlRequestHeaders != null) {
+					response.header("Access-Control-Allow-Headers", accessControlRequestHeaders);
+				}
+
+				String accessControlRequestMethod = request.headers("Access-Control-Request-Method");
+				if (accessControlRequestMethod != null) {
+					response.header("Access-Control-Allow-Methods", accessControlRequestMethod);
+				}
+
+				response.status(200);
+				return;
+			}
+
+			// request.session(true);
+			if (Config.accessControl) {
+				boolean authorized = false;
+				User user = UserService.getInstance().checkAuth(request.headers(UserAPI.OD_SESSION));
+				if (request.headers().contains(UserService.JWT_HEADER)) {
+					user = UserService.getInstance().jwtToUser(request.headers(UserService.JWT_HEADER));
+				}
+				authorized = user != null;
+				request.session().attribute("user", user);
+
+				if (!authorized) {
+					halt(401, "Not authorized");
+				}
+			}
+		}
+
+		);
+		String index;
+		try {
+			index = new String(Files.readAllBytes(Paths.get(Config.sparkFileDir + "/index.html")));
+			get("*", (req, res) -> {
+				if (!req.pathInfo().startsWith("/static") && !req.pathInfo().startsWith("/subscription")) {
+					res.status(404);
+					return index;
+				}
+				return null;
+			});
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		System.out.println("INSTANCE CREATED");
 	}
 
 	private AnalyticSensorProvider loadAnalyticSensorProvider() {
@@ -356,128 +473,11 @@ public class OpenWareInstance {
 	}
 
 	public void startInstance() {
+
 		if (!isRunning()) {
-
-			OpenWareInstance.getInstance().logInfo("Using external file path: " + Config.sparkFileDir);
-			externalStaticFileLocation(Config.sparkFileDir); // index.html is served at localhost:4567 (default port)
-			webSocket(LIVE_API, SubscriptionProvider.class);
-
-			after((req, res) -> {
-				if (req.url().contains("/api/transform")) {
-
-					System.gc();
-				}
-
-			});
-			exception(Exception.class, (e, req, res) -> {
-				JSONObject details = new JSONObject();
-
-				JSONObject params = new JSONObject();
-				for (String key : req.params().keySet()) {
-					params.put(key, req.params(key));
-				}
-				details.put("urlParams", params);
-
-				JSONObject queryP = new JSONObject();
-				for (String key : req.queryMap().toMap().keySet()) {
-					queryP.put(key, req.params(key));
-				}
-				User user = (User) req.session().attribute("user");
-				JSONObject uInfo = new JSONObject();
-				if (user != null) {
-					uInfo = user.toJSON();
-				}
-				details.put("queryParams", queryP);
-				details.put("url", req.url());
-				details.put("user", uInfo);
-
-				OpenWareInstance.getInstance().logError("Error on " +	req.url() +
-														": " +
-														e.getLocalizedMessage() +
-														"\n" +
-														details.toString(2),
-						e);
-				HTTPResponseHelper.generateResponse(res, 400, null, e.getMessage());
-			});
-
-			path("/api", () -> {
-				for (OpenWareAPI os : services) {
-					os.registerRoutes();
-				}
-			});
-
-			before("/api/*", (request, response) -> {
-				response.header("Access-Control-Allow-Origin", "*");
-				if (request.requestMethod().equals("OPTIONS")) {
-					String accessControlRequestHeaders = request.headers("Access-Control-Request-Headers");
-					if (accessControlRequestHeaders != null) {
-						response.header("Access-Control-Allow-Headers", accessControlRequestHeaders);
-					}
-
-					String accessControlRequestMethod = request.headers("Access-Control-Request-Method");
-					if (accessControlRequestMethod != null) {
-						response.header("Access-Control-Allow-Methods", accessControlRequestMethod);
-					}
-
-					response.status(200);
-					return;
-				}
-
-				// request.session(true);
-				if (Config.accessControl) {
-					boolean authorized = false;
-
-					User user = UserService.getInstance().checkAuth(request.headers(UserAPI.OD_SESSION));
-					authorized = user != null;
-					request.session().attribute("user", user);
-
-					// if (!Config.whiteList.contains(request.ip()) ) {
-					// OpenWareInstance.getInstance().logError("Access control denied request from
-					// ip address " + request.ip() + " - not on whitelist.");
-					// halt(401, "Not authorized");
-					// }
-
-					if (!authorized) {
-						halt(401, "Not authorized");
-					}
-				}
-			}
-
-			);
-			String index;
-			try {
-				index = new String(Files.readAllBytes(Paths.get(Config.sparkFileDir + "/index.html")));
-				get("*", (req, res) -> {
-					if (!req.pathInfo().startsWith("/static") && !req.pathInfo().startsWith("/subscription")) {
-						res.status(404);
-						return index;
-					}
-					return null;
-				});
-			} catch (IOException e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
-			}
-
 			init();
-
+			OpenWareInstance.getInstance().logInfo("Started WebServer...");
 		}
-
-		if (Boolean.valueOf(Config.useUsernames)) {
-			OpenWareInstance.getInstance()
-					.logInfo("Server is set to authenticated, API calls will be filtered by username.");
-		} else {
-			OpenWareInstance.getInstance()
-					.logInfo("Authentification is turned off, API calls will ignore user names internally.");
-		}
-
-		if (Config.accessControl) {
-			OpenWareInstance.getInstance().logInfo(
-					"Access control activated, only whitelisted IP addresses will be allowed to access Rest API.");
-		} else {
-			OpenWareInstance.getInstance().logInfo("Access control for Rest API not active.");
-		}
-
 		setRunning(true);
 	}
 
@@ -596,7 +596,7 @@ public class OpenWareInstance {
 
 						@Override
 						public Object load(Object prevInstance, JSONObject options) throws Exception {
-							actor.init(options);
+							actor.init(options, true);
 							DataService.addActuator(actor);
 							logInfo(actor.getClass().getCanonicalName() + " loaded!");
 							return actor;

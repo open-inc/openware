@@ -1,10 +1,7 @@
-package de.openinc.ow.middleware.sender;
+package de.openinc.ow.middleware.io;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
 
 import javax.mail.util.ByteArrayDataSource;
 
@@ -102,7 +99,7 @@ public class MailSender extends ActuatorAdapter {
 	}
 
 	@Override
-	public Future<String> processAction(String target, String topic, String payload, User user, JSONObject options,
+	public Object processAction(String target, String topic, String payload, User user, JSONObject options,
 			OpenWareDataItem optionalData, Object templateOptions) throws Exception {
 		MultiPartEmail email = new MultiPartEmail();
 		if (user != null && pw != null) {
@@ -111,11 +108,15 @@ public class MailSender extends ActuatorAdapter {
 			email.setSmtpPort(this.port);
 		}
 		email.setHostName(this.host);
-		String from = options.getJSONObject("extra").optString("sender");
-		if (from.equals("")) {
-			from = "noreply@openinc.de";
+		email.setFrom("noreply@openinc.de");
+		if (options.has("extra")) {
+			String from = options.getJSONObject("extra").optString("sender");
+			if (!from.equals("")) {
+				email.setFrom(from);
+			}
+
 		}
-		email.setFrom(from);
+
 		String[] recipients = target.split(";");
 
 		for (int i = 0; i < recipients.length; i++) {
@@ -125,14 +126,8 @@ public class MailSender extends ActuatorAdapter {
 		email.setCharset(textCharSet);
 		email.setSubject(topic);
 		email.setMsg(payload);
-		FutureTask<String> task = new FutureTask<String>(new Callable<String>() {
-			@Override
-			public String call() throws Exception {
-				return email.send();
-			}
-		});
-		task.run();
-		return task;
+
+		return email.send();
 	}
 
 	/**

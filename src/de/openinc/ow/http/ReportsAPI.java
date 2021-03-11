@@ -27,7 +27,7 @@ public class ReportsAPI implements OpenWareAPI {
 
 	@Override
 	public void registerRoutes() {
-		post("/reports/:type", (req, res) -> {
+		post("/report/:type", (req, res) -> {
 			return handle(req, res);
 		});
 	}

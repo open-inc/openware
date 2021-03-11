@@ -36,7 +36,10 @@ public class OpenWareBoolValue extends OpenWareValueDimension {
 			val = Boolean.valueOf((String) value);
 		}
 		if (value instanceof Integer) {
-			val = ((Integer) value).intValue() == 1;
+			val = ((Integer) value).intValue() >= 1;
+		}
+		if (value instanceof Double) {
+			val = ((Double) value).doubleValue() >= 1.0;
 		}
 		if (val == null)
 			return null;

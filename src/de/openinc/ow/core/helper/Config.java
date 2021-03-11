@@ -47,6 +47,11 @@ public class Config {
 	public static String dbGenericPrefix;
 	public static boolean dbPersistValue;
 	public static String referenceDBName;
+	public static int maxConnectionsPerHost;
+	public static int connectionQueueSizeMultiplier;
+
+	//Parse Generic Data
+	public static String parseGenericClasses;
 
 	// Data Mapping
 	public static String mappingsCollection; // Name of collection containing archived data
@@ -117,6 +122,8 @@ public class Config {
 	//Scheduler
 	public static int numberOfJobThreads;
 
+	//
+
 	public static void init() {
 
 		analyticOperations = new HashMap<>();
@@ -142,7 +149,7 @@ public class Config {
 
 		reportUrlRoutePrefix = properties.getProperty("reportUrlRoutePrefix", "/report");
 		numberOfJobThreads = Integer.parseInt(properties.getProperty("numberOfJobThreads", "1"));
-
+		parseGenericClasses = properties.getProperty("parseGenericClasses", "");
 		enableWebserver = Boolean.valueOf(properties.getProperty("enableWebserver", "true"));
 		opcuaEnabled = Boolean.valueOf(properties.getProperty("opcuaEnabled", "false"));
 		opcuaPort = Integer.valueOf(properties.getProperty("opcuaPort", "4840"));
@@ -190,6 +197,8 @@ public class Config {
 		idSeperator = properties.getProperty("idSeperator", "---");
 		baseTimeInterval = Long.valueOf(properties.getProperty("baseTimeInterval", "3600000"));
 		referenceDBName = properties.getProperty("referenceDBName", "references");
+		maxConnectionsPerHost = Integer.valueOf(properties.getProperty("maxConnectionsPerHost", "16"));
+		connectionQueueSizeMultiplier = Integer.valueOf(properties.getProperty("connectionQueueSizeMultiplier", "1"));
 
 		mappingsCollection = properties.getProperty("mappingsCollection", "idMappings");
 

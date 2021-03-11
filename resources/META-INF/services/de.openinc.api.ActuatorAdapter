@@ -1,2 +1,2 @@
-de.openinc.ow.middleware.sender.MailSender
-de.openinc.owee.io.WebHookActuator
+de.openinc.ow.middleware.io.MailSender
+de.openinc.ow.middleware.io.PersistActuator

@@ -7,6 +7,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import de.openinc.api.TransformationOperation;
+import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.core.helper.Config;
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 import de.openinc.ow.core.model.user.User;
@@ -89,7 +90,7 @@ public class TransformationService {
 	 */
 	public OpenWareDataItem pipeOperations(User user, OpenWareDataItem optionalData, JSONObject options)
 			throws Exception {
-		OpenWareDataItem tempItem = null;
+		OpenWareDataItem tempItem = optionalData;
 		JSONArray stages = options.getJSONArray("stages");
 		Long start = null;
 		Long end = null;
@@ -114,18 +115,21 @@ public class TransformationService {
 			}
 			tempItem = op.process(user, tempItem, stages.getJSONObject(i).getJSONObject("params"));
 			if (tempItem == null) {
-				throw new IllegalStateException("Could not perform stage " + i +
+				throw new IllegalStateException("Could not perform stage " +	i +
 												":\n" +
 												stages.getJSONObject(i).getJSONObject("params"));
 			}
 			if (Config.accessControl && tempItem != null) {
 				if (user == null || !user.canAccessRead(tempItem.getUser(), tempItem.getId()))
-					throw new IllegalAccessError("Not allowed to access data produced by stage " + i +
+					throw new IllegalAccessError("Not allowed to access data produced by stage " +	i +
 													":\n" +
 													stages.getJSONObject(i).getJSONObject("params"));
 			}
 			op = null;
+			OpenWareInstance.getInstance()
+					.logTrace("Performed stage :\n" + stages.getJSONObject(i).getJSONObject("params").toString(2));
 		}
+
 		return tempItem;
 
 	}

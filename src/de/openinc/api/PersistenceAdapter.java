@@ -3,6 +3,7 @@ package de.openinc.api;
 import java.util.List;
 
 import org.json.JSONArray;
+import org.json.JSONObject;
 
 import de.openinc.ow.core.model.data.OpenWareDataItem;
 
@@ -24,10 +25,10 @@ public interface PersistenceAdapter {
 
 	void storeData(OpenWareDataItem item) throws Exception;
 
-	void storeGenericData(String type, String key, String value);
+	String storeGenericData(String type, String optionalKey, JSONObject value) throws Exception;
 
-	void removeGenericData(String user, String key);
+	void removeGenericData(String user, String key) throws Exception;
 
-	String[] getGenericData(String type, String key);
+	List<JSONObject> getGenericData(String type, String key) throws Exception;
 
 }

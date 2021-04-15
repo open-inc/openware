@@ -5,7 +5,7 @@ import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import de.openinc.ow.core.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareDataItem;
 
 public interface PersistenceAdapter {
 
@@ -17,17 +17,20 @@ public interface PersistenceAdapter {
 
 	List<OpenWareDataItem> getItems();
 
-	OpenWareDataItem getLiveSensorData(String sensorName, String user);
+	OpenWareDataItem liveData(String sensorName, String source, long at, int lastElements, String reference);
 
-	OpenWareDataItem getHistoricalSensorData(String sensorName, String user, Long timestamp, Long until);
+	OpenWareDataItem historicalData(String sensorName, String source, Long timestamp, Long until, String reference);
 
-	boolean deleteDeviceData(String sensorName, String user, Long from, Long until);
+	boolean deleteDeviceData(String sensorName, String source, Long from, Long until);
 
 	void storeData(OpenWareDataItem item) throws Exception;
+	
+	int updateData(OpenWareDataItem item) throws Exception;
 
 	String storeGenericData(String type, String optionalKey, JSONObject value) throws Exception;
 
 	void removeGenericData(String user, String key) throws Exception;
+	
 
 	List<JSONObject> getGenericData(String type, String key) throws Exception;
 

@@ -5,7 +5,7 @@ import java.util.Map;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import de.openinc.ow.core.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareDataItem;
 
 public interface AnalyticSensorProvider {
 

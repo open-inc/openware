@@ -1,4 +1,4 @@
-package de.openinc.ow.core.model.data;
+package de.openinc.model.data;
 
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -8,7 +8,7 @@ import org.apache.commons.text.StringEscapeUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import de.openinc.ow.core.helper.DataConversion;
+import de.openinc.ow.helper.DataConversion;
 
 public class OpenWareValue extends AbstractList<OpenWareValueDimension> implements Comparable<OpenWareValue> {
 

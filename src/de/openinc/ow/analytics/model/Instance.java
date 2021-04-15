@@ -6,9 +6,9 @@ import java.util.List;
 
 import org.apache.commons.math3.ml.clustering.Clusterable;
 
-import de.openinc.ow.core.model.data.OpenWareNumber;
-import de.openinc.ow.core.model.data.OpenWareValue;
-import de.openinc.ow.core.model.data.OpenWareValueDimension;
+import de.openinc.model.data.OpenWareNumber;
+import de.openinc.model.data.OpenWareValue;
+import de.openinc.model.data.OpenWareValueDimension;
 
 /**
  * Created by Martin on 15.07.2015.

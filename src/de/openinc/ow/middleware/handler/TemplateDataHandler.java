@@ -1,6 +1,6 @@
 package de.openinc.ow.middleware.handler;
 
-import java.lang.reflect.InvocationTargetException;
+
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -15,10 +15,10 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import de.openinc.api.DataHandler;
+import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareValue;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.helper.Config;
-import de.openinc.ow.core.model.data.OpenWareDataItem;
-import de.openinc.ow.core.model.data.OpenWareValue;
+import de.openinc.ow.helper.Config;
 
 public class TemplateDataHandler implements DataHandler {
 	public static final String CSV = "csv";
@@ -113,7 +113,7 @@ public class TemplateDataHandler implements DataHandler {
 		try {
 			value.addValueDimension(item.getValueTypes().get(0).createValueForDimension(data));
 			res.add(value);
-		} catch (IllegalArgumentException e) {
+		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			OpenWareInstance.getInstance().logTrace(e.getMessage());
 		}
@@ -122,8 +122,7 @@ public class TemplateDataHandler implements DataHandler {
 	}
 
 	private List<OpenWareValue> parseCSV(OpenWareDataItem item, String data)
-			throws IllegalArgumentException, ParseException, NumberFormatException, JSONException,
-			InstantiationException, IllegalAccessException, InvocationTargetException {
+			throws Exception {
 		ArrayList<OpenWareValue> res = new ArrayList<>();
 		String sep = options.get(CSV_SEPERATOR);
 		String valIndexString = options.get(CSV_VALUE_INDEXES);
@@ -181,8 +180,7 @@ public class TemplateDataHandler implements DataHandler {
 	}
 
 	private List<OpenWareValue> parseJSONTVPair(OpenWareDataItem item, String data)
-			throws ParseException, JSONException, InstantiationException, IllegalAccessException,
-			IllegalArgumentException, InvocationTargetException {
+			throws Exception {
 		ArrayList<OpenWareValue> res = new ArrayList<>();
 		JSONArray values = new JSONArray();
 		if (!data.startsWith("[")) {
@@ -203,8 +201,7 @@ public class TemplateDataHandler implements DataHandler {
 	}
 
 	private List<OpenWareValue> parseJSONTVArrayPair(OpenWareDataItem item, String data)
-			throws ParseException, JSONException, InstantiationException, IllegalAccessException,
-			IllegalArgumentException, InvocationTargetException {
+			throws Exception {
 		ArrayList<OpenWareValue> res = new ArrayList<>();
 		JSONArray values = new JSONArray();
 		if (!data.startsWith("[")) {

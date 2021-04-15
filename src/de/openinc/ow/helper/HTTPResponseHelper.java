@@ -1,4 +1,4 @@
-package de.openinc.ow.core.helper;
+package de.openinc.ow.helper;
 
 import org.json.JSONObject;
 

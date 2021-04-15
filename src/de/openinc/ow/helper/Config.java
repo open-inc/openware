@@ -1,4 +1,4 @@
-package de.openinc.ow.core.helper;
+package de.openinc.ow.helper;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -49,6 +49,7 @@ public class Config {
 	public static String referenceDBName;
 	public static int maxConnectionsPerHost;
 	public static int connectionQueueSizeMultiplier;
+	public static String dbConnectionString;
 
 	//Parse Generic Data
 	public static String parseGenericClasses;
@@ -69,6 +70,7 @@ public class Config {
 	public static String requeueUnvalidated; // Don't store data that fails validation (Boolean)
 	public static boolean publishParsedData;
 	public static String rmqvHost;
+	
 
 	// MQTT
 	public static String mqttAdresse;
@@ -199,9 +201,11 @@ public class Config {
 		referenceDBName = properties.getProperty("referenceDBName", "references");
 		maxConnectionsPerHost = Integer.valueOf(properties.getProperty("maxConnectionsPerHost", "16"));
 		connectionQueueSizeMultiplier = Integer.valueOf(properties.getProperty("connectionQueueSizeMultiplier", "1"));
-
+		dbConnectionString = properties.getProperty("dbConnectionString","");
+		
 		mappingsCollection = properties.getProperty("mappingsCollection", "idMappings");
 
+		
 		rmqPath = properties.getProperty("rmqPath", "localhost");
 		rmqQueue = properties.getProperty("rmqQueue", "odash");
 		rmqQueueAutoDelete = Boolean.valueOf(properties.getProperty("rmqQueueAutoDelete", "false"));

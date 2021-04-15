@@ -1,4 +1,4 @@
-package de.openinc.ow.core.model.data;
+package de.openinc.model.data;
 
 import java.util.ArrayList;
 import java.util.List;

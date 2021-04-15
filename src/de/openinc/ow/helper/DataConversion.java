@@ -1,4 +1,4 @@
-package de.openinc.ow.core.helper;
+package de.openinc.ow.helper;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -8,10 +8,10 @@ import org.json.JSONObject;
 
 import com.google.common.base.CharMatcher;
 
-import de.openinc.ow.core.model.data.OpenWareDataItem;
-import de.openinc.ow.core.model.data.OpenWareNumber;
-import de.openinc.ow.core.model.data.OpenWareValue;
-import de.openinc.ow.core.model.data.OpenWareValueDimension;
+import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareNumber;
+import de.openinc.model.data.OpenWareValue;
+import de.openinc.model.data.OpenWareValueDimension;
 
 public class DataConversion {
 	private static CharMatcher isoMatcher = CharMatcher.javaIsoControl();

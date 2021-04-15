@@ -2,9 +2,9 @@ package de.openinc.api;
 
 import java.util.Map;
 
-import de.openinc.ow.core.model.data.OpenWareDataItem;
-import de.openinc.ow.core.model.data.ReferenceDataItem;
-import de.openinc.ow.core.model.user.User;
+import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.data.ReferenceDataItem;
+import de.openinc.model.user.User;
 
 public interface ReferenceAdapter {
 

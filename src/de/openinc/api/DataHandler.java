@@ -4,7 +4,7 @@ import java.util.List;
 
 import org.json.JSONObject;
 
-import de.openinc.ow.core.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareDataItem;
 
 public interface DataHandler {
 	public List<OpenWareDataItem> handleData(String id, String data) throws Exception;

@@ -8,10 +8,11 @@ import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import de.openinc.ow.core.model.data.OpenWareDataItem;
-import de.openinc.ow.core.model.data.OpenWareNumber;
-import de.openinc.ow.core.model.data.OpenWareValue;
-import de.openinc.ow.core.model.data.OpenWareValueDimension;
+import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareNumber;
+import de.openinc.model.data.OpenWareValue;
+import de.openinc.model.data.OpenWareValueDimension;
+import de.openinc.ow.OpenWareInstance;
 
 public class Dataset extends AbstractList<Instance> {
 	private List<Instance> data;
@@ -79,8 +80,12 @@ public class Dataset extends AbstractList<Instance> {
 			OpenWareValue val = new OpenWareValue(i.ts);
 			int y = 0;
 			for (double dVal : i.values) {
-				val.addValueDimension(OpenWareValueDimension.createNewDimension("val" + (y++), "", OpenWareNumber.TYPE)
-						.createValueForDimension(dVal));
+				try {
+					val.addValueDimension(OpenWareValueDimension.createNewDimension("val" + (y++), "", OpenWareNumber.TYPE)
+							.createValueForDimension(dVal));
+				} catch (Exception e) {
+					OpenWareInstance.getInstance().logWarn(this.getClass().getCanonicalName()+": could not create Number Dimension");
+				}
 			}
 			vals.add(val);
 		}

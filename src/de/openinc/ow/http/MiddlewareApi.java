@@ -17,13 +17,14 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import de.openinc.api.OpenWareAPI;
+import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.helper.Config;
-import de.openinc.ow.core.helper.HTTPResponseHelper;
-import de.openinc.ow.core.model.data.OpenWareDataItem;
-import de.openinc.ow.core.model.user.User;
+import de.openinc.ow.helper.Config;
+import de.openinc.ow.helper.HTTPResponseHelper;
 import de.openinc.ow.middleware.services.AnalyticsService;
 import de.openinc.ow.middleware.services.DataService;
+import spark.QueryParamsMap;
 import spark.Request;
 import spark.Response;
 
@@ -56,6 +57,7 @@ public class MiddlewareApi implements OpenWareAPI {
 	 * API constant to push data via HTTP
 	 */
 	public static final String PUSH_DATA = "/push";
+	public static final String UPDATE_DATA = "/update";
 
 	// Status Codes
 	public static final int SUCCESS_CODE = 200;
@@ -80,6 +82,27 @@ public class MiddlewareApi implements OpenWareAPI {
 				DataService.onNewData(item);
 				res.status(200);
 				return SUCCESS_CODE;
+			});
+			post(UPDATE_DATA, (req, res) -> {
+				try {
+					OpenWareDataItem update = OpenWareDataItem.fromJSON(req.body());
+					if (Config.accessControl) {
+						User user = req.session().attribute("user");
+						if (user == null || !user.canAccessWrite(update.getUser(), update.getId()))
+							return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
+									"No write permission for source/sensor");
+					}
+					int count = DataService.updateData(update);
+					JSONObject result  = new JSONObject();
+					result.put("updateCount", count);
+					
+					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_OK, result, null);
+		
+				}catch(Exception e) {
+					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_BAD_REQUEST, null,
+							e);
+				}
+				
 			});
 			/*
 			post(ACTUATOR_TRIGGER_API, (req, res) -> {
@@ -117,6 +140,28 @@ public class MiddlewareApi implements OpenWareAPI {
 			});
 
 			get(LIVE_DATA_API, (req, res) -> {
+				User user = req.session().attribute("user");
+				String source = req.params("source");
+				String strID = req.params("sensorid");
+				
+				if (user == null || !user.canAccessRead(source, strID)) {
+					HTTPResponseHelper.generateResponse(res,HTTPResponseHelper.STATUS_FORBIDDEN, null, "Not Allowed to read data");
+					return null;
+				}
+				res.header("Content-Encoding", "gzip");
+				res.type("application/json");
+				try {
+				
+					long at = req.queryMap("at").longValue();
+					int elements = req.queryMap("values").integerValue();
+					return DataService.getLiveSensorData(strID, source, at, elements);
+				}catch(Exception e) {
+					return DataService.getLiveSensorData(strID, source);	
+				}
+				
+				
+				
+				/*
 				if (Config.accessControl) {
 					User user = req.session().attribute("user");
 					String source = req.params("source");
@@ -125,8 +170,7 @@ public class MiddlewareApi implements OpenWareAPI {
 						halt(403, "Not allowed to read data");
 				}
 
-				res.header("Content-Encoding", "gzip");
-				res.type("application/json");
+				
 				String sensorID = req.params("sensorid");
 				String source = req.params("source");
 				OpenWareInstance.getInstance()
@@ -154,7 +198,7 @@ public class MiddlewareApi implements OpenWareAPI {
 				} else {
 					return items;
 				}
-
+				 */
 			});
 
 			get(HISTORICAL_DATA_API, (req, res) -> {

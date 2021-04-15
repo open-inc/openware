@@ -1,4 +1,4 @@
-package de.openinc.ow.core.model.data;
+package de.openinc.model.data;
 
 public class OpenWareString extends OpenWareValueDimension {
 

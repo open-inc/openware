@@ -4,7 +4,7 @@ import java.util.HashMap;
 
 import de.openinc.ow.analytics.model.Dataset;
 import de.openinc.ow.analytics.model.Instance;
-import de.openinc.ow.core.helper.DataConversion;
+import de.openinc.ow.helper.DataConversion;
 
 public class TimePatternAnalysis {
 

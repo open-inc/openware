@@ -12,8 +12,8 @@ import org.json.JSONObject;
 
 import de.openinc.api.OpenWareAPI;
 import de.openinc.api.ReportInterface;
+import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.model.user.User;
 import de.openinc.ow.middleware.services.ReportsService;
 import spark.Request;
 import spark.Response;

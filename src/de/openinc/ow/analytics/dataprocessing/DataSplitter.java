@@ -5,9 +5,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import de.openinc.ow.core.helper.DataConversion;
-import de.openinc.ow.core.model.data.OpenWareDataItem;
-import de.openinc.ow.core.model.data.OpenWareValue;
+import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareValue;
+import de.openinc.ow.helper.DataConversion;
 
 /**
  * Created by Martin on 15.08.2016.

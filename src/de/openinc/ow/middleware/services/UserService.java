@@ -16,8 +16,8 @@ import com.auth0.jwt.interfaces.DecodedJWT;
 import com.auth0.jwt.interfaces.JWTVerifier;
 
 import de.openinc.api.UserAdapter;
+import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.model.user.User;
 
 public class UserService {
 

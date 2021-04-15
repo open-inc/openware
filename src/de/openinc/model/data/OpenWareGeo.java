@@ -1,4 +1,4 @@
-package de.openinc.ow.core.model.data;
+package de.openinc.model.data;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,7 +37,7 @@ public class OpenWareGeo extends OpenWareValueDimension {
 	}
 
 	@Override
-	public OpenWareValueDimension createValueForDimension(Object value) {
+	public OpenWareValueDimension createValueForDimension(Object value) throws Exception{
 		try {
 			JSONObject obj = null;
 			if (value instanceof String) {
@@ -108,7 +108,7 @@ public class OpenWareGeo extends OpenWareValueDimension {
 			return null;
 		} catch (JSONException e) {
 			OpenWareInstance.getInstance().logError("Tried parsing GeoJSON but was not valid\n" + value.toString());
-			return null;
+			throw new IllegalArgumentException("The provided value needs to be a a GeoJSON Object but is " + value.toString());
 		}
 
 	}

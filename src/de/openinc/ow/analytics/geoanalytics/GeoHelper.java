@@ -14,13 +14,14 @@ import org.apache.commons.math3.ml.clustering.KMeansPlusPlusClusterer;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareGeo;
+import de.openinc.model.data.OpenWareNumber;
+import de.openinc.model.data.OpenWareValue;
+import de.openinc.model.data.OpenWareValueDimension;
+import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.analytics.model.Dataset;
 import de.openinc.ow.analytics.model.Instance;
-import de.openinc.ow.core.model.data.OpenWareDataItem;
-import de.openinc.ow.core.model.data.OpenWareGeo;
-import de.openinc.ow.core.model.data.OpenWareNumber;
-import de.openinc.ow.core.model.data.OpenWareValue;
-import de.openinc.ow.core.model.data.OpenWareValueDimension;
 
 public class GeoHelper {
 
@@ -124,65 +125,70 @@ public class GeoHelper {
 		List<OpenWareValueDimension> vTypes = new ArrayList<OpenWareValueDimension>();
 		vTypes.add(OpenWareGeo.createNewDimension("cluster", "", OpenWareGeo.TYPE));
 		res.setValueTypes(vTypes);
-
-		List<Cluster<Instance>> clusters = (List<Cluster<Instance>>) clusterer.cluster(geoToDataset(data));
-		List<JSONObject> geoClusters = new ArrayList<JSONObject>();
-		JSONObject featureCollection = new JSONObject();
-		featureCollection.put("type", "FeatureCollection");
-		JSONArray features = new JSONArray();
-		for (Cluster<Instance> cluster : clusters) {
-			Point2D[] hullpoints = new Point2D[cluster.getPoints().size()];
-			int j = 0;
-			for (Instance i : cluster.getPoints()) {
-				hullpoints[j] = new Point2D(cluster.getPoints().get(j).getPoint()[0],
-						cluster.getPoints().get(j).getPoint()[1], i.ts);
-				j++;
-			}
-			GrahamScan hull = new GrahamScan(hullpoints);
-			JSONObject feature = new JSONObject();
-			JSONObject props = new JSONObject();
-			props.put("clusterSize", cluster.getPoints().size());
-			feature.put("properties", props);
-			feature.put("type", "Feature");
-			JSONObject geo = new JSONObject();
-
-			JSONArray coords = new JSONArray();
-			JSONArray first = null;
-			int count = 0;
-			for (Point2D point : hull.hull()) {
-				count++;
-				JSONArray coord = new JSONArray();
-				coord.put(point.y());
-				coord.put(point.x());
-				coords.put(coord);
-				if (first == null) {
-					first = coord;
+		
+		try {
+			List<Cluster<Instance>> clusters = (List<Cluster<Instance>>) clusterer.cluster(geoToDataset(data));
+			List<JSONObject> geoClusters = new ArrayList<JSONObject>();
+			JSONObject featureCollection = new JSONObject();
+			featureCollection.put("type", "FeatureCollection");
+			JSONArray features = new JSONArray();
+			for (Cluster<Instance> cluster : clusters) {
+				Point2D[] hullpoints = new Point2D[cluster.getPoints().size()];
+				int j = 0;
+				for (Instance i : cluster.getPoints()) {
+					hullpoints[j] = new Point2D(cluster.getPoints().get(j).getPoint()[0],
+							cluster.getPoints().get(j).getPoint()[1], i.ts);
+					j++;
 				}
-			}
-			if (count >= 3) {
-				geo.put("type", "Polygon");
-				coords.put(first);
-			} else {
-				continue;
-			}
+				GrahamScan hull = new GrahamScan(hullpoints);
+				JSONObject feature = new JSONObject();
+				JSONObject props = new JSONObject();
+				props.put("clusterSize", cluster.getPoints().size());
+				feature.put("properties", props);
+				feature.put("type", "Feature");
+				JSONObject geo = new JSONObject();
 
-			JSONArray coordWrapper = new JSONArray();
-			coordWrapper.put(coords);
-			if (cluster.getPoints().size() >= 4) {
-				geo.put("coordinates", coordWrapper);
-			} else {
-				geo.put("coordinates", coords);
-			}
+				JSONArray coords = new JSONArray();
+				JSONArray first = null;
+				int count = 0;
+				for (Point2D point : hull.hull()) {
+					count++;
+					JSONArray coord = new JSONArray();
+					coord.put(point.y());
+					coord.put(point.x());
+					coords.put(coord);
+					if (first == null) {
+						first = coord;
+					}
+				}
+				if (count >= 3) {
+					geo.put("type", "Polygon");
+					coords.put(first);
+				} else {
+					continue;
+				}
 
-			feature.put("geometry", geo);
-			features.put(feature);
+				JSONArray coordWrapper = new JSONArray();
+				coordWrapper.put(coords);
+				if (cluster.getPoints().size() >= 4) {
+					geo.put("coordinates", coordWrapper);
+				} else {
+					geo.put("coordinates", coords);
+				}
+
+				feature.put("geometry", geo);
+				features.put(feature);
+			}
+			featureCollection.put("features", features);
+			res.setId(res.getId() + ".clustered");
+			res.setName("Clusters: " + res.getName());
+			OpenWareValue resVal = new OpenWareValue(data.value().get(0).getDate());
+			resVal.addValueDimension(res.getValueTypes().get(0).createValueForDimension(featureCollection));
+			res.value().add(resVal);
+		}catch(Exception e) {
+			OpenWareInstance.getInstance().logError("GEOHELPER - Invalid GeoJSON", e);
 		}
-		featureCollection.put("features", features);
-		res.setId(res.getId() + ".clustered");
-		res.setName("Clusters: " + res.getName());
-		OpenWareValue resVal = new OpenWareValue(data.value().get(0).getDate());
-		resVal.addValueDimension(res.getValueTypes().get(0).createValueForDimension(featureCollection));
-		res.value().add(resVal);
+		
 		return res;
 
 	}

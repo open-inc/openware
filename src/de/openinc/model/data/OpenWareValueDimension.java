@@ -1,8 +1,8 @@
-package de.openinc.ow.core.model.data;
+package de.openinc.model.data;
 
 import org.apache.commons.text.StringEscapeUtils;
 
-import de.openinc.ow.core.helper.DataConversion;
+import de.openinc.ow.helper.DataConversion;
 
 public abstract class OpenWareValueDimension {
 
@@ -21,7 +21,7 @@ public abstract class OpenWareValueDimension {
 
 	}
 
-	abstract public OpenWareValueDimension createValueForDimension(Object value);
+	abstract public OpenWareValueDimension createValueForDimension(Object value) throws Exception;
 
 	abstract public OpenWareValueDimension cloneDimension();
 

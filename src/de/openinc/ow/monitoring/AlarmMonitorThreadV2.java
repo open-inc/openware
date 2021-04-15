@@ -10,10 +10,10 @@ import org.json.JSONObject;
 
 import de.openinc.api.ActuatorAdapter;
 import de.openinc.api.DataSubscriber;
+import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.helper.Config;
-import de.openinc.ow.core.model.data.OpenWareDataItem;
-import de.openinc.ow.core.model.user.User;
+import de.openinc.ow.helper.Config;
 import de.openinc.ow.http.AlarmAPI;
 import de.openinc.ow.middleware.services.DataService;
 import de.openinc.ow.middleware.services.UserService;

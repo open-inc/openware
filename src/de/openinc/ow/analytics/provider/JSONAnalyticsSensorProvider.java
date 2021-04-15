@@ -1,4 +1,4 @@
-package de.openinc.ow.core.analytics.SensorProvider;
+package de.openinc.ow.analytics.provider;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -17,10 +17,10 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import de.openinc.api.AnalyticSensorProvider;
+import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareValueDimension;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.helper.Config;
-import de.openinc.ow.core.model.data.OpenWareDataItem;
-import de.openinc.ow.core.model.data.OpenWareValueDimension;
+import de.openinc.ow.helper.Config;
 
 public class JSONAnalyticsSensorProvider implements AnalyticSensorProvider {
 	private File myFile;

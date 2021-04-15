@@ -2,7 +2,7 @@ package de.openinc.api;
 
 import java.util.List;
 
-import de.openinc.ow.core.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareDataItem;
 
 public interface AnalyticsProvider {
 

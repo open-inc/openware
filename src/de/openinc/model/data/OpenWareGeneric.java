@@ -1,4 +1,4 @@
-package de.openinc.ow.core.model.data;
+package de.openinc.model.data;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -30,7 +30,7 @@ public class OpenWareGeneric extends OpenWareValueDimension {
 	}
 
 	@Override
-	public OpenWareValueDimension createValueForDimension(Object value) {
+	public OpenWareValueDimension createValueForDimension(Object value) throws Exception {
 		if (value instanceof JSONObject) {
 			return new OpenWareGeneric(getName(), getUnit(), (JSONObject) value);
 		}
@@ -39,11 +39,12 @@ public class OpenWareGeneric extends OpenWareValueDimension {
 				JSONObject o = new JSONObject((String) value);
 				return new OpenWareGeneric(getName(), getUnit(), o);
 			} catch (JSONException e) {
-				return null;
+				throw new IllegalArgumentException("The provided value needs to be a JSON-Object but is " + value.toString());
 			}
 
 		}
-		return null;
+		
+		throw new IllegalArgumentException("The provided value needs to be a JSON-Object but is " + value.toString());
 	}
 
 }

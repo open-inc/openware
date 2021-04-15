@@ -4,7 +4,7 @@ import java.util.List;
 
 import org.json.JSONObject;
 
-import de.openinc.ow.core.model.user.User;
+import de.openinc.model.user.User;
 
 public interface UserAdapter {
 	public void init();

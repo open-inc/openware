@@ -11,10 +11,10 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import de.openinc.api.OpenWareAPI;
+import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.helper.Config;
-import de.openinc.ow.core.helper.HTTPResponseHelper;
-import de.openinc.ow.core.model.user.User;
+import de.openinc.ow.helper.Config;
+import de.openinc.ow.helper.HTTPResponseHelper;
 import de.openinc.ow.middleware.services.DataService;
 import de.openinc.ow.monitoring.AlarmMonitorThreadV1;
 import de.openinc.ow.monitoring.AlarmMonitorThreadV2;

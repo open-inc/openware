@@ -1,4 +1,4 @@
-package de.openinc.ow.core.model.data;
+package de.openinc.model.data;
 
 public class OpenWareNumber extends OpenWareValueDimension {
 
@@ -31,7 +31,7 @@ public class OpenWareNumber extends OpenWareValueDimension {
 	}
 
 	@Override
-	public OpenWareValueDimension createValueForDimension(Object value) {
+	public OpenWareValueDimension createValueForDimension(Object value) throws Exception{
 		double val = Double.NaN;
 		if (value instanceof Double) {
 			val = ((Double) value).doubleValue();
@@ -45,11 +45,11 @@ public class OpenWareNumber extends OpenWareValueDimension {
 
 		if (Double.isNaN(val)) {
 			try {
-				val = Double.valueOf(("" + value));
-			} catch (NumberFormatException e) {
-				return null;
+				val = Double.valueOf(("" + value));	
+			}catch(Exception e) {
+				throw new IllegalArgumentException("The provided value needs to be a Number but is " + value.toString());
 			}
-
+			
 		}
 		return new OpenWareNumber(getName(), getUnit(), val);
 	}

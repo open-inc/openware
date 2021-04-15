@@ -1,6 +1,6 @@
 package de.openinc.api;
 
-import de.openinc.ow.core.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareDataItem;
 
 public interface DataSubscriber {
 

@@ -1,4 +1,4 @@
-package de.openinc.ow.core.analytics.SensorProvider;
+package de.openinc.ow.analytics.provider;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -21,10 +21,10 @@ import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
 
 import de.openinc.api.AnalyticSensorProvider;
+import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareValueDimension;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.helper.Config;
-import de.openinc.ow.core.model.data.OpenWareDataItem;
-import de.openinc.ow.core.model.data.OpenWareValueDimension;
+import de.openinc.ow.helper.Config;
 
 public class ParseAnalyticSensorProvider implements AnalyticSensorProvider {
 	private Properties properties;

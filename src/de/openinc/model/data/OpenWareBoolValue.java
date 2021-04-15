@@ -1,4 +1,4 @@
-package de.openinc.ow.core.model.data;
+package de.openinc.model.data;
 
 public class OpenWareBoolValue extends OpenWareValueDimension {
 
@@ -26,7 +26,7 @@ public class OpenWareBoolValue extends OpenWareValueDimension {
 	}
 
 	@Override
-	public OpenWareValueDimension createValueForDimension(Object value) {
+	public OpenWareValueDimension createValueForDimension(Object value) throws Exception{
 
 		Boolean val = null;
 		if (value instanceof Boolean) {
@@ -42,7 +42,7 @@ public class OpenWareBoolValue extends OpenWareValueDimension {
 			val = ((Double) value).doubleValue() >= 1.0;
 		}
 		if (val == null)
-			return null;
+			throw new IllegalArgumentException("The provided value needs to be a boolean value,  a String (which will be parsed), or a number larger than 1 but is " + value);
 
 		return new OpenWareBoolValue(this.getName(), this.getUnit(), val);
 

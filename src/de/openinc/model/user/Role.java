@@ -1,4 +1,4 @@
-package de.openinc.ow.core.model.user;
+package de.openinc.model.user;
 
 import java.util.ArrayList;
 

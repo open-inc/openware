@@ -9,10 +9,10 @@ import org.json.JSONObject;
 
 import de.openinc.api.OpenWareAPI;
 import de.openinc.api.TransformationOperation;
-import de.openinc.ow.core.helper.Config;
-import de.openinc.ow.core.helper.HTTPResponseHelper;
-import de.openinc.ow.core.model.data.OpenWareDataItem;
-import de.openinc.ow.core.model.user.User;
+import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.user.User;
+import de.openinc.ow.helper.Config;
+import de.openinc.ow.helper.HTTPResponseHelper;
 import de.openinc.ow.middleware.services.TransformationService;
 
 public class TransformationAPI implements OpenWareAPI {

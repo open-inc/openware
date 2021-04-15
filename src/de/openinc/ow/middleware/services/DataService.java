@@ -6,11 +6,18 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.BinaryOperator;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.concurrent.ConcurrentUtils;
 import org.json.JSONArray;
@@ -22,13 +29,14 @@ import de.openinc.api.DataHandler;
 import de.openinc.api.DataSubscriber;
 import de.openinc.api.PersistenceAdapter;
 import de.openinc.api.ReferenceAdapter;
+import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareNumber;
+import de.openinc.model.data.OpenWareValue;
+import de.openinc.model.data.OpenWareValueDimension;
+import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.core.helper.Config;
-import de.openinc.ow.core.model.data.OpenWareDataItem;
-import de.openinc.ow.core.model.data.OpenWareNumber;
-import de.openinc.ow.core.model.data.OpenWareValue;
-import de.openinc.ow.core.model.data.OpenWareValueDimension;
-import de.openinc.ow.core.model.user.User;
+import de.openinc.ow.helper.Config;
+import de.openinc.ow.transformation.FilterTransformer;
 import spark.QueryParamsMap;
 
 /**
@@ -109,7 +117,7 @@ public class DataService {
 	 * register a DataHandler, it will be called by the DataService when new
 	 * unstructured data arrives. The DataService will sequentially pass the
 	 * information to the DataHandlers until one handler can parse the data and
-	 * return a {@link de.openinc.ow.core.model.OpenWareDataItem} Object
+	 * return a {@link de.openinc.model.data.OpenWareDataItem} Object
 	 * 
 	 * @param dh
 	 * @return
@@ -145,7 +153,7 @@ public class DataService {
 				} catch (SecurityException e) {
 					OpenWareInstance.getInstance().logError("User not allowed to configure item", e);
 					return false;
-				} catch (JSONException e) {
+				} catch (Exception e) {
 					OpenWareInstance.getInstance().logError("Item configuration not valid", e);
 					return false;
 				}
@@ -161,7 +169,7 @@ public class DataService {
 					return false;
 
 				res.add(item);
-			} catch (JSONException e) {
+			} catch (Exception e) {
 				OpenWareInstance.getInstance().logError("Item configuration not valid", e);
 				return false;
 			}
@@ -248,8 +256,9 @@ public class DataService {
 		return deleted != null;
 	}
 
-	private static OpenWareDataItem checkObject(User user, JSONObject o) throws JSONException, SecurityException {
+	private static OpenWareDataItem checkObject(User user, JSONObject o) throws Exception {
 		OpenWareDataItem item = OpenWareDataItem.fromJSON(o.toString());
+		
 		boolean wellFormed = (item.getMeta().has("id_source") && item.getMeta().has("active")
 				&& item.getMeta().has("source_source")
 				&& item.getMeta().has("visible"));
@@ -511,19 +520,200 @@ public class DataService {
 		toReturn.addAll(items.values());
 		return toReturn;
 	}
+	
+	public static int updateData(OpenWareDataItem item) throws Exception {
+		for(OpenWareValue val: item.value()) {
+			OpenWareDataItem pastLiveVal = getLiveSensorData(item.getId(), item.getUser(), val.getDate(), 1);
+			if(!pastLiveVal.equalsValueTypes(item, false)) throw new IllegalArgumentException("The value types of the provided data differ from the existing data");
+		}
+		return adapter.updateData(item);
+	}
 
 	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp,
 			long until) {
 
-		return adapter.getHistoricalSensorData(sensorName, source, timestamp, until);
+		return adapter.historicalData(sensorName, source, timestamp, until, null);
+
+	}
+	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp,
+			long until, String ref) {
+
+		return adapter.historicalData(sensorName, source, timestamp, until, ref);
 
 	}
 
+	private static List<OpenWareValue> getMinMax(OpenWareDataItem data, int maxAmount, int dim) {
+		if(!data.getValueTypes().get(dim).type().toLowerCase().equals(OpenWareNumber.TYPE.toLowerCase())) return data.value();
+		int bucketSize = (int) (data.value().size() / (double) (maxAmount / 2));
+		
+		/*
+		OpenWareValue max = null;
+		OpenWareValue min = null;
+		for (OpenWareValue val : data.value()) {
+			if (count == bucketSize) {
+				if (max == null || min == null) {
+					//						System.out.println(max);
+					//						System.out.println(min);
+				} else {
+					if (max.getDate() > min.getDate()) {
+						toReturn.add(min);
+						toReturn.add(max);
+					} else {
+						toReturn.add(max);
+						toReturn.add(min);
+					}
+				}
+				count = 0;
+				maxVal = Double.MIN_VALUE;
+				minVal = Double.MAX_VALUE;
+				max = null;
+				min = null;
+			}
+			double current = (double) val.get(dim).value();
+			if (current > maxVal) {
+				max = val;
+				maxVal = current;
+			}
+			if (current <= minVal) {
+				min = val;
+				minVal = current;
+			}
+			count++;
+
+		}
+		return toReturn;
+		*/
+		
+		//-------------------------new--------------------------
+		ArrayList<OpenWareValue> resNew = new ArrayList<OpenWareValue>();
+		int i=0;
+		Map<Integer, List<OpenWareValue>> groups = new HashMap<Integer, List<OpenWareValue>>();
+		while(i<data.value().size()) {
+			groups.put(i, data.value().subList(i, Math.min((i+bucketSize), data.value().size())));
+			i+=bucketSize;
+		}
+		/*
+		Map<Integer, List<OpenWareValue>> groups = data.value().parallelStream().collect(Collectors.groupingBy(new Function<OpenWareValue, Integer>() {
+			@Override
+			public Integer apply(OpenWareValue t) {
+				return ((int)((t.getDate())/bucketSize));
+			}
+		}));
+		*/
+	
+		groups.values().parallelStream().forEach(new Consumer<List<OpenWareValue>>() {
+			
+			@Override
+			public void accept(List<OpenWareValue> list) {
+				try {
+					resNew.add(list.parallelStream().reduce(new BinaryOperator<OpenWareValue>() {
+						@Override
+						public OpenWareValue apply(OpenWareValue t, OpenWareValue u) {
+							return (double)t.get(dim).value()<(double)u.get(dim).value()?t:u;
+						}
+					}).get());
+					
+					
+					resNew.add(list.parallelStream().reduce(new BinaryOperator<OpenWareValue>() {
+						@Override
+						public OpenWareValue apply(OpenWareValue t, OpenWareValue u) {
+							return (double)t.get(dim).value()>(double)u.get(dim).value()?t:u;
+						}
+					}).get());
+					
+				}catch(NoSuchElementException e) {
+					OpenWareInstance.getInstance().logError("No Result for Min/Max in Bucket", e);
+				}
+				
+			}
+
+		});
+		return resNew;
+		
+		
+		
+		
+		
+	}
+	
+	private static List<OpenWareValue> getMinMaxOld(OpenWareDataItem data, int maxAmount, int dim ) {
+		if(!data.getValueTypes().get(dim).type().toLowerCase().equals(OpenWareNumber.TYPE.toLowerCase())) return data.value();
+		ArrayList<OpenWareValue> toReturn = new ArrayList<>();
+		int count = 0;
+		double maxVal = Double.MIN_VALUE;
+		double minVal = Double.MAX_VALUE;
+		int bucketSize = (int) Math.ceil((double) data.value().size() / (double) (maxAmount / 2));
+		
+		
+		OpenWareValue max = null;
+		OpenWareValue min = null;
+		for (OpenWareValue val : data.value()) {
+			if (count == bucketSize) {
+				if (max == null || min == null) {
+					//						System.out.println(max);
+					//						System.out.println(min);
+				} else {
+					if (max.getDate() > min.getDate()) {
+						toReturn.add(min);
+						toReturn.add(max);
+					} else {
+						toReturn.add(max);
+						toReturn.add(min);
+					}
+				}
+				count = 0;
+				maxVal = Double.MIN_VALUE;
+				minVal = Double.MAX_VALUE;
+				max = null;
+				min = null;
+			}
+			double current = (double) val.get(dim).value();
+			if (current > maxVal) {
+				max = val;
+				maxVal = current;
+			}
+			if (current <= minVal) {
+				min = val;
+				minVal = current;
+			}
+			count++;
+
+		}
+		return toReturn;
+	
+		
+	}
+	
+	private static OpenWareDataItem filter(QueryParamsMap params, OpenWareDataItem item) throws Exception {
+		FilterTransformer ft = new FilterTransformer();
+		JSONObject filterOpts = new JSONObject();
+		filterOpts.put("filterExpression", params.value("filter"));
+		return ft.apply(null, item, filterOpts).getResult();
+		
+	}
 	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp, long until,
 			QueryParamsMap parameters) {
-		OpenWareDataItem data = getHistoricalSensorData(sensorName, source, timestamp, until);
-		ArrayList<OpenWareValue> toReturn = new ArrayList<>();
-
+		
+		String ref = parameters.value("reference");
+		OpenWareDataItem data;
+		if(ref!=null && !ref.equals("")) {
+			data = getHistoricalSensorData(sensorName, source, timestamp, until, ref);
+		}else {
+			data = getHistoricalSensorData(sensorName, source, timestamp, until);	
+		}
+		if(parameters.hasKey("filter")) {
+			try {
+				data = filter(parameters, data);
+				System.gc();
+			} catch (Exception e) {
+				OpenWareInstance.getInstance().logWarn("Error while filtering data");
+			}
+		}
+		
+		if(!parameters.hasKey("mode")) {
+			return data;
+		}
+		
 		String mode = parameters.value("mode");
 		int maxAmount = parameters.get("maxValues").integerValue();
 		int dim = parameters.get("dimension").integerValue();
@@ -534,49 +724,12 @@ public class DataService {
 		if (!data.getValueTypes().get(dim).type().equals(OpenWareNumber.TYPE)) {
 			return data;
 		}
-
-		int bucketSize = (int) Math.ceil((double) data.value().size() / (double) (maxAmount / 2));
-
 		if (mode.toLowerCase().equals("minmax")) {
-			int count = 0;
-			double maxVal = Double.MIN_VALUE;
-			double minVal = Double.MAX_VALUE;
-			OpenWareValue max = null;
-			OpenWareValue min = null;
-			for (OpenWareValue val : data.value()) {
-				if (count == bucketSize) {
-					if (max == null || min == null) {
-						//						System.out.println(max);
-						//						System.out.println(min);
-					} else {
-						if (max.getDate() > min.getDate()) {
-							toReturn.add(min);
-							toReturn.add(max);
-						} else {
-							toReturn.add(max);
-							toReturn.add(min);
-						}
-					}
-					count = 0;
-					maxVal = Double.MIN_VALUE;
-					minVal = Double.MAX_VALUE;
-					max = null;
-					min = null;
-				}
-				double current = (double) val.get(dim).value();
-				if (current > maxVal) {
-					max = val;
-					maxVal = current;
-				}
-				if (current <= minVal) {
-					min = val;
-					minVal = current;
-				}
-				count++;
-
-			}
-
-			data.value(toReturn);
+			data.value(getMinMax(data, maxAmount, dim));
+			return data;
+		}
+		if (mode.toLowerCase().equals("minmax2")) {
+			data.value(getMinMaxOld(data, maxAmount, dim));
 			return data;
 		}
 
@@ -632,11 +785,8 @@ public class DataService {
 								OpenWareNumber num = (OpenWareNumber) val.get(i);
 								double newVal = min + ((num.value() / 32768.0) * (max - min));
 								val.set(i, num.createValueForDimension(newVal));
-							} catch (ClassCastException e) {
-								break;
-							} catch (IllegalArgumentException e) {
-								// TODO Auto-generated catch block
-								e.printStackTrace();
+							} catch (Exception e) {
+								OpenWareInstance.getInstance().logError("SensorConfigurationDataservice", e);
 								break;
 							}
 						}
@@ -708,9 +858,10 @@ public class DataService {
 
 		}
 
-		if (referenceChange || baseDataRevision) {
-			item.getMeta().put("BaseDataRevision", true);
-		}
+		
+			item.getMeta().put("BaseDataRevision", baseDataRevision);
+			item.getMeta().put("referenceChange", referenceChange);
+		
 		DataService.setCurrentItem(item);
 
 		try {
@@ -744,6 +895,16 @@ public class DataService {
 
 	public static OpenWareDataItem getLiveSensorData(String sensorID, String source) {
 		return items.get(source + sensorID);
+	}
+	public static OpenWareDataItem getLiveSensorData(String sensorID, String source, String reference) {
+		return getLiveSensorData(sensorID, source, System.currentTimeMillis(), 1, reference);
+	}
+	
+	public static OpenWareDataItem getLiveSensorData(String sensorID,String source, long at, int elements) {
+		return getLiveSensorData(sensorID, source, at, elements, null);
+	}
+	public static OpenWareDataItem getLiveSensorData(String sensorID,String source, long at, int elements, String reference) {
+		return adapter.liveData(sensorID, source, at, elements, reference);
 	}
 
 	public static boolean deleteDeviceData(String sensorName, String user, Long from, Long until) {

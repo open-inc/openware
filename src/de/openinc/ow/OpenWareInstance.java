@@ -266,7 +266,13 @@ public class OpenWareInstance {
 
 		//------------------- Services & API -------------------- 
 		UserService userService = UserService.getInstance();
-		userService.setAdapter(loadUserAdapter());
+		try {
+			userService.setAdapter(loadUserAdapter());	
+		}catch(Exception e) {
+			logError("Could not load User Adapter or no UserAdapter provided!", e);
+			System.exit(0);
+		}
+		
 
 		DataService.init();
 		DataService.setPersistenceAdapter(loadPersistenceAdapter());
@@ -393,7 +399,7 @@ public class OpenWareInstance {
 			}
 
 			// request.session(true);
-			if (Config.accessControl) {
+			if (Config.accessControl && !request.pathInfo().startsWith("/api/apps")) {
 				boolean authorized = false;
 				User user = UserService.getInstance().checkAuth(request.headers(UserAPI.OD_SESSION));
 				if (request.headers().contains(UserService.JWT_HEADER)) {
@@ -693,16 +699,13 @@ public class OpenWareInstance {
 		}
 	}
 
-	private UserAdapter loadUserAdapter() {
+	private UserAdapter loadUserAdapter() throws Exception{
 		logInfo("------- 				Loading User Adapter			------");
 		ServiceLoader<UserAdapter> loader = ServiceLoader.load(UserAdapter.class);
-		try {
 			UserAdapter adapter = loader.iterator().next();
 			logInfo(adapter.getClass().getCanonicalName() + " loaded!");
 			return adapter;
-		} catch (NoSuchElementException e) {
-			return null;
-		}
+		
 
 	}
 

@@ -1,7 +1,10 @@
 package de.openinc.ow.helper;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Properties;
 
@@ -35,6 +38,7 @@ public class Config {
 
 	// Database config
 	public static String dbPath; // Location of the MongoDB
+	public static String dbFindBatchSize; // Location of the MongoDB
 	public static String dbPort; // Port of the MongoDB (int)
 	public static String dbUser; // Username of MongoDB, needed
 	public static String dbPass; // Password of MongoDB, needed
@@ -196,12 +200,13 @@ public class Config {
 		dbSensorPrefix = properties.getProperty("dbSensorPrefix", "sensors");
 		dbContainerPrefix = properties.getProperty("dbSensorPrefix", "container");
 		dbArchivePrefix = properties.getProperty("dbArchivePrefix", "archive");
+		dbFindBatchSize = properties.getProperty("dbFindBatchSize", "5000");
 		idSeperator = properties.getProperty("idSeperator", "---");
 		baseTimeInterval = Long.valueOf(properties.getProperty("baseTimeInterval", "3600000"));
 		referenceDBName = properties.getProperty("referenceDBName", "references");
 		maxConnectionsPerHost = Integer.valueOf(properties.getProperty("maxConnectionsPerHost", "16"));
 		connectionQueueSizeMultiplier = Integer.valueOf(properties.getProperty("connectionQueueSizeMultiplier", "1"));
-		dbConnectionString = properties.getProperty("dbConnectionString","");
+		dbConnectionString = properties.getProperty("dbConnectionString","mongodb://localhost/owdata");
 		
 		mappingsCollection = properties.getProperty("mappingsCollection", "idMappings");
 
@@ -246,5 +251,18 @@ public class Config {
 
 	public static JSONObject mapId(String external) {
 		return idMappings.get(external);
+	}
+	public static JSONObject readConfig(String configName) {
+		try {
+			String path = "conf" + File.separator +
+					configName+
+							".json";
+			JSONObject options = new JSONObject(
+					new String(Files.readAllBytes(Paths.get(path))));
+			return options;
+		} catch (Exception e) {
+			OpenWareInstance.getInstance().logWarn("No options provided for " + configName);
+			return new JSONObject();
+		}
 	}
 }

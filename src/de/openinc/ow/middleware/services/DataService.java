@@ -449,6 +449,8 @@ public class DataService {
 	}
 
 	public static Future<Boolean> onNewData(String id, String data) {
+		//MQTT-Seperator to AMQP seperator
+		id = id.replace("/", ".");
 		if (data != null && data.length() > 0) {
 			return pool.submit(new DataProcessTask(id, data));
 		}
@@ -545,46 +547,6 @@ public class DataService {
 	private static List<OpenWareValue> getMinMax(OpenWareDataItem data, int maxAmount, int dim) {
 		if(!data.getValueTypes().get(dim).type().toLowerCase().equals(OpenWareNumber.TYPE.toLowerCase())) return data.value();
 		int bucketSize = (int) (data.value().size() / (double) (maxAmount / 2));
-		
-		/*
-		OpenWareValue max = null;
-		OpenWareValue min = null;
-		for (OpenWareValue val : data.value()) {
-			if (count == bucketSize) {
-				if (max == null || min == null) {
-					//						System.out.println(max);
-					//						System.out.println(min);
-				} else {
-					if (max.getDate() > min.getDate()) {
-						toReturn.add(min);
-						toReturn.add(max);
-					} else {
-						toReturn.add(max);
-						toReturn.add(min);
-					}
-				}
-				count = 0;
-				maxVal = Double.MIN_VALUE;
-				minVal = Double.MAX_VALUE;
-				max = null;
-				min = null;
-			}
-			double current = (double) val.get(dim).value();
-			if (current > maxVal) {
-				max = val;
-				maxVal = current;
-			}
-			if (current <= minVal) {
-				min = val;
-				minVal = current;
-			}
-			count++;
-
-		}
-		return toReturn;
-		*/
-		
-		//-------------------------new--------------------------
 		ArrayList<OpenWareValue> resNew = new ArrayList<OpenWareValue>();
 		int i=0;
 		Map<Integer, List<OpenWareValue>> groups = new HashMap<Integer, List<OpenWareValue>>();
@@ -592,35 +554,31 @@ public class DataService {
 			groups.put(i, data.value().subList(i, Math.min((i+bucketSize), data.value().size())));
 			i+=bucketSize;
 		}
-		/*
-		Map<Integer, List<OpenWareValue>> groups = data.value().parallelStream().collect(Collectors.groupingBy(new Function<OpenWareValue, Integer>() {
-			@Override
-			public Integer apply(OpenWareValue t) {
-				return ((int)((t.getDate())/bucketSize));
-			}
-		}));
-		*/
 	
 		groups.values().parallelStream().forEach(new Consumer<List<OpenWareValue>>() {
 			
 			@Override
 			public void accept(List<OpenWareValue> list) {
 				try {
-					resNew.add(list.parallelStream().reduce(new BinaryOperator<OpenWareValue>() {
+					OpenWareValue min =list.parallelStream().reduce(new BinaryOperator<OpenWareValue>() {
 						@Override
 						public OpenWareValue apply(OpenWareValue t, OpenWareValue u) {
 							return (double)t.get(dim).value()<(double)u.get(dim).value()?t:u;
 						}
-					}).get());
+					}).get(); 
 					
 					
-					resNew.add(list.parallelStream().reduce(new BinaryOperator<OpenWareValue>() {
+					
+					OpenWareValue max = list.parallelStream().reduce(new BinaryOperator<OpenWareValue>() {
 						@Override
 						public OpenWareValue apply(OpenWareValue t, OpenWareValue u) {
 							return (double)t.get(dim).value()>(double)u.get(dim).value()?t:u;
 						}
-					}).get());
-					
+					}).get();
+					synchronized (resNew) {
+						resNew.add(max);
+						resNew.add(min);
+					}
 				}catch(NoSuchElementException e) {
 					OpenWareInstance.getInstance().logError("No Result for Min/Max in Bucket", e);
 				}

@@ -16,11 +16,14 @@ public class TransformationService {
 	private static TransformationService me;
 
 	private HashMap<String, Class<TransformationOperation>> ops;
-
+	private JSONObject config;
 	private TransformationService() {
 		me = this;
 		ops = new HashMap<>();
-
+		config = Config.readConfig(this.getClass().getCanonicalName());
+		if(!config.has("services")) {
+			config.put("services", new JSONObject());
+		}
 	}
 
 	/**
@@ -65,7 +68,10 @@ public class TransformationService {
 	 * @throws InstantiationException
 	 * @throws IllegalAccessException
 	 */
-	public TransformationOperation getOperation(String id) throws InstantiationException, IllegalAccessException {
+	public TransformationOperation getOperation(String id) throws Exception {
+		if(config.getJSONObject("services").has(id)) {
+			id = config.getJSONObject("services").getString(id);
+		}
 		Class<TransformationOperation> op = ops.get(id);
 		if (op == null)
 			return null;

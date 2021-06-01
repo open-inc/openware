@@ -42,6 +42,9 @@ public class OpenWareNumber extends OpenWareValueDimension {
 		if (value instanceof Integer) {
 			val = ((Integer) value).doubleValue();
 		}
+		if (value instanceof Long) {
+			val = ((Long) value).doubleValue();
+		}
 
 		if (Double.isNaN(val)) {
 			try {

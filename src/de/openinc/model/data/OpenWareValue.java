@@ -168,7 +168,14 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 			if (dim instanceof OpenWareString) {
 				valueString.append("\"" +	StringEscapeUtils.escapeJava((String) dim.value()) +
 									"\"");
-			} else {
+			}if(dim instanceof OpenWareNumber) {
+				double test = ((OpenWareNumber)dim).value();
+				if(Double.isNaN(test)) {
+					valueString.append(JSONObject.NULL);
+				}else {
+					valueString.append(dim.value());
+				}
+			}else {
 				valueString.append(dim.value());
 			}
 

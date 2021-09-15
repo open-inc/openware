@@ -1,11 +1,12 @@
 package de.openinc.api;
 
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.regex.Pattern;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import com.jayway.jsonpath.Configuration;
@@ -14,11 +15,15 @@ import com.jayway.jsonpath.JsonPath;
 import de.openinc.model.data.OpenWareDataItem;
 import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
-import de.openinc.ow.helper.Config;
 
+/**
+ * interface to implement {@link ActuatorAdapter}s that can be used to perform
+ * actions in open.WARE
+ * 
+ * @author MartinStein
+ * 
+ */
 public abstract class ActuatorAdapter {
-	private Pattern pattern = Pattern.compile(Config.templatingRegexSelector);
-	private Pattern section = Pattern.compile(Config.templatingSectionRegexSelector);
 	private ExecutorService executor;
 
 	/**
@@ -39,18 +44,23 @@ public abstract class ActuatorAdapter {
 	 *            ActuatorAdapter
 	 * 
 	 * @param optionalData
-	 *            {@link OpenWareDataItem} containing optional data to be processed
+	 *            List of {@link OpenWareDataItem} containing optional data to be processed
 	 *            within the ActuatorAdapter
 	 */
 	final public Future<Object> send(String target, String topic, String payload, User user, JSONObject options,
-			OpenWareDataItem optionalData)
+			List<OpenWareDataItem> optionalData)
 			throws Exception {
 		JSONObject params = new JSONObject();
+		JSONArray data = new JSONArray();
+		for (OpenWareDataItem item : optionalData) {
+			data.put(item.toJSON());
+		}
 		params.put("target", target);
 		params.put("topic", topic);
 		params.put("payload", payload);
 		params.put("options", options);
-		params.put("data", optionalData.toJSON());
+		params.put("data", data.get(0));
+		params.put("datasets", data);
 		params.put("user", user.toJSON());
 		Object jsonDOC = Configuration.defaultConfiguration().jsonProvider().parse(params.toString());
 		final String templatedTarget = applyTemplate(target, jsonDOC);
@@ -103,7 +113,7 @@ public abstract class ActuatorAdapter {
 
 	protected abstract Object processAction(String target, String topic, String payload, User user,
 			JSONObject options,
-			OpenWareDataItem optionalData, Object optionalTemplateOptions) throws Exception;
+			List<OpenWareDataItem> optionalData, Object optionalTemplateOptions) throws Exception;
 
 	public abstract String getType();
 

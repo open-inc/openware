@@ -17,7 +17,7 @@ public class DataConversion {
 	private static CharMatcher isoMatcher = CharMatcher.javaIsoControl();
 
 	public static long floorDate(long dateInMillis) {
-		return floorDate(dateInMillis, Config.baseTimeInterval);
+		return floorDate(dateInMillis, Config.getLong("baseTimeInterval",(60l*60l*1000l)));
 	}
 
 	public static long floorDate(long dateInMillis, long interval) {
@@ -28,6 +28,14 @@ public class DataConversion {
 		return (dateInMillis - temp);
 	}
 
+	public static Object listGetOrDefault(List<Object> list, int index, Object defaultVal) {
+		
+		if(list.size()<=index || list.get(index)==null) {
+			return defaultVal;
+		}
+		return list.get(index);
+	}
+	
 	public static String mapSPSDataType(String type) {
 		HashMap<String, String> mapping = new HashMap<>();
 		mapping.put("WORD", "number");

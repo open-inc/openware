@@ -1,11 +1,6 @@
 package de.openinc.ow.analytics.provider;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,71 +26,34 @@ public class ParseAnalyticSensorProvider implements AnalyticSensorProvider {
 	private String HOST;
 	private String user;
 	private String pw;
-	private String adminSession;
+	private String masterkey;
 	private HashMap<String, String> headers;
 	private String appid;
 	HashMap<String, Map<String, OpenWareDataItem>> items;
 
 	public ParseAnalyticSensorProvider() throws FileNotFoundException {
 		this.items = new HashMap<>();
-		try {
+
 			this.properties = new Properties();
 
 			OpenWareInstance.getInstance().logInfo("Reading Config for Parse-Analytics-Apapter");
-			properties.load(new FileInputStream("parse.properties"));
-			this.HOST = properties.getProperty("host", null);
-			this.user = properties.getProperty("user", null);
-			this.pw = properties.getProperty("password", null);
-			this.appid = properties.getProperty("applicationID", null);
-			if (HOST == null || user == null || pw == null || appid == null) {
+			this.HOST = Config.get("parse_host", "");
+			// this.user = properties.getProperty("user", null);
+			// this.pw = properties.getProperty("password", null);
+			this.masterkey = Config.get("parse_masterkey", "");
+			this.appid = Config.get("PARSE_APPLICATIONID", "");
+			this.headers = new HashMap<>();
+			if (HOST == null || HOST.equals("") || masterkey == null || masterkey.equals("") || appid == null
+					|| appid.equals("")) {
 				throw new IllegalArgumentException(
-						"Parse Property file incorrect. Please provide a host and credentials");
+						"Parse Property file incorrect. Please provide a host, appid and masterkey");
 			}
-			try {
-				Files.lines(FileSystems.getDefault().getPath("adminSession")).forEach(line -> {
-					String session = line;
-					if (session.startsWith("r:")) {
-						try {
-							HttpResponse<JsonNode> res;
-							res = Unirest.get(HOST + "/users/me").header("X-Parse-Application-Id", appid)
-									.header("X-Parse-Session-Token", session).asJson();
-							if (res.getStatus() == 200)
-								this.adminSession = session;
-						} catch (UnirestException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
-					}
-				});
-			} catch (IOException e1) {
-				OpenWareInstance.getInstance().logInfo("No existing session found! Trying to login as Admin!");
-			}
-			if (this.adminSession == null) {
-				OpenWareInstance.getInstance().logInfo("Logging into Admin User to access Data!");
-				HttpResponse<JsonNode> res = Unirest.get(HOST + "/login").header("X-Parse-Application-Id", "1234567890")
-						.header("X-Parse-Revocable-Session", "1").queryString("username", user)
-						.queryString("password", pw).asJson();
-				JSONObject response = res.getBody().getObject();
-				OpenWareInstance.getInstance().logInfo("Successfully logged in:\n" + response.toString(2));
 
-				this.adminSession = response.getString("sessionToken");
-			}
 
 			this.headers = new HashMap<>();
 			headers.put("X-Parse-Application-Id", appid);
-			headers.put("X-Parse-Session-Token", this.adminSession);
+			headers.put("X-Parse-Master-Key", this.masterkey);
 
-		} catch (IOException e) {
-			OpenWareInstance.getInstance().logError("Parse-Analytic-Config file not found. " + e.getMessage());
-			OpenWareInstance.getInstance()
-					.logError("You should provide a parse.properties to configure the connection to your backend");
-			throw new FileNotFoundException(
-					"You should provide a parse.properties to configure the connection to your backend at the following location:" +
-											new File("parse.properties").getAbsolutePath());
-		} catch (UnirestException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
 	}
 
 	@Override
@@ -103,7 +61,7 @@ public class ParseAnalyticSensorProvider implements AnalyticSensorProvider {
 		items = new HashMap<>();
 		try {
 			HttpResponse<JsonNode> res = Unirest.get(HOST + "/classes/" +
-														Config.analyticSensors)
+														Config.get("analyticSensors", "analyticSensors"))
 					.headers(headers)
 					.asJson();
 			JSONObject response = res.getBody().getObject();
@@ -121,7 +79,7 @@ public class ParseAnalyticSensorProvider implements AnalyticSensorProvider {
 					obj.put("user", o.getString("user"));
 					obj.put("valueTypes", new JSONArray(o.getString("valueTypes")));
 
-					String prefix = Config.analyticPrefix;
+					String prefix = Config.get("analyticPrefix", "analytic.");
 					if (obj.getString("id").startsWith(prefix)) {
 						prefix = "";
 					}
@@ -130,8 +88,8 @@ public class ParseAnalyticSensorProvider implements AnalyticSensorProvider {
 					for (int x = 0; x < valueTypes.length(); x++) {
 						JSONObject item = valueTypes.getJSONObject(x);
 						try {
-							dims.add(OpenWareValueDimension.createNewDimension(((JSONObject) item).getString("name"),
-									((JSONObject) item).optString("unit"), ((JSONObject) item).getString("type")));
+							dims.add(OpenWareValueDimension.createNewDimension(item.getString("name"),
+									item.optString("unit"), item.getString("type")));
 						} catch (JSONException e) {
 							OpenWareInstance.getInstance().logError("Could not create Valuetype for analytic sensor",
 									e);
@@ -168,7 +126,7 @@ public class ParseAnalyticSensorProvider implements AnalyticSensorProvider {
 			try {
 				HttpResponse<JsonNode> res = Unirest
 						.delete(HOST + "/classes/" +
-								Config.analyticSensors +
+								Config.get("analyticSensors", "analyticSensors") +
 								"/" +
 								item.getMeta().optString("POID"))
 						.headers(headers).asJson();
@@ -198,7 +156,7 @@ public class ParseAnalyticSensorProvider implements AnalyticSensorProvider {
 		obj.put("operation", parameter.getString("operation"));
 		try {
 			HttpResponse<JsonNode> res = Unirest.post(HOST + "/classes/" +
-														Config.analyticSensors)
+					Config.get("analyticSensors", "analyticSensors"))
 					.headers(headers)
 					.header("Content-Type", "application/json").body(obj).asJson();
 			if (res.getStatus() == 201)

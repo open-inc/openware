@@ -60,7 +60,7 @@ public class UserAPI implements OpenWareAPI {
 		switch (op) {
 		case OPERATION_ACCESS: {
 			User user = null;
-			if (Config.accessControl) {
+			if (Config.getBool("accessControl", true)) {
 				user = request.session().attribute("user");
 				if (user == null)
 					return HTTPResponseHelper.generateResponse(response, 403, null,

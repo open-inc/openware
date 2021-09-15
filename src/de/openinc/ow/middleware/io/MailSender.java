@@ -2,6 +2,7 @@ package de.openinc.ow.middleware.io;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 
 import javax.mail.util.ByteArrayDataSource;
 
@@ -27,9 +28,12 @@ public class MailSender extends ActuatorAdapter {
 	private String user;
 	private String pw;
 	private String textCharSet = "UTF-8";
+	private static final String type = "email";
+	private boolean debug;
+	private String debugMail;
 
-	public static MailSender getInstance(String outboundMailServer, int port, String user, String pw) {
-		return (MailSender) DataService.getActuator("mail");
+	public static MailSender getInstance() {
+		return (MailSender) DataService.getActuator(type);
 	}
 
 	public MailSender() {
@@ -38,6 +42,9 @@ public class MailSender extends ActuatorAdapter {
 	public String sendMail(String absender, String empfaenger, String betreff, String text)
 			throws IOException, EmailException {
 		MultiPartEmail email = new MultiPartEmail();
+		if(debug) {
+			empfaenger = this.debugMail;
+		}
 		if (user != null && pw != null) {
 			email.setAuthenticator(new DefaultAuthenticator(this.user, this.pw));
 			email.setSSL(true);
@@ -45,7 +52,11 @@ public class MailSender extends ActuatorAdapter {
 		}
 		email.setHostName(this.host);
 		email.setFrom(absender);
-		email.addTo(empfaenger);
+		String[] recipients = empfaenger.split(";");
+		for (int i = 0; i < recipients.length; i++) {
+			email.addTo(recipients[i]);
+		}
+
 		email.setCharset(textCharSet);
 		email.setSubject(betreff);
 		email.setMsg(text);
@@ -57,6 +68,9 @@ public class MailSender extends ActuatorAdapter {
 			InputStream anhangInputStream, String anhangDateiName, String anhangBeschreibung)
 			throws IOException, EmailException {
 		MultiPartEmail email = new MultiPartEmail();
+		if(debug) {
+			empfaenger = this.debugMail;
+		}
 		if (user != null && pw != null) {
 			email.setAuthenticator(new DefaultAuthenticator(this.user, this.pw));
 			email.setSSL(true);
@@ -64,7 +78,11 @@ public class MailSender extends ActuatorAdapter {
 		}
 		email.setHostName(this.host);
 		email.setFrom(absender);
-		email.addTo(empfaenger);
+		String[] recipients = empfaenger.split(";");
+		for (int i = 0; i < recipients.length; i++) {
+			email.addTo(recipients[i]);
+		}
+
 		email.setCharset(textCharSet);
 		email.setSubject(betreff);
 		email.setMsg(text);
@@ -84,9 +102,16 @@ public class MailSender extends ActuatorAdapter {
 			email.setSSL(true);
 			email.setSmtpPort(this.port);
 		}
+		if (debug) {
+			empfaenger = this.debugMail;
+		}
 		email.setHostName(this.host);
 		email.setFrom(absender);
-		email.addTo(empfaenger);
+		String[] recipients = empfaenger.split(";");
+		for (int i = 0; i < recipients.length; i++) {
+			email.addTo(recipients[i]);
+		}
+
 		email.setCharset(textCharSet);
 		email.setSubject(betreff);
 		email.setMsg(text);
@@ -100,7 +125,7 @@ public class MailSender extends ActuatorAdapter {
 
 	@Override
 	public Object processAction(String target, String topic, String payload, User user, JSONObject options,
-			OpenWareDataItem optionalData, Object templateOptions) throws Exception {
+			List<OpenWareDataItem> optionalData, Object templateOptions) throws Exception {
 		MultiPartEmail email = new MultiPartEmail();
 		if (user != null && pw != null) {
 			email.setAuthenticator(new DefaultAuthenticator(this.user, this.pw));
@@ -117,6 +142,9 @@ public class MailSender extends ActuatorAdapter {
 
 		}
 
+		if (debug) {
+			target = this.debugMail;
+		}
 		String[] recipients = target.split(";");
 
 		for (int i = 0; i < recipients.length; i++) {
@@ -138,7 +166,7 @@ public class MailSender extends ActuatorAdapter {
 	@Override
 	public String getType() {
 		// TODO Auto-generated method stub
-		return "email";
+		return type;
 	}
 
 	/**
@@ -155,6 +183,7 @@ public class MailSender extends ActuatorAdapter {
 		this.port = options.getInt("port");
 		this.user = options.optString("user").equals("") ? null : options.optString("user");
 		this.pw = options.optString("password").equals("") ? null : options.optString("password");
-
+		this.debug = options.getBoolean("debug");
+		this.debugMail = options.optString("debugMail");
 	}
 }

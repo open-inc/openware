@@ -4,6 +4,7 @@ import static spark.Spark.delete;
 import static spark.Spark.get;
 import static spark.Spark.post;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
@@ -147,8 +148,11 @@ public class AlarmAPI implements OpenWareAPI {
 				List<JSONObject> data = DataService.getGenericData(ALARMSV2, alarmid);
 				if (data != null && data.size() > 0) {
 					JSONObject alarm = data.get(0);
-
-					String user2check = alarm.getJSONObject("owner").getString("objectId");
+					String ownerField = "owner";
+					if(!alarm.has("owner")) {
+						ownerField = "user";
+					}
+					String user2check = alarm.getJSONObject(ownerField).getString("objectId");
 					if (user2check.equals(user.getUID())) {
 						DataService.removeGenericData(ALARMSV2, alarmid);
 						List<JSONObject> alarms = DataService.getGenericData(ALARMSV2, null);
@@ -176,8 +180,12 @@ public class AlarmAPI implements OpenWareAPI {
 			throw new IllegalArgumentException(
 					"Could not create Alarm due to missing all of the following parameters:\n trigger, action, item_source, item_id, item_dimension, owner");
 		}
+		if (parameter.has("owner")) {
+			parameter.put("user", parameter.get("owner"));
+			parameter.remove("owner");
+		}
 		if (!(parameter.has("trigger") && parameter.has("action") && parameter.has("item_source")
-				&& parameter.has("item_id") && parameter.has("item_dimension") && parameter.has("owner"))) {
+				&& parameter.has("item_id") && parameter.has("item_dimension") && parameter.has("user"))) {
 			//Missing Parameters
 			throw new IllegalArgumentException(
 					"Could not create Alarm due to missing one of the following parameters:\n trigger, action, item_source, item_id, item_dimension, owner");
@@ -206,8 +214,12 @@ public class AlarmAPI implements OpenWareAPI {
 			id = null;
 		parameter.remove("objectId");
 		parameter.remove("_id");
-		parameter.getJSONObject("owner").put("__type", "Pointer");
-		parameter.getJSONObject("owner").put("className", "_User");
+		String ownerField = "owner";
+		if (!parameter.has("owner")) {
+			ownerField = "user";
+		}
+		parameter.getJSONObject(ownerField).put("__type", "Pointer");
+		parameter.getJSONObject(ownerField).put("className", "_User");
 		JSONObject acl = new JSONObject();
 		JSONObject userAcl = new JSONObject();
 		userAcl.put("read", true);
@@ -243,7 +255,7 @@ public class AlarmAPI implements OpenWareAPI {
 			User user = req.session().attribute("user");
 			JSONObject parameter = new JSONObject(req.body());
 			boolean canRead = userID.equals(user.getName());
-			if (Config.accessControl && !canRead) {
+			if (Config.getBool("accessControl", true) && !canRead) {
 
 				return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
 						"You are not allowed to add the alarm for this user");
@@ -265,14 +277,13 @@ public class AlarmAPI implements OpenWareAPI {
 			}
 
 		});
-		OpenWareInstance.getInstance().logTrace("[ROUTE]" + "POST:" +
-												ALARM_EVENT_GET_APIV2);
+
 		post(ALARM_EVENT_GET_APIV2, (req, res) -> {
 			String userID = req.params("userid");
 			User user = req.session().attribute("user");
 			JSONObject parameter = new JSONObject(req.body());
 			boolean canRead = userID.equals(user.getName());
-			if (Config.accessControl && !canRead) {
+			if (Config.getBool("accessControl", true) && !canRead) {
 				return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
 						"You are not allowed to add the alarm for this user");
 			}
@@ -303,7 +314,7 @@ public class AlarmAPI implements OpenWareAPI {
 			String userID = req.params("userid");
 			String alarmid = req.params("alarmid");
 			User user = req.session().attribute("user");
-			if (Config.accessControl) {
+			if (Config.getBool("accessControl", true)) {
 				if (user == null || !user.getName().equals(userID))
 					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
 							"Not allowed to delete alarm");
@@ -330,7 +341,7 @@ public class AlarmAPI implements OpenWareAPI {
 			String userID = req.params("userid");
 			String alarmid = req.params("alarmid");
 			User user = req.session().attribute("user");
-			if (Config.accessControl) {
+			if (Config.getBool("accessControl", true)) {
 				if (user == null || !user.getName().equals(userID))
 					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
 							"Not allowed to delete alarm");
@@ -352,7 +363,7 @@ public class AlarmAPI implements OpenWareAPI {
 		get(ALARM_EVENT_GET_API, (req, res) -> {
 			String userID = req.params("userid");
 			User user = req.session().attribute("user");
-			if (Config.accessControl) {
+			if (Config.getBool("accessControl", true)) {
 
 				boolean canRead = userID.equals(user.getName());
 				if (!canRead) {
@@ -374,9 +385,10 @@ public class AlarmAPI implements OpenWareAPI {
 		OpenWareInstance.getInstance().logTrace("[ROUTE]" + "GET:" +
 												ALARM_EVENT_GET_APIV2);
 		get(ALARM_EVENT_GET_APIV2, (req, res) -> {
+			amt2.refresh();
 			String userID = req.params("userid");
 			User user = req.session().attribute("user");
-			if (Config.accessControl) {
+			if (Config.getBool("accessControl", true)) {
 				boolean canRead = userID.equals(user.getName());
 				if (!canRead) {
 					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
@@ -385,13 +397,22 @@ public class AlarmAPI implements OpenWareAPI {
 
 			}
 			JSONArray userAlarms = new JSONArray();
-			for (int i = 0; i < initialAlarmsV2.length(); i++) {
-				JSONObject current = initialAlarmsV2.getJSONObject(i);
-				if (current.has("owner")
-						&& current.getJSONObject("owner").getString("objectId").equals(user.getUID())) {
-					userAlarms.put(current);
+			Collection<JSONArray> registeredAlarms = amt2.getCurrentAlarms().values();
+
+			for (JSONArray cAlarmset : registeredAlarms) {
+				for (int i = 0; i < cAlarmset.length(); i++) {
+					JSONObject current = cAlarmset.getJSONObject(i);
+					String ownerField = "owner";
+					if (!current.has("owner")) {
+						ownerField = "user";
+					}
+					if (current.has(ownerField)
+							&& current.getJSONObject(ownerField).getString("objectId").equals(user.getUID())) {
+						userAlarms.put(current);
+					}
 				}
 			}
+
 			res.status(200);
 			return userAlarms;
 		});

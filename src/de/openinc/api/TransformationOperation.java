@@ -31,7 +31,8 @@ public abstract class TransformationOperation {
 	private Long start = null;
 	private Long end = null;
 
-	public abstract TransformationOperation apply(User user, OpenWareDataItem old, JSONObject params) throws Exception;
+	public abstract TransformationOperation apply(User user, OpenWareDataItem old, JSONObject params)
+			throws Exception;
 
 	public abstract OpenWareDataItem getResult();
 
@@ -56,7 +57,7 @@ public abstract class TransformationOperation {
 		OpenWareDataItem item = getResult();
 		if (item == null)
 			return item;
-		if (Config.accessControl) {
+		if (Config.getBool("accessControl", true)) {
 			if (user == null || !user.canAccessRead(item.getUser(), item.getId())) {
 				throw new IllegalAccessError(
 						"Not allowed to access data produced by Transformation:\n" + params.toString(2));

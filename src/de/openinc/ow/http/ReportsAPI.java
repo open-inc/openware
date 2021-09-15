@@ -56,7 +56,7 @@ public class ReportsAPI implements OpenWareAPI {
 			return "Post Body needs Parameter Object 'params' to configure report";
 		}
 
-		Class<?> clazz = service.getReportType(reportType);
+		Class<ReportInterface> clazz = service.getReportType(reportType);
 
 		try {
 

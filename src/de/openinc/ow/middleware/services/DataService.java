@@ -7,17 +7,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.stream.Collector;
-import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.concurrent.ConcurrentUtils;
 import org.json.JSONArray;
@@ -29,6 +26,7 @@ import de.openinc.api.DataHandler;
 import de.openinc.api.DataSubscriber;
 import de.openinc.api.PersistenceAdapter;
 import de.openinc.api.ReferenceAdapter;
+import de.openinc.api.RetrievalOptions;
 import de.openinc.model.data.OpenWareDataItem;
 import de.openinc.model.data.OpenWareNumber;
 import de.openinc.model.data.OpenWareValue;
@@ -179,7 +177,7 @@ public class DataService {
 			try {
 				String saved_id;
 				OpenWareDataItem previous = itemConfigs
-						.get(item.getMeta().getString("source_source") + Config.idSeperator
+						.get(item.getMeta().getString("source_source") + Config.get("idSeperator","---")
 								+ item.getMeta().getString("id_source"));
 
 				String id = null;
@@ -191,7 +189,7 @@ public class DataService {
 						item.toJSON());
 
 				item.getMeta().put("configuration_id", saved_id);
-				itemConfigs.put(item.getMeta().getString("source_source") + Config.idSeperator
+				itemConfigs.put(item.getMeta().getString("source_source") + Config.get("idSeperator","---")
 						+ item.getMeta().getString("id_source"), item);
 				//Get current Item to upadte the configuration immediately
 				refreshConfigurationOfItem(item);
@@ -250,7 +248,7 @@ public class DataService {
 		if (!user.canAccessWrite(source_source, sensorid_source)) {
 			return false;
 		}
-		OpenWareDataItem deleted = itemConfigs.remove(source_source + Config.idSeperator + sensorid_source);
+		OpenWareDataItem deleted = itemConfigs.remove(source_source + Config.get("idSeperator","---") + sensorid_source);
 		DataService.removeGenericData(CONFIG_STORE_TYPE, deleted.getMeta().getString("configuration_id"));
 
 		return deleted != null;
@@ -284,7 +282,7 @@ public class DataService {
 
 		if (!user.canAccessWrite(owner, id_source)) {
 			throw new SecurityException("No Permission to configure item " +	owner +
-										Config.idSeperator +
+					Config.get("idSeperator","---")+
 										id_source);
 		}
 		return item;
@@ -301,7 +299,7 @@ public class DataService {
 				OpenWareDataItem configItem = OpenWareDataItem.fromJSON(o.toString());
 				configItem.getMeta().put("configuration_id", o.getString("_id"));
 				itemConfigs.put(
-						source_source + Config.idSeperator
+						source_source + Config.get("idSeperator","---")
 								+ o.getJSONObject("meta").getString("id_source"),
 						configItem);
 				refreshConfigurationOfItem(configItem);
@@ -333,7 +331,7 @@ public class DataService {
 				if (!isCurrentCustomizedItem(item))
 					continue;
 			}
-			res.put(source + Config.idSeperator + id, item);
+			res.put(source + Config.get("idSeperator","---") + id, item);
 			List<JSONObject> temp;
 			try {
 				temp = DataService.getGenericData(CONFIG_STORE_TYPE,
@@ -344,7 +342,7 @@ public class DataService {
 					if (!custom.getMeta().has("source_source")) {
 						custom.getMeta().put("source_source", custom.getUser());
 					}
-					res.put(custom.getMeta().getString("source_source") + Config.idSeperator
+					res.put(custom.getMeta().getString("source_source") +Config.get("idSeperator","---")
 							+ custom.getMeta().getString("id_source"), custom);
 				}
 			} catch (JSONException e) {
@@ -360,7 +358,7 @@ public class DataService {
 		String sourceID = toTest.getMeta().getString("id_source");
 		String sourceSource = toTest.getMeta().optString("source_source").equals("") ? toTest.getUser()
 				: toTest.getMeta().optString("source_source");
-		OpenWareDataItem currentConfiged = itemConfigs.get(sourceSource + Config.idSeperator + sourceID);
+		OpenWareDataItem currentConfiged = itemConfigs.get(sourceSource +Config.get("idSeperator","---") + sourceID);
 		return toTest.equals(currentConfiged);
 	}
 
@@ -394,9 +392,9 @@ public class DataService {
 	/**
 	 * Retrieves an actuator
 	 * 
-	 * @param id
-	 *            The id of the actuator
-	 * @return the actuator associated with the {@code id}
+	 * @param id The id of the actuator
+	 * @return the {@link ActuatorAdapter} associated with the {@code id} or NULL if
+	 *         no {@link ActuatorAdapter} is associated with the {@code id}
 	 */
 	public static ActuatorAdapter getActuator(String id) {
 		return actuators.get(id);
@@ -423,12 +421,20 @@ public class DataService {
 	}
 
 	public static void setPersistenceAdapter(PersistenceAdapter data) {
-		data.init();
-		adapter = data;
-		for (OpenWareDataItem item : adapter.getItems()) {
-			items.put(item.getUser() + item.getId(), item);
+		try {
+			data.init();	
+			adapter = data;
+			List<OpenWareDataItem> newItems = adapter.getItems();
+			for (OpenWareDataItem item :newItems) {
+				items.put(item.getUser() + item.getId(), item);
+			}
+			initItemConfiguration();
+		}catch(Exception e) {
+			OpenWareInstance.getInstance().logError("Could not set PersistenceAdapter. System will shut down!", e);
+			System.exit(1);
 		}
-		initItemConfiguration();
+		
+	
 	}
 
 	public static DataSubscriber addSubscription(DataSubscriber sub) {
@@ -448,16 +454,18 @@ public class DataService {
 		return sub;
 	}
 
-	public static Future<Boolean> onNewData(String id, String data) {
+	public static Future<List<CompletableFuture<Boolean>>> onNewData(String id, String data) {
 		//MQTT-Seperator to AMQP seperator
 		id = id.replace("/", ".");
 		if (data != null && data.length() > 0) {
 			return pool.submit(new DataProcessTask(id, data));
 		}
-		return ConcurrentUtils.constantFuture(false);
+		ArrayList<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
+		res.add(CompletableFuture.completedFuture(false));
+		return ConcurrentUtils.constantFuture(res);
 	}
 
-	public static Future<Boolean> onNewData(List<OpenWareDataItem> item) {
+	public static Future<List<CompletableFuture<Boolean>>> onNewData(List<OpenWareDataItem> item) {
 		try {
 			if (item != null && item.size() > 0) {
 				return pool.submit(new DataProcessTask(item));
@@ -465,10 +473,12 @@ public class DataService {
 		} catch (Exception e) {
 			OpenWareInstance.getInstance().logError("Exception while processing new Data \n", e);
 		}
-		return ConcurrentUtils.constantFuture(false);
+		ArrayList<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
+		res.add(CompletableFuture.completedFuture(false));
+		return ConcurrentUtils.constantFuture(res);
 	}
 
-	public static Future<Boolean> onNewData(OpenWareDataItem item) {
+	public static Future<List<CompletableFuture<Boolean>>> onNewData(OpenWareDataItem item) {
 		try {
 			if (item != null) {
 				return pool.submit(new DataProcessTask(item));
@@ -476,7 +486,9 @@ public class DataService {
 		} catch (Exception e) {
 			OpenWareInstance.getInstance().logError("Exception while processing new Data \n", e);
 		}
-		return ConcurrentUtils.constantFuture(false);
+		ArrayList<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
+		res.add(CompletableFuture.completedFuture(false));
+		return ConcurrentUtils.constantFuture(res);
 	}
 
 	protected static List<DataHandler> getHandler() {
@@ -501,7 +513,9 @@ public class DataService {
 			return new ArrayList<OpenWareDataItem>();
 		}
 
-		Iterator<OpenWareDataItem> it = items.values().iterator();
+		ArrayList<OpenWareDataItem> cItems = new ArrayList<OpenWareDataItem>();
+		cItems.addAll(items.values());
+		Iterator<OpenWareDataItem> it = cItems.iterator();
 		ArrayList<OpenWareDataItem> items2return = new ArrayList<>();
 		while (it.hasNext()) {
 			OpenWareDataItem cItem = it.next();
@@ -526,7 +540,9 @@ public class DataService {
 	public static int updateData(OpenWareDataItem item) throws Exception {
 		for(OpenWareValue val: item.value()) {
 			OpenWareDataItem pastLiveVal = getLiveSensorData(item.getId(), item.getUser(), val.getDate(), 1);
-			if(!pastLiveVal.equalsValueTypes(item, false)) throw new IllegalArgumentException("The value types of the provided data differ from the existing data");
+			if (pastLiveVal != null && !pastLiveVal.equalsValueTypes(item, false))
+				throw new IllegalArgumentException(
+						"The value types of the provided data differ from the existing data");
 		}
 		return adapter.updateData(item);
 	}
@@ -534,13 +550,26 @@ public class DataService {
 	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp,
 			long until) {
 
-		return adapter.historicalData(sensorName, source, timestamp, until, null);
+		return adapter.historicalData(sensorName, source, timestamp, until, null,null);
+
+	}
+	
+	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp,
+			long until, RetrievalOptions opts) {
+
+		return adapter.historicalData(sensorName, source, timestamp, until, null,opts);
 
 	}
 	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp,
 			long until, String ref) {
 
-		return adapter.historicalData(sensorName, source, timestamp, until, ref);
+		return adapter.historicalData(sensorName, source, timestamp, until, ref,null);
+
+	}
+	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp,
+			long until, String ref, RetrievalOptions options) {
+
+		return adapter.historicalData(sensorName, source, timestamp, until, ref,options);
 
 	}
 
@@ -654,10 +683,17 @@ public class DataService {
 		
 		String ref = parameters.value("reference");
 		OpenWareDataItem data;
+		RetrievalOptions opts = null;
+		if(parameters.hasKey("mode")) {
+			String mode = parameters.value("mode");
+			int maxAmount = parameters.get("maxValues").integerValue();
+			int dim = parameters.get("dimension").integerValue();
+			opts = new RetrievalOptions(mode,dim, maxAmount);
+		}
 		if(ref!=null && !ref.equals("")) {
-			data = getHistoricalSensorData(sensorName, source, timestamp, until, ref);
+			data = getHistoricalSensorData(sensorName, source, timestamp, until, ref, opts);
 		}else {
-			data = getHistoricalSensorData(sensorName, source, timestamp, until);	
+			data = getHistoricalSensorData(sensorName, source, timestamp, until,opts);	
 		}
 		if(parameters.hasKey("filter")) {
 			try {
@@ -695,15 +731,12 @@ public class DataService {
 
 	}
 
-	protected static boolean processNewData(List<OpenWareDataItem> items) {
-		boolean result = true;
+	protected static List<CompletableFuture<Boolean>> processNewData(List<OpenWareDataItem> items) throws Exception {
+		List<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
 		for (OpenWareDataItem item : items) {
-			if (!processNewData(item)) {
-				result = false;
-			}
-
+			res.add(processNewData(item));
 		}
-		return result;
+		return res;
 	}
 
 	/**
@@ -717,8 +750,10 @@ public class DataService {
 	private static OpenWareDataItem applyItemConfiguration(OpenWareDataItem item) {
 		if (item == null)
 			return null;
-		OpenWareDataItem conf = itemConfigs.get(item.getUser() + Config.idSeperator + item.getId());
+		OpenWareDataItem conf = itemConfigs.get(item.getUser() + Config.get("idSeperator","---") + item.getId());
+		
 		if (conf != null) {
+			conf = conf.cloneItem(false);
 			if (!(conf.getMeta().has("active") && conf.getMeta().getBoolean("active"))) {
 				return null;
 			}
@@ -769,14 +804,14 @@ public class DataService {
 	 *            The item to be stored
 	 * @return true if Item was stored
 	 */
-	public static boolean processNewData(OpenWareDataItem item) {
+	public static CompletableFuture<Boolean> processNewData(OpenWareDataItem item) throws Exception {
 
 		item = applyItemConfiguration(item);
 		if (item == null) {
 			OpenWareInstance.getInstance().logDebug("Item was not stored after applying configuration");
-			return true;
+			return CompletableFuture.completedFuture(true);
 		}
-		boolean stored = false;
+
 		OpenWareDataItem lastItem = DataService.getLiveSensorData(item.getId(), item.getUser());
 
 		String lastHash = null;
@@ -811,7 +846,7 @@ public class DataService {
 				referenceChange = item.getReference() != null;
 			} else {
 				//lastItem had a reference, so check if newItem still has the same
-				referenceChange = lastItem.getReference().equals(item.getReference());
+				referenceChange = !lastItem.getReference().equals(item.getReference());
 			}
 
 		}
@@ -821,29 +856,24 @@ public class DataService {
 			item.getMeta().put("referenceChange", referenceChange);
 		
 		DataService.setCurrentItem(item);
-
-		try {
-
-			if (Config.dbPersistValue && item.persist()) {
-				DataService.storeData(item);
-				stored = true;
+		pool.submit(new SubscriberRunnable(lastItem, item));
+			if (Config.getBool("dbPersistValue", true) && item.persist()) {
+				return DataService.storeData(item);
 			} else {
 				OpenWareInstance.getInstance().logWarn("Item was not Stored due to configuration: " +	item.getUser() +
-														Config.idSeperator +
+						Config.get("idSeperator","---") +
 														item.getId());
-				if (Config.verbose) {
+				if (Config.getBool("verbose", false)) {
 					OpenWareInstance.getInstance().logTrace("Item:" + item.toString());
 				}
+				return CompletableFuture.completedFuture(true);
 			}
 
-		} catch (Exception e) {
-			OpenWareInstance.getInstance().logError("Could not store new Date: " + e.getMessage(), e);
-			return false;
-		}
-		pool.submit(new SubscriberRunnable(lastItem, item));
-		//Acknowledge storing -> Either item was stored or was flagged to not be stored
+		
 
-		return stored || !item.persist() || !Config.dbPersistValue;
+
+
+
 
 	}
 
@@ -865,12 +895,13 @@ public class DataService {
 		return adapter.liveData(sensorID, source, at, elements, reference);
 	}
 
-	public static boolean deleteDeviceData(String sensorName, String user, Long from, Long until) {
-		return adapter.deleteDeviceData(sensorName, user, from, until);
+	public static boolean deleteDeviceData(String sensorName, String user, Long from, Long until, String ref)
+			throws Exception {
+		return adapter.deleteDeviceData(sensorName, user, from, until, ref);
 	}
 
-	protected static void storeData(OpenWareDataItem item) throws Exception {
-		adapter.storeData(item);
+	protected static CompletableFuture<Boolean> storeData(OpenWareDataItem item) throws Exception {
+		return adapter.storeData(item);
 	}
 
 	protected static void setCurrentItem(OpenWareDataItem item) {
@@ -936,7 +967,7 @@ public class DataService {
 
 }
 
-class DataProcessTask implements Callable<Boolean> {
+class DataProcessTask implements Callable<List<CompletableFuture<Boolean>>> {
 
 	private List<OpenWareDataItem> item;
 	private OpenWareDataItem singleItem;
@@ -957,12 +988,16 @@ class DataProcessTask implements Callable<Boolean> {
 	}
 
 	@Override
-	public Boolean call() throws Exception {
+	public List<CompletableFuture<Boolean>> call() throws Exception {
 		if (item != null) {
+
 			return processItems(item);
 		}
 		if (singleItem != null) {
-			return processItem(singleItem);
+			ArrayList<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
+			res.add(processItem(singleItem));
+			return res;
+			
 		}
 		if (data != null) {
 			List<OpenWareDataItem> toProcess = null;
@@ -979,21 +1014,25 @@ class DataProcessTask implements Callable<Boolean> {
 			}
 
 		}
-		return true;
+		ArrayList<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
+		res.add(CompletableFuture.completedFuture(false));
+		return res;
 	}
 
-	private boolean processItems(List<OpenWareDataItem> items) {
+	private List<CompletableFuture<Boolean>> processItems(List<OpenWareDataItem> items) throws Exception {
 		//([a-zA-Z\d]+\.)+: ID und source prüfen
 		if (items == null) {
-			return false;
+			ArrayList<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
+			res.add(CompletableFuture.completedFuture(false));
+			return res;
 		}
 		return DataService.processNewData(items);
 	}
 
-	private boolean processItem(OpenWareDataItem item) {
+	private CompletableFuture<Boolean> processItem(OpenWareDataItem item) throws Exception {
 		//([a-zA-Z\d]+\.)+: ID und source prüfen
 		if (item == null) {
-			return false;
+			return CompletableFuture.completedFuture(false);
 		}
 		return DataService.processNewData(item);
 	}

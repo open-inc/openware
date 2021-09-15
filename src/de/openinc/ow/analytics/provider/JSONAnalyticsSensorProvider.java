@@ -55,7 +55,7 @@ public class JSONAnalyticsSensorProvider implements AnalyticSensorProvider {
 			obj.put("user", o.getString("user"));
 			obj.put("valueTypes", new JSONArray(o.getString("valueTypes")));
 
-			String prefix = Config.analyticPrefix;
+			String prefix = Config.get("analyticPrefix", "analytic.");
 			if (obj.getString("id").startsWith(prefix)) {
 				prefix = "";
 			}

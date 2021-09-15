@@ -37,7 +37,7 @@ public class TransformationAPI implements OpenWareAPI {
 				params.put("source", source);
 				params.put("id", sensor);
 
-				if (Config.accessControl) {
+				if (Config.getBool("accessControl", true)) {
 					User user = req.session().attribute("user");
 					if (user == null || !user.canAccessRead(source, sensor))
 						return HTTPResponseHelper.generateResponse(res, 403, null, "Not allowed to add data");
@@ -60,7 +60,7 @@ public class TransformationAPI implements OpenWareAPI {
 				OpenWareDataItem res_data;
 				res_data = op.process(req.session().attribute("user"), null, params);
 
-				if (Config.accessControl && res_data != null) {
+				if (Config.getBool("accessControl", true) && res_data != null) {
 					User user = req.session().attribute("user");
 					if (user == null || !user.canAccessRead(res_data.getUser(), res_data.getId()))
 						return HTTPResponseHelper.generateResponse(res, 403, null, "Not allowed to add data");

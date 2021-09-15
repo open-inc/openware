@@ -1,5 +1,6 @@
 package de.openinc.ow.monitoring;
 
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -38,7 +39,7 @@ public class AlarmMonitorThreadV2 {
 			@Override
 			public void receive(OpenWareDataItem old, OpenWareDataItem item) throws Exception {
 
-				OpenWareDataItem currentItem = (OpenWareDataItem) item;
+				OpenWareDataItem currentItem = item;
 				OpenWareDataItem lastItem = old;
 
 				//Looking for Alarm of item that was just received
@@ -95,8 +96,12 @@ public class AlarmMonitorThreadV2 {
 										- sentTS.getOrDefault(currentObj.getString("_id"), 0l) > currentObj
 												.getJSONObject("trigger").getLong("interval")));
 
+						String ownerField = "owner";
+						if (!currentObj.has("owner")) {
+							ownerField = "user";
+						}
 						User toNotify = UserService.getInstance()
-								.getUserByUID(currentObj.getJSONObject("owner").getString("objectId"));
+								.getUserByUID(currentObj.getJSONObject(ownerField).getString("objectId"));
 						boolean userIsAllowed = toNotify != null && toNotify
 								.canAccessRead(currentObj.getString("item_source"), currentObj.getString("item_id"));
 
@@ -154,7 +159,7 @@ public class AlarmMonitorThreadV2 {
 										currentObj.getJSONObject("action").getString("topic"),
 										currentObj.getJSONObject("action").getString("payload"),
 										toNotify,
-										options, notifyItem);
+										options, Arrays.asList(notifyItem));
 
 							}
 
@@ -320,10 +325,14 @@ public class AlarmMonitorThreadV2 {
 			JSONObject current = alarms.getJSONObject(i);
 			String item_source = current.getString("item_source");
 			String item_id = current.getString("item_id");
+			String ownerField = "owner";
+			if (!current.has("owner")) {
+				ownerField = "user";
+			}
 			User toNotify = UserService.getInstance()
-					.getUserByUID(current.getJSONObject("owner").getString("objectId"));
+					.getUserByUID(current.getJSONObject(ownerField).getString("objectId"));
 			boolean userIsAllowed = toNotify != null && toNotify.canAccessRead(item_source, item_id);
-			if (!Config.accessControl || userIsAllowed) {
+			if (!Config.getBool("accessControl", true) || userIsAllowed) {
 				String tempIndex = item_source + item_id;
 				JSONArray idAlarms = newAlarms.getOrDefault(tempIndex, new JSONArray());
 				idAlarms.put(current);
@@ -334,7 +343,11 @@ public class AlarmMonitorThreadV2 {
 		return this.alarms;
 	}
 
-	private void refresh() {
+	public HashMap<String, JSONArray> getCurrentAlarms() {
+		return this.alarms;
+	}
+
+	public void refresh() {
 		if (System.currentTimeMillis() - lastUpdate < 30000)
 			return;
 		OpenWareInstance.getInstance().logDebug("Refreshing alarms...");

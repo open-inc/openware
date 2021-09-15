@@ -130,7 +130,7 @@ public class OpenWareInstance {
 
 	public void logError(Object error, Throwable t) {
 
-		infoLogger.error(error, t);
+		errorLogger.error(error, t);
 
 	}
 
@@ -156,7 +156,7 @@ public class OpenWareInstance {
 
 		Config.init();
 
-		switch (Config.logLevel) {
+		switch (Config.get("logLevel", "INFO")) {
 		case "TRACE":
 			infoLogger.setLevel(Level.TRACE);
 			break;
@@ -183,7 +183,7 @@ public class OpenWareInstance {
 			break;
 		}
 
-		switch (Config.logLevelAPIs) {
+		switch (Config.get("logLevelAPIs", "OFF")) {
 		case "TRACE":
 			apacheLogger.setLevel(Level.TRACE);
 			sparkLogger.setLevel(Level.TRACE);
@@ -247,20 +247,20 @@ public class OpenWareInstance {
 		//System.out.println(zone.getDisplayName());
 		//System.out.println(zone.getID());
 		//System.out.println(Config.timezone);
-		TimeZone.setDefault(TimeZone.getTimeZone(Config.timezone));
+		TimeZone.setDefault(TimeZone.getTimeZone(Config.get("timezone","Europe/Berlin")));
 		zone = TimeZone.getDefault();
 		//System.out.println(zone.getDisplayName());
 		//System.out.println(zone.getID());
-		if (Config.enableWebserver) {
+		if (Config.getBool("enableWebserver", true) ) {
 			logInfo("Initializing open.WARE v" +	OpenWareInstance.getInstance().VERSION +
 					" on port " +
-					Config.sparkPort);
-			port(Integer.valueOf(Config.sparkPort));
+					Config.getInt("sparkPort",4567) );
+			port(Integer.valueOf(Config.getInt("sparkPort",4567)));
 
-			if (Boolean.valueOf(Config.sparkSSL)) {
+			if (Config.getBool("sparkSSL", false)) {
 				OpenWareInstance.getInstance().logInfo(
 						"Setting up encryption. Warning: keystore file expires and has to be manually replaced.");
-				secure(Config.keystoreFilePath, Config.keystorePassword, null, null);
+				secure(Config.get("keystoreFilePath","."), Config.get("keystorePassword", "pass"), null, null);
 			}
 		}
 
@@ -326,8 +326,8 @@ public class OpenWareInstance {
 		loadPlugins();
 		OpenWareInstance.getInstance()
 				.logTrace("[PLUGINS] " + "------------------Plugins loaded...-------------------------");
-		OpenWareInstance.getInstance().logInfo("Using external file path: " + Config.sparkFileDir);
-		externalStaticFileLocation(Config.sparkFileDir); // index.html is served at localhost:4567 (default port)
+		OpenWareInstance.getInstance().logInfo("Using external file path: " + Config.get("publicHTTP", "app"));
+		externalStaticFileLocation(Config.get("publicHTTP", "app")); // index.html is served at localhost:4567 (default port)
 		webSocket(LIVE_API, SubscriptionProvider.class);
 
 		after((req, res) -> {
@@ -399,17 +399,19 @@ public class OpenWareInstance {
 			}
 
 			// request.session(true);
-			if (Config.accessControl && !request.pathInfo().startsWith("/api/apps")) {
+			if (Config.getBool("accessControl", true)) {
 				boolean authorized = false;
 				User user = UserService.getInstance().checkAuth(request.headers(UserAPI.OD_SESSION));
-				if (request.headers().contains(UserService.JWT_HEADER)) {
-					user = UserService.getInstance().jwtToUser(request.headers(UserService.JWT_HEADER));
+				if (request.headers().contains("Authorization") && request.headers("Authorization").startsWith("Bearer ")) {
+					user = UserService.getInstance().jwtToUser(request.headers("Authorization").substring(7));
+					request.session().attribute("apiaccess", true);
 				}
 				authorized = user != null;
 				request.session().attribute("user", user);
 
 				if (!authorized) {
-					halt(401, "Not authorized");
+					halt(HTTPResponseHelper.generateResponse(response,HTTPResponseHelper.STATUS_FORBIDDEN, null, "Not authorized").toString());
+					
 				}
 			}
 		}
@@ -417,7 +419,7 @@ public class OpenWareInstance {
 		);
 		String index;
 		try {
-			index = new String(Files.readAllBytes(Paths.get(Config.sparkFileDir + "/index.html")));
+			index = new String(Files.readAllBytes(Paths.get( Config.get("publicHTTP", "app") + "/index.html")));
 			get("*", (req, res) -> {
 				if (!req.pathInfo().startsWith("/static") && !req.pathInfo().startsWith("/subscription")) {
 					res.status(404);
@@ -638,7 +640,8 @@ public class OpenWareInstance {
 							if (prevInstance != null) {
 								ReportsService.getInstance().removeReportType(provider.getTag());
 							}
-							ReportsService.getInstance().addReportType(provider.getTag(), provider.getClass());
+							ReportsService.getInstance().addReportType(provider.getTag(),
+									(Class<ReportInterface>) provider.getClass());
 							logInfo(provider.getClass().getCanonicalName() + " loaded!");
 							return provider;
 						}

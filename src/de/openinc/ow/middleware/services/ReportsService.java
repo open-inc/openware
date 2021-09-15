@@ -1,6 +1,7 @@
 package de.openinc.ow.middleware.services;
 
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -16,7 +17,7 @@ import de.openinc.ow.helper.Config;
 
 public class ReportsService {
 
-	private Map<String, Class<?>> registeredTypes;
+	private Map<String, Class<ReportInterface>> registeredTypes;
 
 	private static ReportsService me;
 
@@ -28,55 +29,53 @@ public class ReportsService {
 	}
 
 	private ReportsService() {
-		this.registeredTypes = new HashMap<String, Class<?>>();
+		this.registeredTypes = new HashMap<String, Class<ReportInterface>>();
 	}
 
-	public Class<?> addReportType(String tag, Class<?> ri) {
+	public Class<ReportInterface> addReportType(String tag, Class<ReportInterface> ri) {
 		Object o;
 		try {
 			o = ri.newInstance();
-			if (o instanceof ReportInterface) {
-				return registeredTypes.put(tag, ri);
-			} else {
-				return null;
-			}
-		} catch (InstantiationException e) {
+			return registeredTypes.put(tag, ri);
 
-			e.printStackTrace();
-			return null;
-		} catch (IllegalAccessException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		} catch (Exception e) {
+			OpenWareInstance.getInstance().logError("Could not register report", e);
 			return null;
 		}
 
 	}
 
-	public Class<?> removeReportType(String tag) {
+	public Class<ReportInterface> removeReportType(String tag) {
 		return registeredTypes.remove(tag);
 	}
 
-	public Class<?> getReportType(String tag) {
+	public Class<ReportInterface> getReportType(String tag) {
 		return registeredTypes.get(tag);
 	}
 
-	public ReportInterface generateReport(JSONObject params, Class<?> reportType, OutputStream out, User user) {
+	public ReportInterface generateReport(JSONObject params, Class<ReportInterface> reportType, OutputStream out,
+			User user) {
+		return generateReport(params, reportType, out, user, null);
+	}
+
+	public ReportInterface generateReport(JSONObject params, Class<ReportInterface> reportType, OutputStream out,
+			User user,
+			List<OpenWareDataItem> preloadedData) {
 		JSONObject parameter = params;
 		ReportInterface clazz;
 
 		try {
-			Object o = reportType.newInstance();
-			if (!(o instanceof ReportInterface))
-				return null;
-			clazz = (ReportInterface) o;
+			ReportInterface o = reportType.newInstance();
+			clazz = o;
 			clazz.init(parameter, user);
 		} catch (Exception e1) {
 			OpenWareInstance.getInstance().logError("Error while handling report", e1);// TODO Auto-generated catch block
 
 			return null;
 		}
+
 		List<OpenWareDataItem> data = clazz.getData(parameter);
-		if (Config.accessControl) {
+		if (Config.getBool("accessControl", true)) {
 			Iterator<OpenWareDataItem> it = data.iterator();
 			while (it.hasNext()) {
 				OpenWareDataItem item = it.next();
@@ -91,8 +90,12 @@ public class ReportsService {
 			}
 
 		}
+		if (preloadedData == null) {
+			preloadedData = new ArrayList<OpenWareDataItem>();
+		}
+		preloadedData.addAll(data);
 		try {
-			clazz.generate(out, data);
+			clazz.generate(out, preloadedData);
 		} catch (Exception e) {
 			OpenWareInstance.getInstance().logError("Report generation error:\n" +	clazz.getClass().toString() +
 													"\n",

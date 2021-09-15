@@ -125,7 +125,7 @@ public class TransformationService {
 												":\n" +
 												stages.getJSONObject(i).getJSONObject("params"));
 			}
-			if (Config.accessControl && tempItem != null) {
+			if (Config.getBool("accessControl", true) && tempItem != null) {
 				if (user == null || !user.canAccessRead(tempItem.getUser(), tempItem.getId()))
 					throw new IllegalAccessError("Not allowed to access data produced by stage " +	i +
 													":\n" +

@@ -1,10 +1,7 @@
 package de.openinc.ow.middleware.services;
 
-import java.io.File;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import org.json.JSONObject;
 
@@ -18,6 +15,7 @@ import com.auth0.jwt.interfaces.JWTVerifier;
 import de.openinc.api.UserAdapter;
 import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
+import de.openinc.ow.helper.Config;
 
 public class UserService {
 
@@ -26,23 +24,23 @@ public class UserService {
 	private JWTVerifier jwtVerifier;
 	private String issuer;
 	private Algorithm algorithm;
-	public static String JWT_HEADER = "ow-jwt";
+	
 
 	private UserService() {
 		me = this;
-		File jwtconf = new File("jwt.json");
-		if (!jwtconf.exists())
-			return;
+		
 		try {
-			JSONObject jwtJSON = new JSONObject(
-					Files.readAllLines(jwtconf.toPath()).stream().collect(Collectors.joining()));
-			issuer = jwtJSON.getString("issuer");
-			algorithm = Algorithm.HMAC256(jwtJSON.getString("secret"));
+			issuer = Config.get("jwt_issuer","");
+			String secret = Config.get("jwt_secret", "");
+			if(secret ==null || issuer == null || issuer.equals("") || secret.equals("")) {
+				throw new IllegalArgumentException("Missing JWT Config");
+			}
+			algorithm = Algorithm.HMAC256(secret);
 			jwtVerifier = JWT.require(algorithm)
-					.withIssuer(issuer)
+					//.withIssuer(issuer)
 					.build(); //Reusable verifier instance
 		} catch (Exception e) {
-			OpenWareInstance.getInstance().logError("Could not read or malformed jwt.json file");
+			OpenWareInstance.getInstance().logError("JWT Configuration missing. Please Provide an Issuer (ENV JWT_ISSUER) and secret (ENV JWT_SECRET)");
 			return;
 		}
 	}
@@ -57,6 +55,7 @@ public class UserService {
 	}
 
 	public User jwtToUser(String token) {
+		if(jwtVerifier == null) return null;
 		try {
 			DecodedJWT userJWT = jwtVerifier.verify(token);
 			Claim userid = userJWT.getClaim("uid");
@@ -83,6 +82,7 @@ public class UserService {
 	}
 
 	public String userToJWT(String id) {
+		if(jwtVerifier == null) return null;
 		User user = getUserByUID(id);
 		if (user == null)
 			return null;

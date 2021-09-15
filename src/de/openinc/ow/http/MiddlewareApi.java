@@ -1,5 +1,6 @@
 package de.openinc.ow.http;
 
+import static spark.Spark.delete;
 import static spark.Spark.get;
 import static spark.Spark.halt;
 import static spark.Spark.path;
@@ -24,7 +25,6 @@ import de.openinc.ow.helper.Config;
 import de.openinc.ow.helper.HTTPResponseHelper;
 import de.openinc.ow.middleware.services.AnalyticsService;
 import de.openinc.ow.middleware.services.DataService;
-import spark.QueryParamsMap;
 import spark.Request;
 import spark.Response;
 
@@ -41,7 +41,7 @@ public class MiddlewareApi implements OpenWareAPI {
 	/**
 	 * API constant to delete device data
 	 */
-	public static final String DELETE_DEVICE_DATA = "/delete/:source/:sensorid/:timestampStart/:timestampEnd";
+	public static final String DELETE_DEVICE_DATA = "/items/:source/:sensorid/:timestampStart/:timestampEnd";
 	/**
 	 * API constant to get all the registered sensor items for the user
 	 */
@@ -73,7 +73,7 @@ public class MiddlewareApi implements OpenWareAPI {
 
 			post(PUSH_DATA, (req, res) -> {
 				OpenWareDataItem item = OpenWareDataItem.fromJSON(req.body());
-				if (Config.accessControl) {
+				if (Config.getBool("accessControl", true)) {
 					User user = req.session().attribute("user");
 					if (user == null || !user.canAccessWrite(item.getUser(), item.getId()))
 						return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
@@ -86,7 +86,7 @@ public class MiddlewareApi implements OpenWareAPI {
 			post(UPDATE_DATA, (req, res) -> {
 				try {
 					OpenWareDataItem update = OpenWareDataItem.fromJSON(req.body());
-					if (Config.accessControl) {
+					if (Config.getBool("accessControl", true)) {
 						User user = req.session().attribute("user");
 						if (user == null || !user.canAccessWrite(update.getUser(), update.getId()))
 							return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
@@ -104,28 +104,7 @@ public class MiddlewareApi implements OpenWareAPI {
 				}
 				
 			});
-			/*
-			post(ACTUATOR_TRIGGER_API, (req, res) -> {
-				// TODO: Implement Access Control
-				//
-			//				  if(Config.accessControl) { User user =req.session().attribute("user"); String
-			//				  strUser= req.params("source"); JSONObject obj=
-			//				  Config.mapId(req.params("extID")); String id = obj.getString("id");
-			//				  if(user==null||!user.canAccessWrite(strUser, id)) halt(403,
-			//				  "Not allowed to add data"); }
-			//				 
-				String aaid = req.params("aaid");
-				JSONObject data = new JSONObject(req.body());
-				boolean validParameter = data.has("address") && data.has("target") && data.has("payload");
-				if (validParameter) {
-					DataService.getActuator(aaid).send(data.optString("payload"), data.getJSONObject("address"), null);
-					res.status(200);
-					return SUCCESS_CODE;
-				}
-				res.status(INVALID_PARAMETERS);
-				return "Parameters must contain 'address', 'target' & 'payload'";
-			});
-			*/
+
 			path(ITEMS_API, () -> {
 
 				get("/:user/:source", (req, res) -> {
@@ -150,15 +129,23 @@ public class MiddlewareApi implements OpenWareAPI {
 				}
 				res.header("Content-Encoding", "gzip");
 				res.type("application/json");
+				OpenWareDataItem result;
 				try {
 				
 					long at = req.queryMap("at").longValue();
 					int elements = req.queryMap("values").integerValue();
-					return DataService.getLiveSensorData(strID, source, at, elements);
+					result = DataService.getLiveSensorData(strID, source, at, elements);
 				}catch(Exception e) {
-					return DataService.getLiveSensorData(strID, source);	
+					result = DataService.getLiveSensorData(strID, source);
 				}
-				
+				if (result != null) {
+					res.status(200);
+					streamResponse(res, result);
+					return null;
+				} else {
+					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_BAD_REQUEST, null,
+							"Data item not found");
+				}
 				
 				
 				/*
@@ -204,7 +191,7 @@ public class MiddlewareApi implements OpenWareAPI {
 			get(HISTORICAL_DATA_API, (req, res) -> {
 				String source = req.params("source");
 				String sensorid = req.params("sensorid");
-				if (Config.accessControl) {
+				if (Config.getBool("accessControl", true)) {
 					User user = req.session().attribute("user");
 					if (user == null || !user.canAccessRead(source, sensorid))
 						halt(403, "Not allowed to read data");
@@ -215,7 +202,7 @@ public class MiddlewareApi implements OpenWareAPI {
 				Long timestampStart = Long.valueOf(req.params("timestampStart"));
 				Long timestampEnd = Long.valueOf(req.params("timestampEnd"));
 				OpenWareDataItem item;
-				if (sensorid.startsWith(Config.analyticPrefix)) {
+				if (sensorid.startsWith(Config.get("analyticPrefix", "analytic."))) {
 					OpenWareInstance.getInstance().logDebug(
 							"Received analytics data request for sensor: " +	sensorid +
 															" and source: " +
@@ -244,39 +231,57 @@ public class MiddlewareApi implements OpenWareAPI {
 				}
 			});
 
-			get(DELETE_DEVICE_DATA, (req, res) -> {
-				if (Config.accessControl) {
+			// TODO: Add References
+			delete(DELETE_DEVICE_DATA, (req, res) -> {
+				String source = req.params("source");
+				String sensorid = req.params("sensorid");
+				if(source ==null || sensorid == null || source.equals("")||sensorid.equals("")) {
+					HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_BAD_REQUEST, null, "Missing source/sensorid parameter");
+				}
+				if (Config.getBool("accessControl", true)) {
 					User user = req.session().attribute("user");
-					String strUser = req.params("userid");
-					String strID = req.params("sensorid");
-					if (user == null || !user.canAccessDelete(strUser, strID))
-						halt(403, "Not allowed to delete data");
+					if (user == null || !user.canAccessDelete(source, sensorid)) {
+						HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
+								"Not allowed to delete data");
+						return null;
+					}
 				}
 
 				try {
 					res.header("Content-Encoding", "gzip");
 					res.type("application/json");
-					String deviceID = req.params("sensorid");
-					String userID = req.params("userid");
-					Long timestampStart = Long.valueOf(req.params("timestampStart"));
-					Long timestampEnd = Long.valueOf(req.params("timestampEnd"));
-					OpenWareInstance.getInstance().logDebug(
-							"Received delete device data request for device: " +	deviceID +
-															" and user: " +
-															userID);
-
-					if (Boolean.valueOf(Config.allowDeleteData)) {
-
-						return new JSONObject();
-					} else {
-						OpenWareInstance.getInstance().logError(
-								"Delete data requests have to be explicitly allowed in the server settings; setting is false or missing, so nothing will be deleted.");
-						res.status(UNAUTHORIZED_CODE);
-						return false;
+					try {
+						long timestampStart = Long.valueOf(req.params("timestampStart"));
+						long timestampEnd = Long.valueOf(req.params("timestampEnd"));
+						OpenWareInstance.getInstance().logDebug(
+								"Received delete device data request for device: " + sensorid + " of source: "
+										+ source);
+	
+						if (Config.getBool("allowDeleteData", false)) {
+							boolean success = DataService.deleteDeviceData(sensorid, source, timestampStart,
+									timestampEnd, null);
+							if(success) {
+								return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_OK,
+										"Successfully deleted data", null);
+							}else {
+								return HTTPResponseHelper.generateResponse(res,
+										HTTPResponseHelper.STATUS_INTERNAL_ERROR, null,
+										"Unknown error while deleting data");
+							}
+	
+						} else {
+							OpenWareInstance.getInstance().logError(
+									"Delete data requests have to be explicitly allowed in the server settings; setting is false or missing, so nothing will be deleted.");
+							return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,"Delete data requests have to be explicitly allowed in the server settings; setting is false or missing, so nothing will be deleted.");
+						
+						}
+					}catch(NumberFormatException e) {
+						HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_BAD_REQUEST, null, "Start and end timestamps need to be unix milliseconds timestamp");
+						return null;
 					}
 				} catch (Exception e) {
 					OpenWareInstance.getInstance().logError("DELETE DATA REQUEST" + e.getLocalizedMessage(), e);
-					return null;
+					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_INTERNAL_ERROR, null,e.getLocalizedMessage());
 				}
 
 			});
@@ -287,7 +292,7 @@ public class MiddlewareApi implements OpenWareAPI {
 
 	private Object getItems(Request req, Response res, String filter) {
 		User user = null;
-		if (Config.accessControl) {
+		if (Config.getBool("accessControl", true)) {
 			user = req.session().attribute("user");
 			if (user == null)
 				halt(403, "Not allowed to read data");

@@ -30,8 +30,7 @@ public class AlarmMonitorThreadV1 extends Thread {
 	private MailSender ms;
 
 	public AlarmMonitorThreadV1(JSONArray alarms) {
-		ms = MailSender.getInstance(Config.outboundMailServer, Config.outboundMailServerPort, Config.mailserverUser,
-				Config.mailserverPassword);
+		ms = MailSender.getInstance();
 		this.alarms = updateMonitors(alarms);
 		mailProcessQueue = new HashMap<>();
 		ticketProcessQueue = new HashMap<>();
@@ -47,7 +46,7 @@ public class AlarmMonitorThreadV1 extends Thread {
 
 			@Override
 			public void receive(OpenWareDataItem old, OpenWareDataItem item) throws Exception {
-				OpenWareDataItem currentItem = (OpenWareDataItem) item;
+				OpenWareDataItem currentItem = item;
 				OpenWareDataItem lastItem = old;
 
 				JSONArray alarm = alarms.get(item.getUser() + item.getId());
@@ -299,7 +298,7 @@ public class AlarmMonitorThreadV1 extends Thread {
 			String item_id = current.getString("sensorid");
 			User toNotify = UserService.getInstance().getUserByUsername(current.getString("toNotify"));
 			boolean userIsAllowed = toNotify != null && toNotify.canAccessRead(item_source, item_id);
-			if (!Config.accessControl || userIsAllowed) {
+			if (!Config.getBool("accessControl", true) || userIsAllowed) {
 				String tempIndex = item_source + item_id;
 				JSONArray idAlarms = this.alarms.getOrDefault(tempIndex, new JSONArray());
 				idAlarms.put(current);
@@ -335,7 +334,7 @@ public class AlarmMonitorThreadV1 extends Thread {
 			String subject = temp.get(key).getMeta().optString("alarmTitle");
 			String message = temp.get(key).getMeta().optString("alarmText");
 			try {
-				ms.sendMail(Config.mailserverUser, key.getString("mail"), subject, message);
+				ms.sendMail(Config.get("mailserverUser","user"), key.getString("mail"), subject, message);
 			} catch (JSONException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();

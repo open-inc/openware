@@ -1,6 +1,7 @@
 package de.openinc.api;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -9,7 +10,7 @@ import de.openinc.model.data.OpenWareDataItem;
 
 public interface PersistenceAdapter {
 
-	void init();
+	void init() throws Exception;
 
 	void close();
 
@@ -19,11 +20,11 @@ public interface PersistenceAdapter {
 
 	OpenWareDataItem liveData(String sensorName, String source, long at, int lastElements, String reference);
 
-	OpenWareDataItem historicalData(String sensorName, String source, Long timestamp, Long until, String reference);
+	OpenWareDataItem historicalData(String sensorName, String source, Long timestamp, Long until, String reference, RetrievalOptions optionals);
 
-	boolean deleteDeviceData(String sensorName, String source, Long from, Long until);
+	boolean deleteDeviceData(String sensorid, String source, long from, long until, String reference) throws Exception;
 
-	void storeData(OpenWareDataItem item) throws Exception;
+	CompletableFuture<Boolean> storeData(OpenWareDataItem item) throws Exception;
 	
 	int updateData(OpenWareDataItem item) throws Exception;
 

@@ -11,9 +11,10 @@ import java.util.Properties;
 import org.json.JSONObject;
 
 import de.openinc.ow.OpenWareInstance;
+import io.github.cdimascio.dotenv.Dotenv;
 
 public class Config {
-
+	/*
 	// Logging
 	public static String logLevel;
 	public static String logLevelAPIs;
@@ -54,7 +55,8 @@ public class Config {
 	public static int maxConnectionsPerHost;
 	public static int connectionQueueSizeMultiplier;
 	public static String dbConnectionString;
-
+	public static int aggregationIntervalInMinutes;
+	public static boolean updateExistingAggregations;
 	//Parse Generic Data
 	public static String parseGenericClasses;
 
@@ -99,7 +101,7 @@ public class Config {
 	public static String webhookClass;
 
 	// Analytics
-	public static HashMap<String, JSONObject> idMappings;
+	
 	public static HashMap<String, JSONObject> analyticOperations;
 
 	// OPCUA
@@ -127,131 +129,69 @@ public class Config {
 
 	//Scheduler
 	public static int numberOfJobThreads;
-
+	*/
 	//
-
+	public static Dotenv env;
+	public static HashMap<String, JSONObject> idMappings;
 	public static void init() {
-
-		analyticOperations = new HashMap<>();
-		idMappings = new HashMap<>();
-		Properties properties = new Properties();
-
+		env = Dotenv.load();
+		
 		try {
 			OpenWareInstance.getInstance().logError("--------------------------------------------------------------");
 			OpenWareInstance.getInstance().logError("---------------------Restart Backend--------------------------");
 			OpenWareInstance.getInstance().logError("--------------------------------------------------------------");
 
 			OpenWareInstance.getInstance().logInfo("Reading config file spark.properties");
+
+			//analyticOperations = new HashMap<>();
+			idMappings = new HashMap<>();
+			Properties properties = new Properties();
+
 			properties.load(new FileInputStream("spark.properties"));
 		} catch (IOException e) {
 			OpenWareInstance.getInstance().logError("Config file not found. " + e.getMessage());
 			OpenWareInstance.getInstance()
-					.logError("You should provide a spark.properties file to define the server settings.");
+					.logError("You should provide a .env file to define the server settings.");
 		}
-
-		chartExporterURL = properties.getProperty("chartExporterURL", "localhost");
-		timezone = properties.getProperty("timezone", "Europe/Berlin");
-		language = properties.getProperty("language", "de-DE");
-
-		reportUrlRoutePrefix = properties.getProperty("reportUrlRoutePrefix", "/report");
-		numberOfJobThreads = Integer.parseInt(properties.getProperty("numberOfJobThreads", "1"));
-		parseGenericClasses = properties.getProperty("parseGenericClasses", "");
-		enableWebserver = Boolean.valueOf(properties.getProperty("enableWebserver", "true"));
-		opcuaEnabled = Boolean.valueOf(properties.getProperty("opcuaEnabled", "false"));
-		opcuaPort = Integer.valueOf(properties.getProperty("opcuaPort", "4840"));
-
-		ticketEnabled = Boolean.valueOf(properties.getProperty("ticketEnabled", "false"));
-		ticketHost = properties.getProperty("ticketHost", "");
-		ticketPort = Integer.valueOf(properties.getProperty("ticketPort", "80"));
-		ticketUser = properties.getProperty("ticketUser", "");
-		ticketType = properties.getProperty("ticketType", "");
-		ticketWorkerGroup = properties.getProperty("ticketWorkerGroup", "");
-		ticketAccessToken = properties.getProperty("ticketAccessToken", "");
-
-		logLevel = properties.getProperty("logLevel", "INFO");
-		logLevelAPIs = properties.getProperty("logLevelAPIs", "ERROR");
-		verbose = Boolean.valueOf(properties.getProperty("verbose", "false"));
-		sparkFileDir = properties.getProperty("sparkFileDir", "httpdocs");
-		sparkPort = properties.getProperty("sparkPort", "4567");
-		sparkSSL = properties.getProperty("sparkSSL", "false");
-		keystoreFilePath = properties.getProperty("keystoreFilePath", "keystore.jks");
-		keystorePassword = properties.getProperty("keystorePassword", "--");
-		publicServer = properties.getProperty("publicServer", "false");
-		useUsernames = Boolean.valueOf(properties.getProperty("useUsernames", "false"));
-		standardUser = properties.getProperty("standardUser", "--");
-		if (standardUser.equals("--"))
-			standardUser = "all";
-		allowDeleteData = properties.getProperty("allowDeleteData", "false");
-		accessControl = Boolean.valueOf(properties.getProperty("accessControl", "false"));
-		whiteList = properties.getProperty("whiteList", "127.0.0.1,0:0:0:0:0:0:0:1");
-
-		outboundMailServer = properties.getProperty("outboundMailServer", "smtp.server.de");
-		outboundMailServerPort = Integer.valueOf(properties.getProperty("outboundMailServerPort", "587"));
-		mailserverUser = properties.getProperty("mailserverUser", "user");
-		mailserverPassword = properties.getProperty("mailserverPassword", "password");
-
-		dbPersistValue = Boolean.valueOf(properties.getProperty("dbPersistValue", "true"));
-		dbPath = properties.getProperty("dbPath", "localhost");
-		dbPort = properties.getProperty("dbPort", "27017");
-		dbUser = properties.getProperty("dbUser", "--");
-		dbPass = properties.getProperty("dbPass", "--");
-		dbName = properties.getProperty("dbName", "owcore");
-		dbGenericPrefix = properties.getProperty("dbGenericPrefix", "configs");
-		dbSensorPrefix = properties.getProperty("dbSensorPrefix", "sensors");
-		dbContainerPrefix = properties.getProperty("dbSensorPrefix", "container");
-		dbArchivePrefix = properties.getProperty("dbArchivePrefix", "archive");
-		dbFindBatchSize = properties.getProperty("dbFindBatchSize", "5000");
-		idSeperator = properties.getProperty("idSeperator", "---");
-		baseTimeInterval = Long.valueOf(properties.getProperty("baseTimeInterval", "3600000"));
-		referenceDBName = properties.getProperty("referenceDBName", "references");
-		maxConnectionsPerHost = Integer.valueOf(properties.getProperty("maxConnectionsPerHost", "16"));
-		connectionQueueSizeMultiplier = Integer.valueOf(properties.getProperty("connectionQueueSizeMultiplier", "1"));
-		dbConnectionString = properties.getProperty("dbConnectionString","mongodb://localhost/owdata");
+		}
 		
-		mappingsCollection = properties.getProperty("mappingsCollection", "idMappings");
-
-		
-		rmqPath = properties.getProperty("rmqPath", "localhost");
-		rmqQueue = properties.getProperty("rmqQueue", "odash");
-		rmqQueueAutoDelete = Boolean.valueOf(properties.getProperty("rmqQueueAutoDelete", "false"));
-		rmqUser = properties.getProperty("rmqUser", "--");
-		rmqPass = properties.getProperty("rmqPass", "--");
-		rmqPort = properties.getProperty("rmqPort", "5672");
-		rmqExchange = properties.getProperty("rmqExchange", "amq.topic");
-		rmqTopic = properties.getProperty("rmqTopic", "#");
-		validateData = properties.getProperty("validateData", "false");
-		requeueUnvalidated = properties.getProperty("requeueUnvalidated", "false");
-		publishParsedData = Boolean.valueOf(properties.getProperty("publishParsedData", "false"));
-		rmqvHost = properties.getProperty("rmqvHost", "/");
-
-		mqttAdresse = properties.getProperty("mqttAdresse", "localhost");
-		mqttPort = Integer.valueOf(properties.getProperty("mqttPort", "1883"));
-		mqttTopic = properties.getProperty("mqttTopic", "openinc");
-
-		analyticSensors = properties.getProperty("analyticSensors", "analyticSensors");
-		analyticOperationCollection = properties.getProperty("analyticOperationCollection", "analyticOperations");
-		aggregationServiceUrl = properties.getProperty("aggregationServiceUrl", "localhost");
-		aggregationServicePort = properties.getProperty("aggregationServicePort", "8080");
-		analyticPrefix = properties.getProperty("analyticPrefix", "analytic.");
-		try {
-			analyticRefreshRate = Long.valueOf(properties.getProperty("analyticRefreshRate", "60000"));
-		} catch (NumberFormatException e) {
-			analyticRefreshRate = 60000l;
-		}
-
-		if (dbPass.equals("--") || rmqPass.equals("--")) {
-			OpenWareInstance.getInstance().logInfo("Info: DB or RMQ password seems to be undefined.");
-		}
-
-		webhookClass = properties.getProperty("webhookClass", "OD3AlarmWebhook");
-		templatingRegexSelector = properties.getProperty("templatingRegexSelector", "\\{\\{(.*?)\\}\\}");
-		templatingSectionRegexSelector = properties.getProperty("templatingSectionRegexSelector",
-				"\\{\\{##(.*?)##\\}\\}");
-	}
-
 	public static JSONObject mapId(String external) {
 		return idMappings.get(external);
 	}
+	
+	public static String get(String name, String defaultVal) {
+		return env.get(env.get("OW_ENV_PREFIX", "OW_")+name.toUpperCase(), defaultVal);
+	}
+	public static boolean getBool(String name, boolean defaultVal) {
+		String toReturn = env.get(env.get("OW_ENV_PREFIX", "OW_")+name.toUpperCase());
+		if(toReturn!=null) {
+			return Boolean.valueOf(toReturn);
+		}
+		return defaultVal;
+	}
+	public static int getInt(String name, int defaultVal) {
+		String toReturn = env.get(env.get("OW_ENV_PREFIX", "OW_")+name.toUpperCase());
+		if(toReturn!=null) {
+			return Integer.valueOf(toReturn);
+		}
+		return defaultVal;
+	}
+	public static double getDouble(String name, double defaultVal) {
+		String toReturn = env.get(env.get("OW_ENV_PREFIX", "OW_")+name.toUpperCase());
+		if(toReturn!=null) {
+			return Double.valueOf(toReturn);
+		}
+		return defaultVal;
+	}
+	public static long getLong(String name, long defaultVal) {
+		String toReturn = env.get(env.get("OW_ENV_PREFIX", "OW_")+name.toUpperCase());
+		if(toReturn!=null) {
+			return Long.valueOf(toReturn);
+		}
+		return defaultVal;
+	}
+	
+	
 	public static JSONObject readConfig(String configName) {
 		try {
 			String path = "conf" + File.separator +

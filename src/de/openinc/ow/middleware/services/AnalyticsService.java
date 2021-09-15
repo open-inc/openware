@@ -51,10 +51,10 @@ public class AnalyticsService {
 		List<OpenWareDataItem> data = new ArrayList<OpenWareDataItem>();
 
 		String sensorToAccess = analItem.getMeta().getString("sensor");
-		if (sensorToAccess.startsWith(Config.analyticPrefix)) {
+		if (sensorToAccess.startsWith(Config.get("analyticPrefix","analytic."))) {
 			data.add(me.handle(owner, analItem.getMeta().getString("sensor")));
 		} else {
-			if (Config.accessControl) {
+			if (Config.getBool("accessControl",true)) {
 				if (!UserService.getInstance().getUserByUsername(user).canAccessRead(owner, sensorToAccess))
 					return null;
 			}
@@ -78,10 +78,10 @@ public class AnalyticsService {
 			for (int i = 0; i < sensors.length(); i++) {
 				String sensorToAccess = sensors.getJSONArray(i).getString(1);
 				String owner = sensors.getJSONArray(i).getString(0);
-				if (sensorToAccess.startsWith(Config.analyticPrefix)) {
+				if (sensorToAccess.startsWith(Config.get("analyticPrefix","analytic."))) {
 					data.add(me.handle(user, sensorToAccess, start, end));
 				} else {
-					if (Config.accessControl) {
+					if (Config.getBool("accessControl",true)) {
 						if (!UserService.getInstance().getUserByUsername(user).canAccessRead(owner, sensorToAccess))
 							return null;
 					}
@@ -119,7 +119,7 @@ public class AnalyticsService {
 
 	public Map<String, OpenWareDataItem> getAnalyticSensors(User user) {
 		Map<String, OpenWareDataItem> current;
-		if (new Date().getTime() - lastRefresh > Config.analyticRefreshRate) {
+		if (new Date().getTime() - lastRefresh > Config.getLong("analyticRefreshRate",60000l)) {
 			refreshSensors();
 		}
 		current = items.get(user.getName());

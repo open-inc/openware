@@ -33,24 +33,18 @@ public class OpenWareNumber extends OpenWareValueDimension {
 	@Override
 	public OpenWareValueDimension createValueForDimension(Object value) throws Exception{
 		double val = Double.NaN;
-		if (value instanceof Double) {
-			val = ((Double) value).doubleValue();
+		if (value instanceof Number) {
+			val = ((Number) value).doubleValue();
 		}
-		if (value instanceof Float) {
-			val = ((Float) value).doubleValue();
-		}
-		if (value instanceof Integer) {
-			val = ((Integer) value).doubleValue();
-		}
-		if (value instanceof Long) {
-			val = ((Long) value).doubleValue();
-		}
-
 		if (Double.isNaN(val)) {
 			try {
 				val = Double.valueOf(("" + value));	
 			}catch(Exception e) {
-				throw new IllegalArgumentException("The provided value needs to be a Number but is " + value.toString());
+				String exceptionCause = "The provided value needs to be a Number but is " + value.toString();
+				if (value instanceof Number) {
+					exceptionCause = "The provided value is invalid: " + val;
+				}
+				throw new IllegalArgumentException(exceptionCause);
 			}
 			
 		}

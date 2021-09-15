@@ -6,6 +6,19 @@ import static spark.Spark.halt;
 import static spark.Spark.path;
 import static spark.Spark.post;
 
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FilenameFilter;
+import java.nio.charset.Charset;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import javax.servlet.ServletOutputStream;
+
+import org.apache.commons.io.IOUtils;
 import org.json.JSONObject;
 
 import de.openinc.api.OpenWareAPI;
@@ -15,26 +28,86 @@ import de.openinc.ow.helper.Config;
 import de.openinc.ow.helper.HTTPResponseHelper;
 import de.openinc.ow.middleware.services.DataService;
 
+
 public class AdminAPI implements OpenWareAPI {
 	/**
 	 * API constants to use admin APIs
 	 */
 	public static final String GET_STATS = "/state";
 	public static final String GET_ANALYTIC_STATS = "/getAnalyticsStats";
+	public static final String GET_LOGS = "/logs";
 
 	/**
 	 * API constant to GET/POST Sensor Config
 	 */
 	public static final String SENSOR_CONFIG = "/sensors";
 
+	
+
+
 	@Override
 	public void registerRoutes() {
 
 		path("/admin", () -> {
+			get(GET_LOGS, (req, res) -> {
+				ServletOutputStream out = res.raw().getOutputStream();
+				int files = 1;
+				String type = "console";
+				if (req.queryParams().size() > 0) {
+					files = Integer.parseInt(req.queryMap().value("files"));
+					type = req.queryMap().value("type");
+					if (type == null || type.equals("")) {
+						type = "console";
+					}
+				}
+				final String filterType = type.toLowerCase();
+				File logDir = new File("logs");
+				if (!logDir.isDirectory()) {
+					out.write("Can't open Log Dir".getBytes());
+					return null;
+				}
+				List<String> filteredFiles = Arrays.stream(logDir.list(new FilenameFilter() {
+
+					@Override
+					public boolean accept(File dir, String name) {
+						// TODO Auto-generated method stub
+						return name.toLowerCase().contains(filterType);
+					}
+				})).sorted(new Comparator<String>() {
+
+					@Override
+					public int compare(String o1, String o2) {
+						File f1 = new File("logs" + File.separatorChar + o1);
+						File f2 = new File("logs" + File.separatorChar + o2);
+						long mf1 = f1.lastModified();
+						long mf2 = f2.lastModified();
+						if (mf1 > mf2)
+							return -1;
+						if (mf1 < mf2)
+							return 1;
+						return 0;
+					}
+				}).limit(files).collect(Collectors.toList());
+				
+				BufferedOutputStream bout = new BufferedOutputStream(out);
+				for (String file : filteredFiles) {
+					File f = new File("logs" + File.separatorChar + file);
+					System.out.println("Printing logs " + file + "(" + f.getAbsolutePath() + ")");
+					FileInputStream fis = new FileInputStream(f);
+					List<String> lines = IOUtils.readLines(fis, Charset.forName("UTF-8"));
+					res.status(200);
+					for (String line : lines) {
+						bout.write((line + "\n").getBytes());
+					}
+				}
+				bout.flush();
+				return null;
+			});
+			
 			post(SENSOR_CONFIG, (req, res) -> {
 
 				User user = null;
-				if (Config.accessControl) {
+				if (Config.getBool("accessControl", true)) {
 					user = req.session().attribute("user");
 					if (user == null)
 						halt(403, "You need to log in to configure items");
@@ -63,7 +136,7 @@ public class AdminAPI implements OpenWareAPI {
 
 			get(SENSOR_CONFIG, (req, res) -> {
 				User user = null;
-				if (Config.accessControl) {
+				if (Config.getBool("accessControl", true)) {
 					user = req.session().attribute("user");
 					if (user == null)
 						return HTTPResponseHelper.generateResponse(res, 403, null,
@@ -79,7 +152,7 @@ public class AdminAPI implements OpenWareAPI {
 			});
 			delete(SENSOR_CONFIG + "/:owner/:sensor", (req, res) -> {
 				User user = null;
-				if (Config.accessControl) {
+				if (Config.getBool("accessControl", true)) {
 					user = req.session().attribute("user");
 					if (user == null)
 						halt(403, "You need to log in to configure items");
@@ -113,11 +186,7 @@ public class AdminAPI implements OpenWareAPI {
 
 			get(GET_ANALYTIC_STATS, (req, res) -> {
 				JSONObject obj = new JSONObject();
-				for (String key : Config.idMappings.keySet()) {
-
-					obj.put(key, Config.idMappings.get(key));
-
-				}
+				//TODO: Replace Analytic sensor
 				return obj;
 			});
 

@@ -16,7 +16,20 @@ public class OpenWareGeo extends OpenWareValueDimension {
 
 	public OpenWareGeo(String name, String unit, JSONObject value) {
 		super(name, unit, "Geo");
-		this.value = value;
+		OpenWareGeo temp=null;
+		try {
+			temp = checkValue(value);
+		} catch (Exception e) {
+			this.value = null;
+		} 
+		this.value = temp!=null?temp.value():null;
+
+	}
+	public OpenWareGeo(String name, String unit, JSONObject value, boolean checkedGeometry) {
+		super(name, unit, "Geo");
+		if(checkedGeometry) {
+			this.value =value;	
+		}		
 
 	}
 
@@ -33,11 +46,11 @@ public class OpenWareGeo extends OpenWareValueDimension {
 
 	@Override
 	public OpenWareValueDimension cloneDimension() {
-		return new OpenWareGeo(this.getName(), this.getUnit(), this.value);
+		return new OpenWareGeo(this.getName(), this.getUnit(), this.value, true);
 	}
 
-	@Override
-	public OpenWareValueDimension createValueForDimension(Object value) throws Exception{
+	private OpenWareGeo checkValue(Object value) throws Exception{
+		if(value==null) return null;
 		try {
 			JSONObject obj = null;
 			if (value instanceof String) {
@@ -50,7 +63,7 @@ public class OpenWareGeo extends OpenWareValueDimension {
 			if (value instanceof JSONObject) {
 				obj = (JSONObject) value;
 			}
-			OpenWareValueDimension owg;
+			OpenWareGeo owg;
 
 			if (obj.has("type")) {
 
@@ -65,7 +78,7 @@ public class OpenWareGeo extends OpenWareValueDimension {
 						frame.put("type", "Feature");
 						frame.put("geometry", obj);
 						frame.put("properties", new JSONObject());
-						owg = new OpenWareGeo(getName(), getUnit(), frame);
+						owg = new OpenWareGeo(getName(), getUnit(), frame, true);
 						return owg;
 					}
 				}
@@ -73,7 +86,7 @@ public class OpenWareGeo extends OpenWareValueDimension {
 				// Validate Feature
 				if (forth) {
 					if (checkFeature(obj)) {
-						owg = new OpenWareGeo(getName(), getUnit(), obj);
+						owg = new OpenWareGeo(getName(), getUnit(), obj, true);
 						return owg;
 					}
 				}
@@ -91,7 +104,7 @@ public class OpenWareGeo extends OpenWareValueDimension {
 							}
 						}
 						if (validated) {
-							owg = new OpenWareGeo(getName(), getUnit(), obj);
+							owg = new OpenWareGeo(getName(), getUnit(), obj, true);
 							return owg;
 						}
 					}
@@ -107,9 +120,14 @@ public class OpenWareGeo extends OpenWareValueDimension {
 			//NON GeoJSON Json Data
 			return null;
 		} catch (JSONException e) {
-			OpenWareInstance.getInstance().logError("Tried parsing GeoJSON but was not valid\n" + value.toString());
+			OpenWareInstance.getInstance().logError("Tried parsing GeoJSON but was not valid\n" + value.toString(), e);
 			throw new IllegalArgumentException("The provided value needs to be a a GeoJSON Object but is " + value.toString());
 		}
+	}
+	
+	@Override
+	public OpenWareValueDimension createValueForDimension(Object value) throws Exception{
+		return checkValue(value);
 
 	}
 

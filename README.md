@@ -1,2 +1,2 @@
 # open.WARE
-open.WARE open source middleware
+open.WARE open source middleware!

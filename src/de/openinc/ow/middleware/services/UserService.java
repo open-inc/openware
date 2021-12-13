@@ -87,7 +87,6 @@ public class UserService {
 		if (user == null)
 			return null;
 		String token = JWT.create()
-				.withIssuer("auth0")
 				.withClaim("uid", user.getUID())
 				.withClaim("username", user.getName())
 				.withClaim("usermail", user.getEmail().toLowerCase())

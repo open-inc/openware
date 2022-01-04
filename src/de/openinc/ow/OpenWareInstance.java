@@ -22,9 +22,12 @@ import java.util.NoSuchElementException;
 import java.util.ServiceLoader;
 import java.util.TimeZone;
 
-import org.apache.log4j.Level;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -74,18 +77,23 @@ public class OpenWareInstance {
 	Logger errorLogger;
 	Logger mqttLogger;
 
-	Logger apacheLogger;
-	Logger sparkLogger;
-	Logger jettyLogger;
-	Logger mongoLogger;
-	Logger xdocLogger;
+	LoggerConfig apacheLogger;
+	LoggerConfig sparkLogger;
+	LoggerConfig jettyLogger;
+	LoggerConfig mongoLogger;
+	LoggerConfig xdocLogger;
 	Logger apiLogger;
-
+	Logger dataLogger;
+	private LoggerContext ctx;
+	
 	private static OpenWareInstance me;
 	private ArrayList<OpenWareAPI> services;
 	private boolean running = false;
 	private JSONObject state;
 
+	public void logData(long ts, String topic, String msg) {
+		this.dataLogger.info("",""+ts, topic,msg);
+	}
 	public void logInfo(Object info) {
 
 		this.infoLogger.info(info);
@@ -139,47 +147,51 @@ public class OpenWareInstance {
 		//this.errorlogger = LogManager.getLogger("errorLogger");
 
 		//this.infoLogger = LogManager.getRootLogger();
-		this.infoLogger = LogManager.getLogger(OpenWareInstance.class);
+		ctx= (LoggerContext) LogManager.getContext();
 
-		this.errorLogger = LogManager.getLogger("errorLogger");
-		this.mqttLogger = LogManager.getLogger("mqttLogger");
-		this.apiLogger = LogManager.getLogger("apiLogger");
-
-		this.apacheLogger = LogManager.getLogger("org.apache.http");
-		this.sparkLogger = LogManager.getLogger("spark");
-		this.jettyLogger = LogManager.getLogger("org.eclipse.jetty");
-		this.mongoLogger = LogManager.getLogger("org.mongodb.driver");
-		this.xdocLogger = LogManager.getLogger("fr.opensagres.xdocreport");
-
-		this.me = this;
+		this.apacheLogger = ctx.getConfiguration().getLoggerConfig("org.apache.http");
+		this.sparkLogger = ctx.getConfiguration().getLoggerConfig("spark");
+		this.jettyLogger = ctx.getConfiguration().getLoggerConfig("org.eclipse.jetty");
+		this.mongoLogger =ctx.getConfiguration().getLoggerConfig("org.mongodb.driver");
+		this.xdocLogger = ctx.getConfiguration().getLoggerConfig("fr.opensagres.xdocreport");
+		
+		me = this;
 		this.services = new ArrayList<OpenWareAPI>();
 
 		Config.init();
-
+		Configuration conf = ctx.getConfiguration();
+		LoggerConfig logconf = conf.getLoggerConfig("openware");
+		LoggerConfig mqttconf = conf.getLoggerConfig("mqttLogger");
 		switch (Config.get("logLevel", "INFO")) {
 		case "TRACE":
-			infoLogger.setLevel(Level.TRACE);
+			logconf.setLevel(Level.TRACE);
+			mqttconf.setLevel(Level.INFO);
 			break;
 		case "DEBUG":
-			infoLogger.setLevel(Level.DEBUG);
-			break;
+			logconf.setLevel(Level.DEBUG);
+			mqttconf.setLevel(Level.INFO);
 		case "OFF":
-			infoLogger.setLevel(Level.OFF);
+			logconf.setLevel(Level.OFF);
+			mqttconf.setLevel(Level.OFF);
 			break;
 		case "INFO":
-			infoLogger.setLevel(Level.INFO);
+			logconf.setLevel(Level.INFO);
+			mqttconf.setLevel(Level.INFO);
 			break;
 		case "ERROR":
-			infoLogger.setLevel(Level.ERROR);
+			logconf.setLevel(Level.ERROR);
+			mqttconf.setLevel(Level.OFF);
 			break;
 		case "WARN":
-			infoLogger.setLevel(Level.WARN);
+			logconf.setLevel(Level.WARN);
+			mqttconf.setLevel(Level.INFO);
 			break;
 		case "ALL":
-			infoLogger.setLevel(Level.ALL);
+			logconf.setLevel(Level.ALL);
+			mqttconf.setLevel(Level.INFO);
 			break;
 		default:
-			infoLogger.setLevel(Level.INFO);
+			logconf.setLevel(Level.INFO);
 			break;
 		}
 
@@ -242,15 +254,23 @@ public class OpenWareInstance {
 			xdocLogger.setLevel(Level.WARN);
 			break;
 		}
+		ctx.updateLoggers();
+		this.infoLogger = ctx.getLogger("openware");
+		this.errorLogger = ctx.getLogger("errorLogger");
+		this.mqttLogger = ctx.getLogger("mqttLogger");
+		this.apiLogger = ctx.getLogger("apiLogger");
+		this.dataLogger = ctx.getLogger("dataLogger");
+
+		OpenWareInstance.getInstance().logError("--------------------------------------------------------------");
+		OpenWareInstance.getInstance().logError("---------------------Restart Backend--------------------------");
+		OpenWareInstance.getInstance().logError("--------------------------------------------------------------");
+
+		OpenWareInstance.getInstance().logInfo("Reading config file spark.properties");
 
 		TimeZone zone = TimeZone.getDefault();
-		//System.out.println(zone.getDisplayName());
-		//System.out.println(zone.getID());
-		//System.out.println(Config.timezone);
 		TimeZone.setDefault(TimeZone.getTimeZone(Config.get("timezone","Europe/Berlin")));
 		zone = TimeZone.getDefault();
-		//System.out.println(zone.getDisplayName());
-		//System.out.println(zone.getID());
+		
 		if (Config.getBool("enableWebserver", true) ) {
 			logInfo("Initializing open.WARE v" +	OpenWareInstance.getInstance().VERSION +
 					" on port " +

@@ -136,24 +136,12 @@ public class Config {
 	public static void init() {
 		env = Dotenv.load();
 		
-		try {
-			OpenWareInstance.getInstance().logError("--------------------------------------------------------------");
-			OpenWareInstance.getInstance().logError("---------------------Restart Backend--------------------------");
-			OpenWareInstance.getInstance().logError("--------------------------------------------------------------");
-
-			OpenWareInstance.getInstance().logInfo("Reading config file spark.properties");
-
 			//analyticOperations = new HashMap<>();
 			idMappings = new HashMap<>();
-			Properties properties = new Properties();
-
-			properties.load(new FileInputStream("spark.properties"));
-		} catch (IOException e) {
-			OpenWareInstance.getInstance().logError("Config file not found. " + e.getMessage());
-			OpenWareInstance.getInstance()
-					.logError("You should provide a .env file to define the server settings.");
-		}
-		}
+			
+			//properties.load(new FileInputStream("spark.properties"));
+	}
+		
 		
 	public static JSONObject mapId(String external) {
 		return idMappings.get(external);

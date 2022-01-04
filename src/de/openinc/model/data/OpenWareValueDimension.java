@@ -1,6 +1,7 @@
 package de.openinc.model.data;
 
 import org.apache.commons.text.StringEscapeUtils;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import de.openinc.ow.helper.DataConversion;
@@ -57,19 +58,8 @@ public abstract class OpenWareValueDimension {
 			return createNewDimension(name == null ? "":name, unit==null?"":unit, OpenWareBoolValue.TYPE, value);
 		}
 		
-		if(value.toString().toLowerCase().equals("true")||value.toString().toLowerCase().equals("false")) {
-			return createNewDimension(name == null ? "":name, unit==null?"":unit, OpenWareBoolValue.TYPE, Boolean.valueOf(value.toString().toLowerCase()));
-		}
-		
 		if(value instanceof Number) {
 			return createNewDimension(name == null ? "":name, unit==null?"":unit, OpenWareNumber.TYPE, ((Number)value).doubleValue());	
-		}
-		
-		try {
-			double d = Double.parseDouble(value.toString());
-			return createNewDimension(name == null ? "":name, unit==null?"":unit, OpenWareNumber.TYPE, d);			
-		}catch(Exception e) {
-			//NOTHING TO DO
 		}
 		if(value instanceof JSONObject) {
 			try {
@@ -83,8 +73,36 @@ public abstract class OpenWareValueDimension {
 			}	
 		}
 		
+		String toTest = value.toString();
 		
-		return new OpenWareString(name == null ? "":name, unit==null?"":unit,value.toString());
+		if(toTest.toLowerCase().equals("true")||toTest.toLowerCase().equals("false")) {
+			return createNewDimension(name == null ? "":name, unit==null?"":unit, OpenWareBoolValue.TYPE, Boolean.valueOf(value.toString().toLowerCase()));
+		}
+		
+		try {
+			double d = Double.parseDouble(toTest);
+			return createNewDimension(name == null ? "":name, unit==null?"":unit, OpenWareNumber.TYPE, d);			
+		}catch(Exception e) {
+			//NOTHING TO DO
+		}
+		
+		try {
+			if(toTest.startsWith("{")) {
+				JSONObject o = new  JSONObject(toTest);
+				try {
+					OpenWareGeo cGeo =new OpenWareGeo(name == null ? "":name, unit==null?"":unit, o); 
+					if(cGeo.value()!=null) {
+						return cGeo;	
+					}
+					 			
+				}catch(Exception e) {
+					return new OpenWareGeneric(name == null ? "":name, unit==null?"":unit,o);
+				}	
+			}
+		}catch (JSONException e) {
+			// NOTHING TO DO
+		}
+		return new OpenWareString(name == null ? "":name, unit==null?"":unit,toTest);
 		
 	}
 	public static OpenWareValueDimension createNewDimension(String name, String unit, String odType, Object value) {

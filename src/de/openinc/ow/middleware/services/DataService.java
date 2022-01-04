@@ -455,6 +455,7 @@ public class DataService {
 	}
 
 	public static Future<List<CompletableFuture<Boolean>>> onNewData(String id, String data) {
+		OpenWareInstance.getInstance().logData(System.currentTimeMillis(), id, data);
 		//MQTT-Seperator to AMQP seperator
 		id = id.replace("/", ".");
 		if (data != null && data.length() > 0) {
@@ -805,7 +806,7 @@ public class DataService {
 	 * @return true if Item was stored
 	 */
 	public static CompletableFuture<Boolean> processNewData(OpenWareDataItem item) throws Exception {
-
+		item = item.cloneItem();
 		item = applyItemConfiguration(item);
 		if (item == null) {
 			OpenWareInstance.getInstance().logDebug("Item was not stored after applying configuration");

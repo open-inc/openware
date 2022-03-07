@@ -29,16 +29,17 @@ public class SubscriptionProvider {
 	private HashMap<String, List<Session>> sessions;
 	private ExecutorService pool;
 	private DataSubscriber ds;
+	private UserService uService;
 
 	public SubscriptionProvider() {
 		this.sessions = new HashMap();
-		this.pool = Executors.newFixedThreadPool(4);
-
+		this.pool = Executors.newFixedThreadPool(2);
+		this.uService = UserService.getInstance();
 		ds = new DataSubscriber() {
 
 			@Override
 			public void receive(OpenWareDataItem old, OpenWareDataItem item) throws Exception {
-				if (sessions.containsKey(item.getUser() + item.getId())) {
+				if (sessions.containsKey(item.getSource() + item.getId())) {
 					HashMap<String, List<Session>> tempSession = new HashMap<>();
 					tempSession.putAll(sessions);
 					pool.execute(new WSDeliverRunnable(tempSession, (OpenWareDataItem) item));
@@ -55,21 +56,22 @@ public class SubscriptionProvider {
 	}
 
 	@OnWebSocketClose
-	public void onClose(Session user, int statusCode, String reason) {
+	public void onClose(Session wsSession, int statusCode, String reason) {
 		HashMap<String, List<Session>> tempSession = new HashMap<>();
 		tempSession.putAll(sessions);
 		for (String key : tempSession.keySet()) {
-			tempSession.get(key).remove(user);
+			tempSession.get(key).remove(wsSession);
 		}
+		uService.removeUserSession(wsSession);
 		sessions = tempSession;
-		OpenWareInstance.getInstance().logDebug("User " + user.getRemoteAddress() +
+		OpenWareInstance.getInstance().logDebug("User " + wsSession.getRemoteAddress() +
 												" disconnected");
 		// sessions.get(user).stopThread();
 
 	}
 
 	@OnWebSocketMessage
-	public void onMessage(Session user, String message) {
+	public void onMessage(Session wsSession, String message) {
 
 		JSONObject msg = new JSONObject(message);
 
@@ -91,10 +93,11 @@ public class SubscriptionProvider {
 			int count = 0;
 			for (OpenWareDataItem item : items) {
 
-				if (sources.contains(item.getUser())) {
-					List<Session> cSessions = sessions.getOrDefault(item.getUser() + item.getId(), new ArrayList<>());
-					cSessions.add(user);
-					sessions.put(item.getUser() + item.getId(), cSessions);
+				if (sources.contains(item.getSource())) {
+					List<Session> cSessions = sessions.getOrDefault(item.getSource() + item.getId(), new ArrayList<>());
+					cSessions.add(wsSession);
+					sessions.put(item.getSource() + item.getId(), cSessions);
+					uService.addUserSession(reqUser, wsSession);
 					count++;
 				}
 
@@ -120,7 +123,7 @@ class WSDeliverRunnable implements Runnable {
 
 	@Override
 	public void run() {
-		for (Session session : sessions.get(item.getUser() + item.getId())) {
+		for (Session session : sessions.get(item.getSource() + item.getId())) {
 			try {
 				synchronized (session) {
 					if (session.isOpen())
@@ -128,7 +131,7 @@ class WSDeliverRunnable implements Runnable {
 				}
 			} catch (IOException e) {
 				OpenWareInstance.getInstance().logError(
-						"Error while sending via Websocket:\nUser: " + item.getUser() +
+						"Error while sending via Websocket:\nUser: " + item.getSource() +
 														"\nID: " +
 														item.getId(),
 						e);

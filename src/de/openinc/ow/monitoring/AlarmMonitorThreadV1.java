@@ -49,7 +49,7 @@ public class AlarmMonitorThreadV1 extends Thread {
 				OpenWareDataItem currentItem = item;
 				OpenWareDataItem lastItem = old;
 
-				JSONArray alarm = alarms.get(item.getUser() + item.getId());
+				JSONArray alarm = alarms.get(item.getSource() + item.getId());
 				if (alarm != null && alarm.length() > 0) {
 					// Store all checked boolean indexes
 					for (int i = 0; i < alarm.length(); i++) {

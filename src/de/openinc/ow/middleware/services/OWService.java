@@ -8,6 +8,7 @@ import org.json.JSONObject;
 
 import de.openinc.api.OWServiceActivator;
 import de.openinc.ow.OpenWareInstance;
+import de.openinc.ow.helper.Config;
 
 public class OWService {
 	public String id;
@@ -25,17 +26,7 @@ public class OWService {
 	}
 
 	private void loadDefaultOptions() {
-		try {
-			String path = "conf" + File.separator +
-							this.className +
-							".json";
-			options = new JSONObject(
-					new String(Files.readAllBytes(Paths.get(path))));
-		} catch (Exception e) {
-			options = new JSONObject();
-			OpenWareInstance.getInstance().logWarn("No options provided for " + this.className);
-		}
-
+		options = Config.readConfig(this.className);
 	}
 
 	public final Object load(JSONObject options)

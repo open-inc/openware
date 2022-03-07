@@ -1,8 +1,12 @@
 package de.openinc.ow.middleware.services;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.function.Predicate;
 
+import org.eclipse.jetty.websocket.api.Session;
 import org.json.JSONObject;
 
 import com.auth0.jwt.JWT;
@@ -24,11 +28,12 @@ public class UserService {
 	private JWTVerifier jwtVerifier;
 	private String issuer;
 	private Algorithm algorithm;
+	private HashMap<User, List<Session>> userSessions;
 	
 
 	private UserService() {
 		me = this;
-		
+		this.userSessions = new HashMap<User, List<Session>>();
 		try {
 			issuer = Config.get("jwt_issuer","");
 			String secret = Config.get("jwt_secret", "");
@@ -52,6 +57,37 @@ public class UserService {
 		}
 
 		return me;
+	}
+	
+	/**
+	 * Removes the websocket session from the active user sessions.
+	 * @param session The session that should be removed
+	 * @return True if the session was removed, false if it was not found
+	 */
+	public boolean removeUserSession(Session session) {
+		HashMap<User, List<Session>> tempUserSession = new HashMap<>();
+		tempUserSession.putAll(userSessions);
+		for (User key : tempUserSession.keySet()) {
+			if(tempUserSession.getOrDefault(key, new ArrayList<Session>()).remove(session)) {
+				userSessions = tempUserSession;
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	/**
+	 * Adds the websocket session from the active user sessions.
+	 * @param session The session that should be added
+	 * @param user The user who initiated the session
+	 * 
+	 */
+	public void addUserSession(User user, Session session) {
+		HashMap<User, List<Session>> tempUserSession = new HashMap<>();
+		tempUserSession.putAll(userSessions);
+		List<Session> uSessions = userSessions.getOrDefault(user, new ArrayList<Session>());
+		uSessions.add(session);
+		userSessions.put(user, uSessions);
 	}
 
 	public User jwtToUser(String token) {
@@ -157,6 +193,23 @@ public class UserService {
 				return user;
 		}
 		return null;
+	}
+	
+	public boolean notifyActiveUser(User user, JSONObject payload) {
+		List<Session> sessions=	userSessions.get(user);
+		if(sessions==null || sessions.size()==0) return false;
+		for(Session cSession:sessions) {
+			JSONObject msg = new JSONObject();
+			msg.put("type", "notification");
+			msg.put("payload", payload);
+			try {
+				cSession.getRemote().sendString(msg.toString());
+			} catch (IOException e) {
+				OpenWareInstance.getInstance().logError("Could not notify user via websocket", e);
+				return false;
+			}
+		}
+		return true;
 	}
 
 	public void sendNotification(User user, JSONObject payload) {

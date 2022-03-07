@@ -62,7 +62,7 @@ public class TransformationAPI implements OpenWareAPI {
 
 				if (Config.getBool("accessControl", true) && res_data != null) {
 					User user = req.session().attribute("user");
-					if (user == null || !user.canAccessRead(res_data.getUser(), res_data.getId()))
+					if (user == null || !user.canAccessRead(res_data.getSource(), res_data.getId()))
 						return HTTPResponseHelper.generateResponse(res, 403, null, "Not allowed to add data");
 				}
 				op = null;

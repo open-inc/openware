@@ -79,10 +79,10 @@ public class ReportsService {
 			Iterator<OpenWareDataItem> it = data.iterator();
 			while (it.hasNext()) {
 				OpenWareDataItem item = it.next();
-				if (!user.canAccessRead(item.getUser(), item.getId())) {
+				if (!user.canAccessRead(item.getSource(), item.getId())) {
 					OpenWareInstance.getInstance()
 							.logError(user.getName() +	"tried to access data without permission:" +
-										item.getUser() +
+										item.getSource() +
 										":" +
 										item.getId());
 					it.remove();

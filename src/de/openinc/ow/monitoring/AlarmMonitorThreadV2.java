@@ -43,18 +43,18 @@ public class AlarmMonitorThreadV2 {
 				OpenWareDataItem lastItem = old;
 
 				//Looking for Alarm of item that was just received
-				JSONArray alarm = alarms.get(item.getUser() + item.getId());
+				JSONArray alarm = alarms.get(item.getSource() + item.getId());
 				if (alarm == null || alarm.length() == 0)
 					return;
 				//An alarm exists... Better check if update is necessary
 				refresh();
 
 				// re-check alarms to see if alarm is still there...
-				alarm = alarms.get(item.getUser() + item.getId());
+				alarm = alarms.get(item.getSource() + item.getId());
 				if (alarm == null || alarm.length() == 0)
 					return;
 
-				OpenWareInstance.getInstance().logTrace("Checking Alarms triggered: " + item.getUser() +
+				OpenWareInstance.getInstance().logTrace("Checking Alarms triggered: " + item.getSource() +
 														"." +
 														item.getId());
 				for (int i = 0; i < alarm.length(); i++) {
@@ -74,10 +74,28 @@ public class AlarmMonitorThreadV2 {
 					} else if (type.startsWith("string")) {
 						triggered = checkString(currentObj, currentItem, lastItem);
 					}
+					
+					
 
 					long checkedTS = System.currentTimeMillis();
-
-					if (triggered) {
+					
+					String ownerField = "owner";
+					if (!currentObj.has("owner")) {
+						ownerField = "user";
+					}
+					User toNotify = UserService.getInstance()
+							.getUserByUID(currentObj.getJSONObject(ownerField).getString("objectId"));
+					JSONObject conditions = currentObj.optJSONObject("condition");
+					boolean conditionsMet = false;
+					try {
+						conditionsMet = conditions==null || checkConditionalRule(conditions,item, toNotify);	
+					}catch(Exception e) {
+						OpenWareInstance.getInstance().logWarn("Could not evaluate alarm conditions due to error\n"+ e.getMessage() );
+						return;
+					}
+					
+					
+					if (triggered && conditionsMet) {
 						// Alarm was triggered
 						lastEventTriggered.put(currentObj.getString("_id"), true);
 						if (currentObj.optBoolean("save")) {
@@ -96,17 +114,12 @@ public class AlarmMonitorThreadV2 {
 										- sentTS.getOrDefault(currentObj.getString("_id"), 0l) > currentObj
 												.getJSONObject("trigger").getLong("interval")));
 
-						String ownerField = "owner";
-						if (!currentObj.has("owner")) {
-							ownerField = "user";
-						}
-						User toNotify = UserService.getInstance()
-								.getUserByUID(currentObj.getJSONObject(ownerField).getString("objectId"));
+						
 						boolean userIsAllowed = toNotify != null && toNotify
 								.canAccessRead(currentObj.getString("item_source"), currentObj.getString("item_id"));
 
 						if (shouldSendAgain && userIsAllowed) {
-
+							
 							// Notification needs to be send again
 							String text = "Alarm " +	currentObj.optString("name") +
 											" Sensor " +
@@ -162,7 +175,11 @@ public class AlarmMonitorThreadV2 {
 										options, Arrays.asList(notifyItem));
 
 							}
-
+							try {
+								UserService.getInstance().notifyActiveUser(toNotify, notifyItem.toJSON());
+							}catch(Exception e) {
+								// Could not notify via websocket
+							}
 							sentTS.put(currentObj.getString("_id"), checkedTS);
 						}
 					} else {
@@ -175,19 +192,126 @@ public class AlarmMonitorThreadV2 {
 
 		});
 
-		/*
-		RUNNING = true;
 		
-		while (RUNNING) {
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+	}
+	
+	private boolean checkConditionalRule(JSONObject rule, OpenWareDataItem triggerItem, User user) throws IllegalAccessError{
+		String type = rule.getString("type");
+		if(type.equals("rule")) {
+			String ruletype = rule.getJSONObject("rule").optString("type");
+			String source= rule.getString("source");
+			String id = rule.getString("id");
+			if(!user.canAccessRead(source, id)) throw new IllegalAccessError("User is not allowed to read values of "+source+"---"+id);
+			OpenWareDataItem item;
+			if(triggerItem.getId().equals(id) && triggerItem.getSource().equals(source)) {
+				item = triggerItem;
+			}else {
+				item = DataService.getLiveSensorData(id,source);	
+			}
+			
+			if(ruletype.startsWith("number")) {
+				double value = (double) item.value().get(0).get(rule.getInt("dimension")).value();
+				return checkNumericRule(rule.getJSONObject("rule"), value);
+			}
+			if(ruletype.startsWith("string")) {
+				String value = (String) item.value().get(0).get(rule.getInt("dimension")).value();
+				return checkStringRule(rule.getJSONObject("rule"), value);
+			}
+			if(ruletype.startsWith("boolean")) {
+				boolean value = (boolean) item.value().get(0).get(rule.getInt("dimension")).value();
+				return checkBoolRule(rule.getJSONObject("rule"), value);
 			}
 		}
-		OpenWareInstance.getInstance().logError("Killing AlarmMonitorThread");
-		*/
+		if(type.equals("and")) {
+			JSONArray children = rule.getJSONArray("children");
+			for(int i=0; i<children.length(); i++) {
+				if(!checkConditionalRule(children.getJSONObject(i), triggerItem, user))
+					return false;
+			}
+			return true;
+		}
+		if(type.equals("or")) {
+			JSONArray children = rule.getJSONArray("children");
+			for(int i=0; i<children.length(); i++) {
+				if(checkConditionalRule(children.getJSONObject(i), triggerItem, user))
+					return true;
+			}
+			return false;	
+		}
+		return false;
+	}
+	
+	private boolean checkNumericRule(JSONObject rule, double currentValue) {
+		String ruleType = rule.getString("type");
+		double value = rule.optDouble("value");
+		double max = rule.optDouble("max");
+		double min = rule.optDouble("min");
+				
+		switch (ruleType) {
+		case "number_equals":
+			return currentValue == value;
+		case "number_equals_not":
+			return currentValue != value;
+		case "number_in_range":
+			return currentValue > min && currentValue < max;
+		case "number_out_of_range":
+		case "min-max":
+			return currentValue < min || currentValue > max;
+		case "min":
+		case "number_lt":
+			return currentValue < min;
+		case "max":
+		case "number_gt":
+			return currentValue > max;
+		default:
+			return false;
+		}
+	}
+	
+	private boolean checkStringRule(JSONObject rule, String currentValue) {
+		String ruleType = rule.getString("type");
+		String match = rule.optString("match");
+				
+		switch (ruleType) {
+		case "string_equals":
+		case "string-equals":
+			return currentValue.equals(match);
+		case "string-equals-not":
+		case "string_equals_not":
+			return !currentValue.equals(match);
+		case "string-includes":
+		case "string_includes":
+			return currentValue.indexOf(match) > -1;
+		case "string-includes-not":
+		case "string_includes_not":
+			return currentValue.indexOf(match) == -1;
+		case "string-starts-with":
+		case "string_starts_with":
+			return currentValue.startsWith(match);
+		case "string-starts-with-not":
+		case "string_starts_with_not":
+			return !currentValue.startsWith(match);
+		case "string-ends-with":
+		case "string_ends_with":
+			return currentValue.endsWith(match);
+		case "string-ends-with-not":
+		case "string_ends_with_not":
+			return !currentValue.endsWith(match);
+		default:
+			return false;
+		}
+	}
+	private boolean checkBoolRule(JSONObject rule, boolean currentValue) {
+		String ruleType = rule.getString("type");
+				
+		switch (ruleType) {
+		case "boolean_true":
+			return currentValue;
+		case "boolean_false":
+			return !currentValue;
+		default:
+			return false;
+		}
 	}
 
 	private boolean checkNumeric(JSONObject currentObj, OpenWareDataItem currentItem, OpenWareDataItem lastItem) {
@@ -348,7 +472,10 @@ public class AlarmMonitorThreadV2 {
 	}
 
 	public void refresh() {
-		if (System.currentTimeMillis() - lastUpdate < 30000)
+		refresh(false);
+	}
+	public void refresh(boolean force) {
+		if (System.currentTimeMillis() - lastUpdate < 30000 && !force)
 			return;
 		OpenWareInstance.getInstance().logDebug("Refreshing alarms...");
 		List<JSONObject> alarmsCheck;

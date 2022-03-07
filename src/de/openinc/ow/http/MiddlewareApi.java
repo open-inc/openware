@@ -75,7 +75,7 @@ public class MiddlewareApi implements OpenWareAPI {
 				OpenWareDataItem item = OpenWareDataItem.fromJSON(req.body());
 				if (Config.getBool("accessControl", true)) {
 					User user = req.session().attribute("user");
-					if (user == null || !user.canAccessWrite(item.getUser(), item.getId()))
+					if (user == null || !user.canAccessWrite(item.getSource(), item.getId()))
 						return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
 								"No write permission for source/sensor");
 				}
@@ -88,7 +88,7 @@ public class MiddlewareApi implements OpenWareAPI {
 					OpenWareDataItem update = OpenWareDataItem.fromJSON(req.body());
 					if (Config.getBool("accessControl", true)) {
 						User user = req.session().attribute("user");
-						if (user == null || !user.canAccessWrite(update.getUser(), update.getId()))
+						if (user == null || !user.canAccessWrite(update.getSource(), update.getId()))
 							return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
 									"No write permission for source/sensor");
 					}
@@ -311,7 +311,7 @@ public class MiddlewareApi implements OpenWareAPI {
 			Iterator<OpenWareDataItem> it = items.iterator();
 			while (it.hasNext()) {
 				OpenWareDataItem item = it.next();
-				if (!item.getUser().equals(filter)) {
+				if (!item.getSource().equals(filter)) {
 					it.remove();
 				}
 			}

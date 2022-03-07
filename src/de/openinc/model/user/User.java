@@ -168,4 +168,9 @@ public class User {
 		this.allAccess = allAccess;
 	}
 
+	@Override
+	public boolean equals(Object obj) {
+		if(obj == null || !(obj instanceof User))return false;
+		return ((User)obj).getUID().equals(this.getUID());
+	}
 }

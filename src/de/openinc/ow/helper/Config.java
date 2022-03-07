@@ -182,6 +182,18 @@ public class Config {
 	
 	public static JSONObject readConfig(String configName) {
 		try {
+			String envConf = env.get(env.get("OW_ENV_PREFIX", "OW_")+configName.replace(".", "_").toUpperCase());
+			if(envConf != null && !envConf.equals("")) {
+				JSONObject test = new JSONObject(envConf);
+				return test;
+			}
+		}catch (Exception e){
+			OpenWareInstance.getInstance().logWarn("Invalid ENV Variable set for " + configName);
+		}
+		
+		
+		try {
+			
 			String path = "conf" + File.separator +
 					configName+
 							".json";

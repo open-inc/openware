@@ -97,7 +97,7 @@ public class UserAPI implements OpenWareAPI {
 			if (user != null) {
 				response.status(200);
 				response.type("application/json");
-				return user.toString();
+				return HTTPResponseHelper.generateResponse(response, 200, user.toJSON(), null);
 			} else {
 				return HTTPResponseHelper.generateResponse(response, 400, null, "Invalid Credentials");
 

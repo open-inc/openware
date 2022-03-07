@@ -7,17 +7,16 @@
         </Console>
 	    <RollingFile name="csvFile" 
                      fileName="./logs/data.csv"
-                     filePattern="./logs/data-%d{MM-dd-yyyy}-%i.csv" >
+                     filePattern="./logs/data-%i.csv" >
             <CsvParameterLayout delimiter=";" header="time,topic,message\n"/>
             <Policies>
-                <TimeBasedTriggeringPolicy interval="1" modulate="true" />
                 <SizeBasedTriggeringPolicy size="10 MB" />
             </Policies>
-            <DefaultRolloverStrategy max="200" />
+            <DefaultRolloverStrategy max="500" />
         </RollingFile>
         <RollingFile name="RollingFile"
             fileName="./logs/console.log"
-            filePattern="./logs/console-%d{yyyy-MM-dd}-%i.log">
+            filePattern="./logs/console-%i.log">
             <PatternLayout>
                 <pattern>%d %p %C{1.} [%t] %m%n</pattern>
             </PatternLayout>
@@ -27,13 +26,12 @@
                 <OnStartupTriggeringPolicy />
                 <SizeBasedTriggeringPolicy
                     size="10 MB" />
-                <TimeBasedTriggeringPolicy />
-            </Policies>
+                           </Policies>
              <DefaultRolloverStrategy max="100"/>
         </RollingFile>
            <RollingFile name="RollingError"
             fileName="./logs/error.log"
-            filePattern="./logs/error-%d{yyyy-MM-dd}-%i.log">
+            filePattern="./logs/error-%i.log">
             <PatternLayout>
                 <pattern>%d %p %C{1.} [%t] %m%n</pattern>
             </PatternLayout>
@@ -43,13 +41,12 @@
                 <OnStartupTriggeringPolicy />
                 <SizeBasedTriggeringPolicy
                     size="10 MB" />
-                <TimeBasedTriggeringPolicy />
             </Policies>
              <DefaultRolloverStrategy max="100"/>
         </RollingFile>
          <RollingFile name="LibLogs"
             fileName="./logs/libs.log"
-            filePattern="./logs/libs-%d{yyyy-MM-dd}-%i.log">
+            filePattern="./logs/libs-%i.log">
             <PatternLayout>
                 <pattern>%d %p %C{1.} [%t] %m%n</pattern>
             </PatternLayout>
@@ -59,13 +56,12 @@
                 <OnStartupTriggeringPolicy />
                 <SizeBasedTriggeringPolicy
                     size="10 MB" />
-                <TimeBasedTriggeringPolicy />
             </Policies>
              <DefaultRolloverStrategy max="10"/>
         </RollingFile>
          <RollingFile name="accessLogs"
             fileName="./logs/access.log"
-            filePattern="./logs/access-%d{yyyy-MM-dd}-%i.log">
+            filePattern="./logs/access-%i.log">
             <PatternLayout>
                 <pattern>%d %p %C{1.} [%t] %m%n</pattern>
             </PatternLayout>
@@ -75,7 +71,6 @@
                 <OnStartupTriggeringPolicy />
                 <SizeBasedTriggeringPolicy
                     size="10 MB" />
-                <TimeBasedTriggeringPolicy />
             </Policies>
              <DefaultRolloverStrategy max="10"/>
         </RollingFile>

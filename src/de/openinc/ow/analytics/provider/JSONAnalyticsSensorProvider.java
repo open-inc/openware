@@ -76,10 +76,10 @@ public class JSONAnalyticsSensorProvider implements AnalyticSensorProvider {
 			OpenWareDataItem owdi = new OpenWareDataItem(prefix + obj.getString("id"), obj.getString("user"),
 					obj.getString("name"), obj.getJSONObject("meta"), dims);
 
-			Map<String, OpenWareDataItem> userItems = items.getOrDefault(owdi.getUser(),
+			Map<String, OpenWareDataItem> userItems = items.getOrDefault(owdi.getSource(),
 					new HashMap<String, OpenWareDataItem>());
 			userItems.put(owdi.getId(), owdi);
-			items.put(owdi.getUser(), userItems);
+			items.put(owdi.getSource(), userItems);
 		}
 
 		return items;

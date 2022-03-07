@@ -29,7 +29,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	private String id;
 	private String name;
 	private JSONObject meta;
-	private String user;
+	private String source;
 	private String reference;
 
 	/**
@@ -55,7 +55,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		this.setId(id);
 		this.setName(name);
 		this.setMeta(meta);
-		this.setUser(source);
+		this.setSource(source);
 		this.valueTypes = valueTypes;
 		this.values = new ArrayList<OpenWareValue>();
 		this.persist = true;
@@ -139,7 +139,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		for (OpenWareValueDimension dim : this.getValueTypes()) {
 			valueTypesNew.add(dim.cloneDimension());
 		}
-		OpenWareDataItem item = new OpenWareDataItem(this.getId(), this.getUser(), this.getName(),
+		OpenWareDataItem item = new OpenWareDataItem(this.getId(), this.getSource(), this.getName(),
 				new JSONObject(this.getMeta().toString()), valueTypesNew);
 
 		item.setReference(this.reference);
@@ -187,7 +187,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	}
 
 	public int compareTo(OpenWareDataItem o) {
-		return (this.getUser() + this.getId()).compareTo(o.getUser() + o.getId());
+		return (this.getSource() + this.getId()).compareTo(o.getSource() + o.getId());
 	}
 
 	@Override
@@ -198,12 +198,12 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		return false;
 	}
 
-	public String getUser() {
-		return user;
+	public String getSource() {
+		return source;
 	}
 
-	public void setUser(String user) {
-		this.user = user;
+	public void setSource(String source) {
+		this.source = source;
 	}
 
 	public static OpenWareDataItem fromJSON(JSONObject jobj) throws Exception{
@@ -354,7 +354,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		res.append(DataConversion.getJSONPartial("id", StringEscapeUtils.escapeJava(this.id), false, true));
 		res.append(DataConversion.getJSONPartial("name", this.name, false, true));
 		res.append(DataConversion.getJSONPartial("meta", this.meta.toString(), false, false));
-		res.append(DataConversion.getJSONPartial("user", this.user, false, true));
+		res.append(DataConversion.getJSONPartial("user", this.source, false, true));
 		if (reference != null) {
 			res.append(DataConversion.getJSONPartial("reference", this.getReference(), false, true));
 		}
@@ -389,7 +389,8 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		res.append(DataConversion.getJSONPartial("name", StringEscapeUtils.escapeJava(this.name), false, true));
 		res.append(DataConversion.getJSONPartial("meta", this.meta.toString(), false,
 				false));
-		res.append(DataConversion.getJSONPartial("user", StringEscapeUtils.escapeJava(this.user), false, true));
+		res.append(DataConversion.getJSONPartial("user", StringEscapeUtils.escapeJava(this.source), false, true));
+		res.append(DataConversion.getJSONPartial("source", StringEscapeUtils.escapeJava(this.source), false, true));
 		if (reference != null) {
 			res.append(DataConversion.getJSONPartial("reference", StringEscapeUtils.escapeJava(this.getReference()),
 					false, true));
@@ -430,7 +431,8 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		obj.put("id", this.getId());
 		obj.put("name", this.getName());
 		obj.put("meta", this.getMeta());
-		obj.put("user", this.getUser());
+		obj.put("source", this.getSource());
+		obj.put("user", this.getSource());
 		if (reference != null) {
 			obj.put("reference", this.getReference());
 		}

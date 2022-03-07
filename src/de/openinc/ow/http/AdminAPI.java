@@ -114,23 +114,19 @@ public class AdminAPI implements OpenWareAPI {
 				}
 				try {
 					if (DataService.storeItemConfiguration(user, req.body())) {
-						res.status(200);
-						return "Successfully stored Configuration";
+						return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_OK, "Stored configuration",null);
 					} else {
-						res.status(300);
-						return "Could not store Configuration";
+						return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_INTERNAL_ERROR, null,"Could not store configuration");
 					}
 
 				} catch (org.json.JSONException e) {
 					OpenWareInstance.getInstance().logError("Malformed data posted to Sensor Config API\n" + req.body(),
 							e);
-					res.status(400);
-					return "Malformed data posted to Sensor Config API\n" + req.body();
+					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_BAD_REQUEST, null,"Malformed data posted to Sensor Config API\n" +e.getMessage() );
+					
 				} catch (SecurityException e2) {
-					res.status(403);
-					return "No Permission \n" + e2.getMessage() +
-							"\n" +
-							req.body();
+					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,"Not allowed to configure sensor\n" +e2.getMessage() );
+					
 				}
 			});
 

@@ -58,7 +58,7 @@ public abstract class TransformationOperation {
 		if (item == null)
 			return item;
 		if (Config.getBool("accessControl", true)) {
-			if (user == null || !user.canAccessRead(item.getUser(), item.getId())) {
+			if (user == null || !user.canAccessRead(item.getSource(), item.getId())) {
 				throw new IllegalAccessError(
 						"Not allowed to access data produced by Transformation:\n" + params.toString(2));
 			}

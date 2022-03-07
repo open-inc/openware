@@ -29,7 +29,7 @@ public class PersistActuator extends ActuatorAdapter {
 				OpenWareInstance.getInstance()
 						.logTrace("Performed tansformation. Result:\n" + toStore != null ? toStore.toString() : "NULL");
 			}
-			if (user.canAccessWrite(toStore.getUser(), toStore.getId())) {
+			if (user.canAccessWrite(toStore.getSource(), toStore.getId())) {
 				OpenWareInstance.getInstance().logTrace("Persisting data\n" + toStore);
 				Future<List<CompletableFuture<Boolean>>> res = DataService.onNewData(toStore);
 				results[i++] = res.get().get(0);

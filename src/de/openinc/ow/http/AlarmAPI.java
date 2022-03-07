@@ -228,23 +228,15 @@ public class AlarmAPI implements OpenWareAPI {
 		parameter.put("ACL", acl);
 		try {
 			id = DataService.storeGenericData(ALARMSV2, id, parameter);
+			if (id == null)
+				throw new IllegalArgumentException("Could not store alarm");
+			amt2.refresh(true);
+			return id;
 		} catch (Exception e) {
 			throw new IllegalArgumentException(e);
 		}
 
-		if (id == null)
-			throw new IllegalArgumentException("Could not store alarm");
-		parameter.put("_id", id);
-		Iterator it = initialAlarmsV2.iterator();
-		while (it.hasNext()) {
-			JSONObject curr = (JSONObject) it.next();
-			if (curr.getString("_id").equals(id)) {
-				it.remove();
-			}
-		}
-		initialAlarmsV2.put(parameter);
-		amt2.updateMonitors(initialAlarmsV2);
-		return id;
+		
 
 	}
 
@@ -346,7 +338,7 @@ public class AlarmAPI implements OpenWareAPI {
 					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
 							"Not allowed to delete alarm");
 			}
-
+			
 			if (deleteAlarmV2(user, alarmid)) {
 				JSONObject result = new JSONObject();
 				result.put("msg", "Successfully deleted alarm!");
@@ -388,6 +380,7 @@ public class AlarmAPI implements OpenWareAPI {
 			amt2.refresh();
 			String userID = req.params("userid");
 			User user = req.session().attribute("user");
+			/*
 			if (Config.getBool("accessControl", true)) {
 				boolean canRead = userID.equals(user.getName());
 				if (!canRead) {
@@ -396,6 +389,7 @@ public class AlarmAPI implements OpenWareAPI {
 				}
 
 			}
+			*/
 			JSONArray userAlarms = new JSONArray();
 			Collection<JSONArray> registeredAlarms = amt2.getCurrentAlarms().values();
 

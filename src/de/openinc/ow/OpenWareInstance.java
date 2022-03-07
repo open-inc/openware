@@ -417,11 +417,18 @@ public class OpenWareInstance {
 				response.status(200);
 				return;
 			}
-
+			
 			// request.session(true);
 			if (Config.getBool("accessControl", true)) {
 				boolean authorized = false;
-				User user = UserService.getInstance().checkAuth(request.headers(UserAPI.OD_SESSION));
+				User user;
+				if(request.queryParams().contains("username")&&request.queryParams().contains("password")){
+					user = UserService.getInstance().login(request.queryParams("username"), request.queryParams("password"));
+				}else {
+					user = UserService.getInstance().checkAuth(request.headers(UserAPI.OD_SESSION));	
+				}
+				
+				
 				if (request.headers().contains("Authorization") && request.headers("Authorization").startsWith("Bearer ")) {
 					user = UserService.getInstance().jwtToUser(request.headers("Authorization").substring(7));
 					request.session().attribute("apiaccess", true);

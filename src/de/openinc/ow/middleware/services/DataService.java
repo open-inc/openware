@@ -2,12 +2,15 @@ package de.openinc.ow.middleware.services;
 
 import java.util.ArrayList;
 import java.util.ConcurrentModificationException;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -67,6 +70,9 @@ public class DataService {
 	private static ReferenceAdapter reference;
 	private static ExecutorService pool;
 	public static final String CONFIG_STORE_TYPE = "sensorconfig";
+	public static final String PERSIST_ITEM_STATE = "LAST_ITEM_STATE";
+	private static Timer timer;
+	private static String storeKey = null;
 
 	/**
 	 * The init methods needs be called once before all services can be used. It
@@ -80,8 +86,61 @@ public class DataService {
 		pool = Executors.newFixedThreadPool(4);
 
 	}
-	
-	
+
+	private static void initLastState() {
+		if (adapter == null)
+			return;
+		try {
+			List<JSONObject> cachedItems = adapter.getGenericData(PERSIST_ITEM_STATE, null);
+			if (cachedItems.size() > 0) {
+				JSONObject info = cachedItems.get(0);
+				storeKey = info.getString("_id");
+				JSONArray cItems = info.getJSONArray("items");
+				for (int i = 0; i < cItems.length(); i++) {
+					JSONObject o = cItems.getJSONObject(i);
+					try {
+						OpenWareDataItem owdi = OpenWareDataItem.fromJSON(o);
+						items.put(owdi.getSource() + owdi.getId(), owdi);
+					} catch (Exception e1) {
+						continue;
+					}
+				}
+			}
+
+		} catch (Exception e) {
+			OpenWareInstance.getInstance().logError("Failed to load cached item state", e);
+		}
+		timer = new Timer();
+		timer.scheduleAtFixedRate(new TimerTask() {
+
+			@Override
+			public void run() {
+				saveCurrentItemState();
+
+			}
+		}, new Date(System.currentTimeMillis() + 60000), 60000);
+	}
+
+	private static void saveCurrentItemState() {
+		if (adapter == null)
+			return;
+
+		JSONArray toSave = new JSONArray();
+		for (OpenWareDataItem item : items.values()) {
+			toSave.put(item.toJSON());
+		}
+		JSONObject saveState = new JSONObject();
+		saveState.put("item", toSave);
+		saveState.put("updatedAt", System.currentTimeMillis());
+
+		try {
+			storeKey = storeGenericData(PERSIST_ITEM_STATE, storeKey, saveState);
+			OpenWareInstance.getInstance().logTrace("Saved Item State");
+		} catch (Exception e) {
+			OpenWareInstance.getInstance().logError("Error while saving state", e);
+		}
+	}
+
 	/**
 	 * Can be used to access the current PersistenceAdpater
 	 * 
@@ -103,8 +162,7 @@ public class DataService {
 	/**
 	 * Can be used to set the ReferenceAdapter
 	 * 
-	 * @param ra
-	 *            Reference to the ReferenceAdapter that should be set.
+	 * @param ra Reference to the ReferenceAdapter that should be set.
 	 */
 	public static void setReferenceAdapter(ReferenceAdapter ra) {
 		reference = ra;
@@ -132,15 +190,12 @@ public class DataService {
 	 * Can be used to apply configuration to OpenWareDataItems before they get
 	 * stored. E.g. to change the name or even the ID of an Item
 	 * 
-	 * @param user
-	 *            User used for authorization. Needs write Access
-	 * @param dataString
-	 *            JSONArray or JSONObject representing a OpenWareDataItem. This
-	 *            template will be applied to the respective OpenWareDataItems
-	 *            before they get persisted.
+	 * @param user       User used for authorization. Needs write Access
+	 * @param dataString JSONArray or JSONObject representing a OpenWareDataItem.
+	 *                   This template will be applied to the respective
+	 *                   OpenWareDataItems before they get persisted.
 	 * @return True, if the configuration is valid and could be stored
-	 * @throws JSONException
-	 *             If invalid JSON was provided
+	 * @throws JSONException If invalid JSON was provided
 	 */
 	public static boolean storeItemConfiguration(User user, String dataString) throws JSONException {
 		ArrayList<OpenWareDataItem> res = new ArrayList<>();
@@ -177,22 +232,19 @@ public class DataService {
 		for (OpenWareDataItem item : res) {
 			try {
 				String saved_id;
-				OpenWareDataItem previous = itemConfigs
-						.get(item.getMeta().getString("source_source") + Config.get("idSeperator","---")
-								+ item.getMeta().getString("id_source"));
+				OpenWareDataItem previous = itemConfigs.get(item.getMeta().getString("source_source")
+						+ Config.get("idSeperator", "---") + item.getMeta().getString("id_source"));
 
 				String id = null;
 				if (previous != null) {
 					id = previous.getMeta().getString("configuration_id");
 				}
-				saved_id = DataService.storeGenericData(CONFIG_STORE_TYPE,
-						id,
-						item.toJSON());
+				saved_id = DataService.storeGenericData(CONFIG_STORE_TYPE, id, item.toJSON());
 
 				item.getMeta().put("configuration_id", saved_id);
-				itemConfigs.put(item.getMeta().getString("source_source") + Config.get("idSeperator","---")
+				itemConfigs.put(item.getMeta().getString("source_source") + Config.get("idSeperator", "---")
 						+ item.getMeta().getString("id_source"), item);
-				//Get current Item to upadte the configuration immediately
+				// Get current Item to upadte the configuration immediately
 				refreshConfigurationOfItem(item);
 			} catch (JSONException e) {
 				e.printStackTrace();
@@ -210,7 +262,7 @@ public class DataService {
 	private static void refreshConfigurationOfItem(OpenWareDataItem item) {
 		OpenWareDataItem cItem = DataService.getLiveSensorData(item.getId(), item.getSource());
 		if (cItem == null) {
-			//No current item. ID or Source has been customized. Retrieve source item
+			// No current item. ID or Source has been customized. Retrieve source item
 			String source_source = item.getMeta().optString("source_source");
 			String id_source = item.getMeta().optString("id_source");
 			if (source_source.equals("") || id_source.equals("")) {
@@ -223,7 +275,7 @@ public class DataService {
 		}
 
 		if (cItem == null) {
-			//Nothing to update, as source Item also does not exist...
+			// Nothing to update, as source Item also does not exist...
 			return;
 		}
 		OpenWareDataItem clonedConf = item.cloneItem();
@@ -233,13 +285,11 @@ public class DataService {
 	}
 
 	/**
-	 * @param user
-	 *            User used to check authorization. Needs write Access
-	 * @param source_source
-	 *            The original source field of the OpenWareDataItem
-	 *            (Pre-configuration)
-	 * @param sensorid_source
-	 *            The original id of the OpenWareDataItem (Pre-configuration)
+	 * @param user            User used to check authorization. Needs write Access
+	 * @param source_source   The original source field of the OpenWareDataItem
+	 *                        (Pre-configuration)
+	 * @param sensorid_source The original id of the OpenWareDataItem
+	 *                        (Pre-configuration)
 	 * @return True, if configuration was deleted
 	 * @throws Exception
 	 * @throws JSONException
@@ -249,7 +299,8 @@ public class DataService {
 		if (!user.canAccessWrite(source_source, sensorid_source)) {
 			return false;
 		}
-		OpenWareDataItem deleted = itemConfigs.remove(source_source + Config.get("idSeperator","---") + sensorid_source);
+		OpenWareDataItem deleted = itemConfigs
+				.remove(source_source + Config.get("idSeperator", "---") + sensorid_source);
 		DataService.removeGenericData(CONFIG_STORE_TYPE, deleted.getMeta().getString("configuration_id"));
 
 		return deleted != null;
@@ -257,10 +308,9 @@ public class DataService {
 
 	private static OpenWareDataItem checkObject(User user, JSONObject o) throws Exception {
 		OpenWareDataItem item = OpenWareDataItem.fromJSON(o.toString());
-		
+
 		boolean wellFormed = (item.getMeta().has("id_source") && item.getMeta().has("active")
-				&& item.getMeta().has("source_source")
-				&& item.getMeta().has("visible"));
+				&& item.getMeta().has("source_source") && item.getMeta().has("visible"));
 		OpenWareDataItem original = DataService.getLiveSensorData(item.getMeta().getString("id_source"),
 				item.getMeta().getString("source_source"));
 		for (int i = 0; i < item.getValueTypes().size(); i++) {
@@ -282,9 +332,8 @@ public class DataService {
 		String id_source = item.getMeta().getString("id_source");
 
 		if (!user.canAccessWrite(owner, id_source)) {
-			throw new SecurityException("No Permission to configure item " +	owner +
-					Config.get("idSeperator","---")+
-										id_source);
+			throw new SecurityException(
+					"No Permission to configure item " + owner + Config.get("idSeperator", "---") + id_source);
 		}
 		return item;
 	}
@@ -299,10 +348,8 @@ public class DataService {
 				}
 				OpenWareDataItem configItem = OpenWareDataItem.fromJSON(o.toString());
 				configItem.getMeta().put("configuration_id", o.getString("_id"));
-				itemConfigs.put(
-						source_source + Config.get("idSeperator","---")
-								+ o.getJSONObject("meta").getString("id_source"),
-						configItem);
+				itemConfigs.put(source_source + Config.get("idSeperator", "---")
+						+ o.getJSONObject("meta").getString("id_source"), configItem);
 				refreshConfigurationOfItem(configItem);
 			}
 		} catch (Exception e) {
@@ -314,8 +361,7 @@ public class DataService {
 	/**
 	 * Retrieves a list of currently configured items as map
 	 * 
-	 * @param user
-	 *            User used for ACL Check
+	 * @param user User used for ACL Check
 	 * @return A map of configurations that the user can see.
 	 */
 	public static HashMap<String, OpenWareDataItem> getItemConfiguration(User user) {
@@ -332,18 +378,17 @@ public class DataService {
 				if (!isCurrentCustomizedItem(item))
 					continue;
 			}
-			res.put(source + Config.get("idSeperator","---") + id, item);
+			res.put(source + Config.get("idSeperator", "---") + id, item);
 			List<JSONObject> temp;
 			try {
-				temp = DataService.getGenericData(CONFIG_STORE_TYPE,
-						item.getMeta().getString("configuration_id"));
+				temp = DataService.getGenericData(CONFIG_STORE_TYPE, item.getMeta().getString("configuration_id"));
 
 				if (temp != null && temp.size() > 0) {
 					OpenWareDataItem custom = OpenWareDataItem.fromJSON(temp.get(0));
 					if (!custom.getMeta().has("source_source")) {
 						custom.getMeta().put("source_source", custom.getSource());
 					}
-					res.put(custom.getMeta().getString("source_source") +Config.get("idSeperator","---")
+					res.put(custom.getMeta().getString("source_source") + Config.get("idSeperator", "---")
 							+ custom.getMeta().getString("id_source"), custom);
 				}
 			} catch (JSONException e) {
@@ -359,7 +404,7 @@ public class DataService {
 		String sourceID = toTest.getMeta().getString("id_source");
 		String sourceSource = toTest.getMeta().optString("source_source").equals("") ? toTest.getSource()
 				: toTest.getMeta().optString("source_source");
-		OpenWareDataItem currentConfiged = itemConfigs.get(sourceSource +Config.get("idSeperator","---") + sourceID);
+		OpenWareDataItem currentConfiged = itemConfigs.get(sourceSource + Config.get("idSeperator", "---") + sourceID);
 		return toTest.equals(currentConfiged);
 	}
 
@@ -367,8 +412,7 @@ public class DataService {
 	 * Removes a DataHandler from the DataHandler list. DataService will not use it
 	 * anymore while parsing new data.
 	 * 
-	 * @param dh
-	 *            The DataHandler to be removed
+	 * @param dh The DataHandler to be removed
 	 * @return The data handler that was removed or null if it fails
 	 */
 	public static DataHandler removeHandler(DataHandler dh) {
@@ -381,8 +425,7 @@ public class DataService {
 	/**
 	 * Adds an actuator
 	 * 
-	 * @param aa
-	 *            The Actuator to add
+	 * @param aa The Actuator to add
 	 * @return the previous ActuatorObject associated with the ID, or null if there
 	 *         was no mapping for the ID
 	 */
@@ -404,8 +447,7 @@ public class DataService {
 	/**
 	 * Removes an Actuator
 	 * 
-	 * @param aa
-	 *            The Actuator to be removed
+	 * @param aa The Actuator to be removed
 	 * @return The removed Actuator
 	 */
 	public static ActuatorAdapter remove(ActuatorAdapter aa) {
@@ -423,19 +465,21 @@ public class DataService {
 
 	public static void setPersistenceAdapter(PersistenceAdapter data) {
 		try {
-			data.init();	
+
+			data.init();
 			adapter = data;
+			initLastState();
 			List<OpenWareDataItem> newItems = adapter.getItems();
-			for (OpenWareDataItem item :newItems) {
+			for (OpenWareDataItem item : newItems) {
 				items.put(item.getSource() + item.getId(), item);
 			}
+
 			initItemConfiguration();
-		}catch(Exception e) {
+		} catch (Exception e) {
 			OpenWareInstance.getInstance().logError("Could not set PersistenceAdapter. System will shut down!", e);
 			System.exit(1);
 		}
-		
-	
+
 	}
 
 	public static DataSubscriber addSubscription(DataSubscriber sub) {
@@ -457,7 +501,7 @@ public class DataService {
 
 	public static Future<List<CompletableFuture<Boolean>>> onNewData(String id, String data) {
 		OpenWareInstance.getInstance().logData(System.currentTimeMillis(), id, data);
-		//MQTT-Seperator to AMQP seperator
+		// MQTT-Seperator to AMQP seperator
 		id = id.replace("/", ".");
 		if (data != null && data.length() > 0) {
 			return pool.submit(new DataProcessTask(id, data));
@@ -538,9 +582,9 @@ public class DataService {
 		toReturn.addAll(items.values());
 		return toReturn;
 	}
-	
+
 	public static int updateData(OpenWareDataItem item) throws Exception {
-		for(OpenWareValue val: item.value()) {
+		for (OpenWareValue val : item.value()) {
 			OpenWareDataItem pastLiveVal = getLiveSensorData(item.getId(), item.getSource(), val.getDate(), 1);
 			if (pastLiveVal != null && !pastLiveVal.equalsValueTypes(item, false))
 				throw new IllegalArgumentException(
@@ -552,95 +596,92 @@ public class DataService {
 	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp,
 			long until) {
 
-		return adapter.historicalData(sensorName, source, timestamp, until, null,null);
+		return adapter.historicalData(sensorName, source, timestamp, until, null, null);
 
 	}
-	
-	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp,
-			long until, RetrievalOptions opts) {
 
-		return adapter.historicalData(sensorName, source, timestamp, until, null,opts);
+	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp, long until,
+			RetrievalOptions opts) {
 
-	}
-	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp,
-			long until, String ref) {
-
-		return adapter.historicalData(sensorName, source, timestamp, until, ref,null);
+		return adapter.historicalData(sensorName, source, timestamp, until, null, opts);
 
 	}
-	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp,
-			long until, String ref, RetrievalOptions options) {
 
-		return adapter.historicalData(sensorName, source, timestamp, until, ref,options);
+	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp, long until,
+			String ref) {
+
+		return adapter.historicalData(sensorName, source, timestamp, until, ref, null);
+
+	}
+
+	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp, long until,
+			String ref, RetrievalOptions options) {
+
+		return adapter.historicalData(sensorName, source, timestamp, until, ref, options);
 
 	}
 
 	private static List<OpenWareValue> getMinMax(OpenWareDataItem data, int maxAmount, int dim) {
-		if(!data.getValueTypes().get(dim).type().toLowerCase().equals(OpenWareNumber.TYPE.toLowerCase())) return data.value();
+		if (!data.getValueTypes().get(dim).type().toLowerCase().equals(OpenWareNumber.TYPE.toLowerCase()))
+			return data.value();
 		int bucketSize = (int) (data.value().size() / (double) (maxAmount / 2));
 		ArrayList<OpenWareValue> resNew = new ArrayList<OpenWareValue>();
-		int i=0;
+		int i = 0;
 		Map<Integer, List<OpenWareValue>> groups = new HashMap<Integer, List<OpenWareValue>>();
-		while(i<data.value().size()) {
-			groups.put(i, data.value().subList(i, Math.min((i+bucketSize), data.value().size())));
-			i+=bucketSize;
+		while (i < data.value().size()) {
+			groups.put(i, data.value().subList(i, Math.min((i + bucketSize), data.value().size())));
+			i += bucketSize;
 		}
-	
+
 		groups.values().parallelStream().forEach(new Consumer<List<OpenWareValue>>() {
-			
+
 			@Override
 			public void accept(List<OpenWareValue> list) {
 				try {
-					OpenWareValue min =list.parallelStream().reduce(new BinaryOperator<OpenWareValue>() {
+					OpenWareValue min = list.parallelStream().reduce(new BinaryOperator<OpenWareValue>() {
 						@Override
 						public OpenWareValue apply(OpenWareValue t, OpenWareValue u) {
-							return (double)t.get(dim).value()<(double)u.get(dim).value()?t:u;
+							return (double) t.get(dim).value() < (double) u.get(dim).value() ? t : u;
 						}
-					}).get(); 
-					
-					
-					
+					}).get();
+
 					OpenWareValue max = list.parallelStream().reduce(new BinaryOperator<OpenWareValue>() {
 						@Override
 						public OpenWareValue apply(OpenWareValue t, OpenWareValue u) {
-							return (double)t.get(dim).value()>(double)u.get(dim).value()?t:u;
+							return (double) t.get(dim).value() > (double) u.get(dim).value() ? t : u;
 						}
 					}).get();
 					synchronized (resNew) {
 						resNew.add(max);
 						resNew.add(min);
 					}
-				}catch(NoSuchElementException e) {
+				} catch (NoSuchElementException e) {
 					OpenWareInstance.getInstance().logError("No Result for Min/Max in Bucket", e);
 				}
-				
+
 			}
 
 		});
 		return resNew;
-		
-		
-		
-		
-		
+
 	}
-	
-	private static List<OpenWareValue> getMinMaxOld(OpenWareDataItem data, int maxAmount, int dim ) {
-		if(!data.getValueTypes().get(dim).type().toLowerCase().equals(OpenWareNumber.TYPE.toLowerCase())) return data.value();
+
+	private static List<OpenWareValue> getMinMaxOld(OpenWareDataItem data, int maxAmount, int dim) {
+		if (!data.getValueTypes().get(dim).type().toLowerCase().equals(OpenWareNumber.TYPE.toLowerCase()))
+			return data.value();
 		ArrayList<OpenWareValue> toReturn = new ArrayList<>();
 		int count = 0;
 		double maxVal = Double.MIN_VALUE;
 		double minVal = Double.MAX_VALUE;
 		int bucketSize = (int) Math.ceil((double) data.value().size() / (double) (maxAmount / 2));
-		
-		
+
 		OpenWareValue max = null;
 		OpenWareValue min = null;
 		for (OpenWareValue val : data.value()) {
 			if (count == bucketSize) {
 				if (max == null || min == null) {
-					//						System.out.println(max);
-					//						System.out.println(min);
+					// System.out.println(max);
+					// System.out.println(min);
 				} else {
 					if (max.getDate() > min.getDate()) {
 						toReturn.add(min);
@@ -669,47 +710,47 @@ public class DataService {
 
 		}
 		return toReturn;
-	
-		
+
 	}
-	
+
 	private static OpenWareDataItem filter(QueryParamsMap params, OpenWareDataItem item) throws Exception {
 		FilterTransformer ft = new FilterTransformer();
 		JSONObject filterOpts = new JSONObject();
 		filterOpts.put("filterExpression", params.value("filter"));
 		return ft.apply(null, item, filterOpts).getResult();
-		
+
 	}
+
 	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp, long until,
 			QueryParamsMap parameters) {
-		
+
 		String ref = parameters.value("reference");
 		OpenWareDataItem data;
 		RetrievalOptions opts = null;
-		if(parameters.hasKey("mode")) {
+		if (parameters.hasKey("mode")) {
 			String mode = parameters.value("mode");
 			int maxAmount = parameters.get("maxValues").integerValue();
 			int dim = parameters.get("dimension").integerValue();
-			opts = new RetrievalOptions(mode,dim, maxAmount);
+			opts = new RetrievalOptions(mode, dim, maxAmount);
 		}
-		if(ref!=null && !ref.equals("")) {
+		if (ref != null && !ref.equals("")) {
 			data = getHistoricalSensorData(sensorName, source, timestamp, until, ref, opts);
-		}else {
-			data = getHistoricalSensorData(sensorName, source, timestamp, until,opts);	
+		} else {
+			data = getHistoricalSensorData(sensorName, source, timestamp, until, opts);
 		}
-		if(parameters.hasKey("filter")) {
+		if (parameters.hasKey("filter")) {
 			try {
 				data = filter(parameters, data);
 				System.gc();
 			} catch (Exception e) {
-				OpenWareInstance.getInstance().logWarn("Error while filtering data");
+				OpenWareInstance.getInstance().logError("Error while filtering data", e);
 			}
 		}
-		
-		if(!parameters.hasKey("mode")) {
+
+		if (!parameters.hasKey("mode")) {
 			return data;
 		}
-		
+
 		String mode = parameters.value("mode");
 		int maxAmount = parameters.get("maxValues").integerValue();
 		int dim = parameters.get("dimension").integerValue();
@@ -742,62 +783,62 @@ public class DataService {
 	}
 
 	/**
-	 * Method applies personal configuration (e.g. set custom names or applies
+	 * Method applies customization to a data item (e.g. set custom names or applies
 	 * transformation if value is scaled) to incoming, "to-be-stored" items
 	 * 
-	 * @param item
-	 *            The item which should be stored
+	 * @param item The item which should be stored
 	 * @return
 	 */
 	private static OpenWareDataItem applyItemConfiguration(OpenWareDataItem item) {
 		if (item == null)
 			return null;
-		OpenWareDataItem conf = itemConfigs.get(item.getSource() + Config.get("idSeperator","---") + item.getId());
-		
-		//No configuration stored! Return original item;
-		if (conf == null) return item;
-		
+		OpenWareDataItem conf = itemConfigs.get(item.getSource() + Config.get("idSeperator", "---") + item.getId());
+
+		// No configuration stored! Return original item;
+		if (conf == null)
+			return item;
+
 		conf = conf.cloneItem(false);
-		//Item is deactived and should ne be stored
+		// Item is deactived and should ne be stored
 		if (!(conf.getMeta().has("active") && conf.getMeta().getBoolean("active"))) {
 			return null;
 		}
-		//Item value need to be scaled before storing
-		if(conf.getMeta().has("scaler")) {
+		// Item value need to be scaled before storing
+		if (conf.getMeta().has("scaler")) {
 			JSONObject scaler = conf.getMeta().getJSONObject("scaler");
-			for(OpenWareValue val:item.value()) {
-				for(String index:scaler.keySet()) {
+			for (OpenWareValue val : item.value()) {
+				for (String index : scaler.keySet()) {
 					int dim = Integer.valueOf(index);
 					JSONObject cObj = scaler.getJSONObject(index);
 					double factor;
 					double offset;
-					try{
+					try {
 						factor = conf.getMeta().getJSONObject("scaler").getJSONObject(index).getDouble("factor");
-					}catch(JSONException e) {
+					} catch (JSONException e) {
 						factor = 1.0;
 					}
-					try{
+					try {
 						offset = conf.getMeta().getJSONObject("scaler").getJSONObject(index).getDouble("offset");
-					}catch(JSONException e) {
+					} catch (JSONException e) {
 						offset = 0.0;
 					}
-					if(!(val.get(dim) instanceof OpenWareNumber))continue;
-					double newVal = ((double)val.get(dim).value()+offset)*factor;
-					val.set(dim, new OpenWareNumber(val.get(dim).getName(), val.get(dim).getUnit(), newVal));	
+					if (!(val.get(dim) instanceof OpenWareNumber))
+						continue;
+					double newVal = ((double) val.get(dim).value() + offset) * factor;
+					val.set(dim, new OpenWareNumber(val.get(dim).getName(), val.get(dim).getUnit(), newVal));
 				}
 			}
 		}
 		conf.value(item.value());
-		//Only store changed values
+		// Only store changed values
 		if (conf.getMeta().optBoolean("onChange")) {
 			if (conf.equalsLastValue(item, (60000l * 60l))) {
-				OpenWareInstance.getInstance()
-						.logDebug("Item was not stored due to 'onChange' flag and same value");
+				OpenWareInstance.getInstance().logDebug("Item was not stored due to 'onChange' flag and same value");
 				return null;
 			}
 		}
 		return conf;
-		
+
 	}
 
 	/**
@@ -806,8 +847,7 @@ public class DataService {
 	 * 
 	 * @see de.openinc.ow.core.api.DataSubscriber
 	 * 
-	 * @param item
-	 *            The item to be stored
+	 * @param item The item to be stored
 	 * @return true if Item was stored
 	 */
 	public static CompletableFuture<Boolean> processNewData(OpenWareDataItem item) throws Exception {
@@ -837,50 +877,41 @@ public class DataService {
 		}
 		boolean baseDataRevision = !lastHash.equals(item.getMeta().get("vTypeHash"));
 		boolean referenceChange = false;
-		//Check and/or Set the reference
+		// Check and/or Set the reference
 		if (item.getReference() != null) {
 			reference.updateReference(item);
-			//Item has reference so compare if differs from lastItem's reference
+			// Item has reference so compare if differs from lastItem's reference
 			referenceChange = !item.getReference().equals(lastItem.getReference());
 		} else {
-			//Item had no reference and new potential reference is set
+			// Item had no reference and new potential reference is set
 			String ref = reference.getReferenceForSource(item.getSource());
 			item.setReference(ref);
 			reference.updateReference(item);
 			if (lastItem.getReference() == null) {
-				//Check if lastItem had no reference, so check if newItem has one now
+				// Check if lastItem had no reference, so check if newItem has one now
 				referenceChange = item.getReference() != null;
 			} else {
-				//lastItem had a reference, so check if newItem still has the same
+				// lastItem had a reference, so check if newItem still has the same
 				referenceChange = !lastItem.getReference().equals(item.getReference());
 			}
 
 		}
 
-		
-			item.getMeta().put("BaseDataRevision", baseDataRevision);
-			item.getMeta().put("referenceChange", referenceChange);
-		
+		item.getMeta().put("BaseDataRevision", baseDataRevision);
+		item.getMeta().put("referenceChange", referenceChange);
+
 		DataService.setCurrentItem(item);
 		pool.submit(new SubscriberRunnable(lastItem, item));
-			if (Config.getBool("dbPersistValue", true) && item.persist()) {
-				return DataService.storeData(item);
-			} else {
-				OpenWareInstance.getInstance().logWarn("Item was not Stored due to configuration: " +	item.getSource() +
-						Config.get("idSeperator","---") +
-														item.getId());
-				if (Config.getBool("verbose", false)) {
-					OpenWareInstance.getInstance().logTrace("Item:" + item.toString());
-				}
-				return CompletableFuture.completedFuture(true);
+		if (Config.getBool("dbPersistValue", true) && item.persist()) {
+			return DataService.storeData(item);
+		} else {
+			OpenWareInstance.getInstance().logWarn("Item was not Stored due to configuration: " + item.getSource()
+					+ Config.get("idSeperator", "---") + item.getId());
+			if (Config.getBool("verbose", false)) {
+				OpenWareInstance.getInstance().logTrace("Item:" + item.toString());
 			}
-
-		
-
-
-
-
-
+			return CompletableFuture.completedFuture(true);
+		}
 	}
 
 	public static JSONArray getStats() {
@@ -890,19 +921,23 @@ public class DataService {
 	public static OpenWareDataItem getLiveSensorData(String sensorID, String source) {
 		return items.get(source + sensorID);
 	}
+
 	public static OpenWareDataItem getLiveSensorData(String sensorID, String source, String reference) {
 		return getLiveSensorData(sensorID, source, System.currentTimeMillis(), 1, reference);
 	}
-	
-	public static OpenWareDataItem getLiveSensorData(String sensorID,String source, long at, int elements) {
+
+	public static OpenWareDataItem getLiveSensorData(String sensorID, String source, long at, int elements) {
 		return getLiveSensorData(sensorID, source, at, elements, null);
 	}
-	public static OpenWareDataItem getLiveSensorData(String sensorID,String source, long at, int elements, String reference) {
+
+	public static OpenWareDataItem getLiveSensorData(String sensorID, String source, long at, int elements,
+			String reference) {
 		return adapter.liveData(sensorID, source, at, elements, reference);
 	}
 
 	public static boolean deleteDeviceData(String sensorName, String user, Long from, Long until, String ref)
 			throws Exception {
+
 		return adapter.deleteDeviceData(sensorName, user, from, until, ref);
 	}
 
@@ -920,11 +955,7 @@ public class DataService {
 	public static String storeGenericData(String type, String key, JSONObject value) throws Exception {
 		String res = adapter.storeGenericData(type, key, value);
 		if (res != null) {
-			OpenWareInstance.getInstance().logDebug("Stored Generic Data " +	type +
-													":" +
-													res +
-													"\n" +
-													value);
+			OpenWareInstance.getInstance().logDebug("Stored Generic Data " + type + ":" + res + "\n" + value);
 
 		}
 		return res;
@@ -932,9 +963,7 @@ public class DataService {
 
 	public static void removeGenericData(String type, String key) throws Exception {
 		adapter.removeGenericData(type, key);
-		OpenWareInstance.getInstance().logDebug("Removed Generic Data " +	type +
-												":" +
-												key);
+		OpenWareInstance.getInstance().logDebug("Removed Generic Data " + type + ":" + key);
 	}
 
 	public static List<JSONObject> getGenericData(String type, String key) throws Exception {
@@ -951,23 +980,17 @@ public class DataService {
 			}
 		}
 		/*
-		try {
-			if (digest == null) {
-				digest = MessageDigest.getInstance("SHA-1");
-		
-			} else {
-				digest.reset();
-			}
-		
-			digest.update(res.getBytes("UTF-8"));
-		
-		} catch (Exception e) {
-			System.err.println("Error while creating VTypeHash");
-			return null;
-		}
-		
-		return new String(digest.digest());
-		*/
+		 * try { if (digest == null) { digest = MessageDigest.getInstance("SHA-1");
+		 * 
+		 * } else { digest.reset(); }
+		 * 
+		 * digest.update(res.getBytes("UTF-8"));
+		 * 
+		 * } catch (Exception e) { System.err.println("Error while creating VTypeHash");
+		 * return null; }
+		 * 
+		 * return new String(digest.digest());
+		 */
 		return res;
 	}
 
@@ -1003,7 +1026,7 @@ class DataProcessTask implements Callable<List<CompletableFuture<Boolean>>> {
 			ArrayList<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
 			res.add(processItem(singleItem));
 			return res;
-			
+
 		}
 		if (data != null) {
 			List<OpenWareDataItem> toProcess = null;
@@ -1026,7 +1049,7 @@ class DataProcessTask implements Callable<List<CompletableFuture<Boolean>>> {
 	}
 
 	private List<CompletableFuture<Boolean>> processItems(List<OpenWareDataItem> items) throws Exception {
-		//([a-zA-Z\d]+\.)+: ID und source prüfen
+		// ([a-zA-Z\d]+\.)+: ID und source prüfen
 		if (items == null) {
 			ArrayList<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
 			res.add(CompletableFuture.completedFuture(false));
@@ -1036,7 +1059,7 @@ class DataProcessTask implements Callable<List<CompletableFuture<Boolean>>> {
 	}
 
 	private CompletableFuture<Boolean> processItem(OpenWareDataItem item) throws Exception {
-		//([a-zA-Z\d]+\.)+: ID und source prüfen
+		// ([a-zA-Z\d]+\.)+: ID und source prüfen
 		if (item == null) {
 			return CompletableFuture.completedFuture(false);
 		}

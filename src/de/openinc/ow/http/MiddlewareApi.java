@@ -93,16 +93,15 @@ public class MiddlewareApi implements OpenWareAPI {
 									"No write permission for source/sensor");
 					}
 					int count = DataService.updateData(update);
-					JSONObject result  = new JSONObject();
+					JSONObject result = new JSONObject();
 					result.put("updateCount", count);
-					
+
 					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_OK, result, null);
-		
-				}catch(Exception e) {
-					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_BAD_REQUEST, null,
-							e);
+
+				} catch (Exception e) {
+					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_BAD_REQUEST, null, e);
 				}
-				
+
 			});
 
 			path(ITEMS_API, () -> {
@@ -122,20 +121,21 @@ public class MiddlewareApi implements OpenWareAPI {
 				User user = req.session().attribute("user");
 				String source = req.params("source");
 				String strID = req.params("sensorid");
-				
+
 				if (user == null || !user.canAccessRead(source, strID)) {
-					HTTPResponseHelper.generateResponse(res,HTTPResponseHelper.STATUS_FORBIDDEN, null, "Not Allowed to read data");
+					HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
+							"Not Allowed to read data");
 					return null;
 				}
 				res.header("Content-Encoding", "gzip");
 				res.type("application/json");
 				OpenWareDataItem result;
 				try {
-				
+
 					long at = req.queryMap("at").longValue();
 					int elements = req.queryMap("values").integerValue();
 					result = DataService.getLiveSensorData(strID, source, at, elements);
-				}catch(Exception e) {
+				} catch (Exception e) {
 					result = DataService.getLiveSensorData(strID, source);
 				}
 				if (result != null) {
@@ -146,45 +146,30 @@ public class MiddlewareApi implements OpenWareAPI {
 					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_BAD_REQUEST, null,
 							"Data item not found");
 				}
-				
-				
+
 				/*
-				if (Config.accessControl) {
-					User user = req.session().attribute("user");
-					String source = req.params("source");
-					String strID = req.params("sensorid");
-					if (user == null || !user.canAccessRead(source, strID))
-						halt(403, "Not allowed to read data");
-				}
-
-				
-				String sensorID = req.params("sensorid");
-				String source = req.params("source");
-				OpenWareInstance.getInstance()
-						.logDebug("Received live data request for sensor: " +	sensorID +
-									" and source: " +
-									source);
-
-				OpenWareDataItem items;
-				if (sensorID.startsWith(Config.analyticPrefix)) {
-					OpenWareInstance.getInstance()
-							.logDebug("Received live analytics data request for sensor: " + sensorID +
-										" and userID: " +
-										source);
-					items = AnalyticsService.getInstance().handle(source, sensorID);
-				} else {
-					OpenWareInstance.getInstance().logDebug(
-							"Received live data request for sensor: " + sensorID +
-															" and userID: " +
-															source);
-
-					items = DataService.getLiveSensorData(sensorID, source);
-				}
-				if (items == null) {
-					return new JSONObject();
-				} else {
-					return items;
-				}
+				 * if (Config.accessControl) { User user = req.session().attribute("user");
+				 * String source = req.params("source"); String strID = req.params("sensorid");
+				 * if (user == null || !user.canAccessRead(source, strID)) halt(403,
+				 * "Not allowed to read data"); }
+				 * 
+				 * 
+				 * String sensorID = req.params("sensorid"); String source =
+				 * req.params("source"); OpenWareInstance.getInstance()
+				 * .logDebug("Received live data request for sensor: " + sensorID +
+				 * " and source: " + source);
+				 * 
+				 * OpenWareDataItem items; if (sensorID.startsWith(Config.analyticPrefix)) {
+				 * OpenWareInstance.getInstance()
+				 * .logDebug("Received live analytics data request for sensor: " + sensorID +
+				 * " and userID: " + source); items =
+				 * AnalyticsService.getInstance().handle(source, sensorID); } else {
+				 * OpenWareInstance.getInstance().logDebug(
+				 * "Received live data request for sensor: " + sensorID + " and userID: " +
+				 * source);
+				 * 
+				 * items = DataService.getLiveSensorData(sensorID, source); } if (items == null)
+				 * { return new JSONObject(); } else { return items; }
 				 */
 			});
 
@@ -204,15 +189,11 @@ public class MiddlewareApi implements OpenWareAPI {
 				OpenWareDataItem item;
 				if (sensorid.startsWith(Config.get("analyticPrefix", "analytic."))) {
 					OpenWareInstance.getInstance().logDebug(
-							"Received analytics data request for sensor: " +	sensorid +
-															" and source: " +
-															source);
+							"Received analytics data request for sensor: " + sensorid + " and source: " + source);
 					item = AnalyticsService.getInstance().handle(source, sensorid, timestampStart, timestampEnd);
 				} else {
 					OpenWareInstance.getInstance().logDebug(
-							"Received historical data request for sensor: " +	sensorid +
-															" and source: " +
-															source);
+							"Received historical data request for sensor: " + sensorid + " and source: " + source);
 					if (req.queryParams().size() > 0) {
 
 						item = DataService.getHistoricalSensorData(sensorid, source, timestampStart, timestampEnd,
@@ -235,8 +216,9 @@ public class MiddlewareApi implements OpenWareAPI {
 			delete(DELETE_DEVICE_DATA, (req, res) -> {
 				String source = req.params("source");
 				String sensorid = req.params("sensorid");
-				if(source ==null || sensorid == null || source.equals("")||sensorid.equals("")) {
-					HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_BAD_REQUEST, null, "Missing source/sensorid parameter");
+				if (source == null || sensorid == null || source.equals("") || sensorid.equals("")) {
+					HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_BAD_REQUEST, null,
+							"Missing source/sensorid parameter");
 				}
 				if (Config.getBool("accessControl", true)) {
 					User user = req.session().attribute("user");
@@ -253,35 +235,37 @@ public class MiddlewareApi implements OpenWareAPI {
 					try {
 						long timestampStart = Long.valueOf(req.params("timestampStart"));
 						long timestampEnd = Long.valueOf(req.params("timestampEnd"));
-						OpenWareInstance.getInstance().logDebug(
-								"Received delete device data request for device: " + sensorid + " of source: "
-										+ source);
-	
+						OpenWareInstance.getInstance().logDebug("Received delete device data request for device: "
+								+ sensorid + " of source: " + source);
+
 						if (Config.getBool("allowDeleteData", false)) {
 							boolean success = DataService.deleteDeviceData(sensorid, source, timestampStart,
 									timestampEnd, null);
-							if(success) {
+							if (success) {
 								return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_OK,
 										"Successfully deleted data", null);
-							}else {
+							} else {
 								return HTTPResponseHelper.generateResponse(res,
 										HTTPResponseHelper.STATUS_INTERNAL_ERROR, null,
 										"Unknown error while deleting data");
 							}
-	
+
 						} else {
 							OpenWareInstance.getInstance().logError(
 									"Delete data requests have to be explicitly allowed in the server settings; setting is false or missing, so nothing will be deleted.");
-							return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,"Delete data requests have to be explicitly allowed in the server settings; setting is false or missing, so nothing will be deleted.");
-						
+							return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
+									"Delete data requests have to be explicitly allowed in the server settings; setting is false or missing, so nothing will be deleted.");
+
 						}
-					}catch(NumberFormatException e) {
-						HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_BAD_REQUEST, null, "Start and end timestamps need to be unix milliseconds timestamp");
+					} catch (NumberFormatException e) {
+						HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_BAD_REQUEST, null,
+								"Start and end timestamps need to be unix milliseconds timestamp");
 						return null;
 					}
 				} catch (Exception e) {
 					OpenWareInstance.getInstance().logError("DELETE DATA REQUEST" + e.getLocalizedMessage(), e);
-					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_INTERNAL_ERROR, null,e.getLocalizedMessage());
+					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_INTERNAL_ERROR, null,
+							e.getLocalizedMessage());
 				}
 
 			});
@@ -302,9 +286,7 @@ public class MiddlewareApi implements OpenWareAPI {
 		res.header("Content-Encoding", "gzip");
 		String source = req.params("source");
 		OpenWareInstance.getInstance()
-				.logDebug("Received getItems request for userid: " +	source +
-							" and filtered by " +
-							filter);
+				.logDebug("Received getItems request for userid: " + source + " and filtered by " + filter);
 
 		Collection<OpenWareDataItem> items = DataService.getItems(user);
 		if (filter != null) {

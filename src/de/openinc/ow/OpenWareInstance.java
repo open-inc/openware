@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.ServiceLoader;
 import java.util.TimeZone;
@@ -269,7 +270,14 @@ public class OpenWareInstance {
 
 		TimeZone zone = TimeZone.getDefault();
 		TimeZone.setDefault(TimeZone.getTimeZone(Config.get("timezone","Europe/Berlin")));
-		zone = TimeZone.getDefault();
+		String[] localeElements =Config.get("language", "de-de").split("-");
+		if(localeElements.length>1) {
+			Locale.setDefault(new Locale(localeElements[0],localeElements[1]));
+			
+		}else {
+			Locale.setDefault(new Locale(localeElements[0]));
+		}
+		logInfo("Locale set to "+ Locale.getDefault().toLanguageTag());
 		
 		if (Config.getBool("enableWebserver", true) ) {
 			logInfo("Initializing open.WARE v" +	OpenWareInstance.getInstance().VERSION +

@@ -130,7 +130,7 @@ public class DataService {
 			toSave.put(item.toJSON());
 		}
 		JSONObject saveState = new JSONObject();
-		saveState.put("item", toSave);
+		saveState.put("items", toSave);
 		saveState.put("updatedAt", System.currentTimeMillis());
 
 		try {
@@ -902,6 +902,7 @@ public class DataService {
 
 		DataService.setCurrentItem(item);
 		pool.submit(new SubscriberRunnable(lastItem, item));
+
 		if (Config.getBool("dbPersistValue", true) && item.persist()) {
 			return DataService.storeData(item);
 		} else {

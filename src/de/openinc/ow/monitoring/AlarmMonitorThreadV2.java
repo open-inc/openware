@@ -121,14 +121,18 @@ public class AlarmMonitorThreadV2 {
 									+ " "
 									+ currentItem.getValueTypes().get(currentObj.getInt("item_dimension")).getUnit()
 									+ "\nZeitpunkt:" + new Date(currentItem.value().get(0).getDate()).toLocaleString();
-							;
+
 							OpenWareDataItem notifyItem = currentItem.cloneItem();
 							notifyItem.value(currentItem.value());
+							if (lastItem != null && lastItem.value().size() > 0) {
+								notifyItem.value().add(lastItem.value().get(0));
+							}
 
-							String title = "Alarm " + currentObj.optString("name") + " (" + notifyItem.getName() + ")";
-							notifyItem.getMeta().put("alarmTitle", title);
-							notifyItem.getMeta().put("alarmText", text);
-
+							/*
+							 * String title = "Alarm " + currentObj.optString("name") + " (" +
+							 * notifyItem.getName() + ")"; notifyItem.getMeta().put("alarmTitle", title);
+							 * notifyItem.getMeta().put("alarmText", text);
+							 */
 							ActuatorAdapter actor = DataService
 									.getActuator(currentObj.getJSONObject("action").getString("type"));
 							JSONObject options = currentObj.getJSONObject("action");

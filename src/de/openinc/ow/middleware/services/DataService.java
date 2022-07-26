@@ -100,7 +100,10 @@ public class DataService {
 					JSONObject o = cItems.getJSONObject(i);
 					try {
 						OpenWareDataItem owdi = OpenWareDataItem.fromJSON(o);
-						items.put(owdi.getSource() + owdi.getId(), owdi);
+						if (owdi.value().size() > 0) {
+							items.put(owdi.getSource() + owdi.getId(), owdi);
+						}
+
 					} catch (Exception e1) {
 						continue;
 					}
@@ -939,7 +942,15 @@ public class DataService {
 	public static boolean deleteDeviceData(String sensorName, String user, Long from, Long until, String ref)
 			throws Exception {
 
-		return adapter.deleteDeviceData(sensorName, user, from, until, ref);
+		boolean deleteSuccess = adapter.deleteDeviceData(sensorName, user, from, until, ref);
+		OpenWareDataItem liveItem = adapter.liveData(sensorName, user, System.currentTimeMillis(), 1, null);
+		if (liveItem == null || liveItem.value().size() == 0) {
+			items.remove(user + sensorName);
+		} else {
+			setCurrentItem(liveItem);
+		}
+
+		return deleteSuccess;
 	}
 
 	protected static CompletableFuture<Boolean> storeData(OpenWareDataItem item) throws Exception {

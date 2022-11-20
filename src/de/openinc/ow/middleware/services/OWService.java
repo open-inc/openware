@@ -1,13 +1,12 @@
 package de.openinc.ow.middleware.services;
 
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.util.Iterator;
 
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import de.openinc.api.OWServiceActivator;
-import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.helper.Config;
 
 public class OWService {
@@ -29,8 +28,7 @@ public class OWService {
 		options = Config.readConfig(this.className);
 	}
 
-	public final Object load(JSONObject options)
-			throws Exception {
+	public final Object load(JSONObject options) throws Exception {
 		if (options != null) {
 			this.options = options;
 		}
@@ -47,10 +45,48 @@ public class OWService {
 		}
 	}
 
+	private JSONObject sanitizeJSONObject(JSONObject safeOptions) {
+		Iterator<String> it = safeOptions.keys();
+		while (it.hasNext()) {
+			String key = it.next();
+			if (key.toLowerCase().contains("password") || key.toLowerCase().contains("passwort")
+					|| key.toLowerCase().contains("secret") || key.toLowerCase().contains("masterkey")
+					|| key.toLowerCase().contains("passwort") || key.toLowerCase().equals("pw")) {
+				it.remove();
+			}
+			try {
+				JSONObject child = safeOptions.getJSONObject(key);
+				safeOptions.put(key, sanitizeJSONObject(child));
+			} catch (JSONException e) {
+				// nothing to do
+			}
+			try {
+				JSONArray childArray = safeOptions.getJSONArray(key);
+				for (int i = 0; i < childArray.length(); i++) {
+					try {
+						JSONObject child = childArray.getJSONObject(i);
+						childArray.put(i, sanitizeJSONObject(child));
+					} catch (JSONException e) {
+						continue;
+						// nothing to do
+					}
+				}
+				safeOptions.put(key, childArray);
+			} catch (JSONException e) {
+				// nothing to do
+			}
+
+		}
+
+		return safeOptions;
+	}
+
 	public JSONObject toJSONObject() {
 		JSONObject x = new JSONObject();
 		x.put("id", this.id);
-		x.put("options", this.options);
+		JSONObject safeOptions = new JSONObject(this.options.toString());
+
+		x.put("options", sanitizeJSONObject(safeOptions));
 		x.put("class", this.className);
 		return x;
 	}

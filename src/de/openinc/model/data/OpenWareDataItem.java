@@ -342,6 +342,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		res.append(DataConversion.getJSONPartial("name", this.name, false, true));
 		res.append(DataConversion.getJSONPartial("meta", this.meta.toString(), false, false));
 		res.append(DataConversion.getJSONPartial("user", this.source, false, true));
+		res.append(DataConversion.getJSONPartial("source", this.source, false, true));
 		if (reference != null) {
 			res.append(DataConversion.getJSONPartial("reference", this.getReference(), false, true));
 		}

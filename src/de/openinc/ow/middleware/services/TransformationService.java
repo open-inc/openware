@@ -17,18 +17,18 @@ public class TransformationService {
 
 	private HashMap<String, Class<TransformationOperation>> ops;
 	private JSONObject config;
+
 	private TransformationService() {
 		me = this;
 		ops = new HashMap<>();
 		config = Config.readConfig(this.getClass().getCanonicalName());
-		if(!config.has("services")) {
+		if (!config.has("services")) {
 			config.put("services", new JSONObject());
 		}
 	}
 
 	/**
-	 * @param op
-	 *            Class of Operation to add
+	 * @param op Class of Operation to add
 	 * @return previously associated operation class or null
 	 */
 	public Class registerOperation(Class op) {
@@ -37,8 +37,7 @@ public class TransformationService {
 	}
 
 	/**
-	 * @param op
-	 *            Operation to be removed
+	 * @param op Operation to be removed
 	 * @return Returns the class of the removed operation or null if not associated
 	 */
 	public Class<TransformationOperation> removeOperation(Class op) {
@@ -61,15 +60,14 @@ public class TransformationService {
 	/**
 	 * Get an TransformationOperation to perform the specific
 	 * 
-	 * @param id
-	 *            The ID of the Operation that should be returned
+	 * @param id The ID of the Operation that should be returned
 	 * @return An Instance of the Transformation Operation, which should be freed
 	 *         after usage to be collected by GC
 	 * @throws InstantiationException
 	 * @throws IllegalAccessException
 	 */
 	public TransformationOperation getOperation(String id) throws Exception {
-		if(config.getJSONObject("services").has(id)) {
+		if (config.getJSONObject("services").has(id)) {
 			id = config.getJSONObject("services").getString(id);
 		}
 		Class<TransformationOperation> op = ops.get(id);
@@ -81,17 +79,16 @@ public class TransformationService {
 	/**
 	 * Perform multiple transformation operation sequentially
 	 * 
-	 * @param user
-	 *            An optional user that can be used to check Data Access rights
-	 *            during each stage
-	 * @param optionalData
-	 *            Optional initial Data that will be passed into first stage
-	 * @param options
-	 *            JSON object including of the an array named "stages", which
-	 *            describes which operation to perform, an number value "start" and
-	 *            "end" which represent hold an unix timestamp in milliseconds
-	 *            indicating the optional start/end of the period the operations
-	 *            should be performed with.
+	 * @param user         An optional user that can be used to check Data Access
+	 *                     rights during each stage
+	 * @param optionalData Optional initial Data that will be passed into first
+	 *                     stage
+	 * @param options      JSON object including of the an array named "stages",
+	 *                     which describes which operation to perform, an number
+	 *                     value "start" and "end" which represent hold an unix
+	 *                     timestamp in milliseconds indicating the optional
+	 *                     start/end of the period the operations should be
+	 *                     performed with.
 	 * @return The result of the pipe as {@link OpenWareDataItem}
 	 */
 	public OpenWareDataItem pipeOperations(User user, OpenWareDataItem optionalData, JSONObject options)
@@ -121,15 +118,13 @@ public class TransformationService {
 			}
 			tempItem = op.process(user, tempItem, stages.getJSONObject(i).getJSONObject("params"));
 			if (tempItem == null) {
-				throw new IllegalStateException("Could not perform stage " +	i +
-												":\n" +
-												stages.getJSONObject(i).getJSONObject("params"));
+				throw new IllegalStateException(
+						"Could not perform stage " + i + ":\n" + stages.getJSONObject(i).getJSONObject("params"));
 			}
 			if (Config.getBool("accessControl", true) && tempItem != null) {
 				if (user == null || !user.canAccessRead(tempItem.getSource(), tempItem.getId()))
-					throw new IllegalAccessError("Not allowed to access data produced by stage " +	i +
-													":\n" +
-													stages.getJSONObject(i).getJSONObject("params"));
+					throw new IllegalAccessError("Not allowed to access data produced by stage " + i + ":\n"
+							+ stages.getJSONObject(i).getJSONObject("params"));
 			}
 			op = null;
 			OpenWareInstance.getInstance()

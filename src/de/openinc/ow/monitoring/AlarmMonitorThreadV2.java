@@ -1,5 +1,8 @@
 package de.openinc.ow.monitoring;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
@@ -24,12 +27,14 @@ public class AlarmMonitorThreadV2 {
 	private HashMap<String, JSONArray> alarms;
 	private HashMap<String, Long> sentTS;
 	private HashMap<String, Boolean> lastEventTriggered;
+	private HashMap<String, OpenWareDataItem> lastSentEventItem;
 	private long lastUpdate;
 
 	public AlarmMonitorThreadV2(JSONArray alarms) {
 		this.alarms = updateMonitors(alarms);
 		sentTS = new HashMap<>();
-		lastEventTriggered = new HashMap<>();
+		lastEventTriggered = new HashMap<String, Boolean>();
+		lastSentEventItem = new HashMap<>();
 		init();
 	}
 
@@ -40,7 +45,7 @@ public class AlarmMonitorThreadV2 {
 			public void receive(OpenWareDataItem old, OpenWareDataItem item) throws Exception {
 
 				OpenWareDataItem currentItem = item;
-				OpenWareDataItem lastItem = old;
+				OpenWareDataItem lastReceivedItem = old;
 
 				// Looking for Alarm of item that was just received
 				JSONArray alarm = alarms.get(item.getSource() + item.getId());
@@ -66,11 +71,13 @@ public class AlarmMonitorThreadV2 {
 						triggered = true;
 					} else if (type.startsWith("number") || type.equals("min") || type.equals("max")
 							|| type.equals("min-max")) {
-						triggered = checkNumeric(currentObj, currentItem, lastItem);
+						triggered = checkNumeric(currentObj, currentItem, lastReceivedItem);
 					} else if (type.startsWith("boolean")) {
-						triggered = checkBool(currentObj, currentItem, lastItem);
+						triggered = checkBool(currentObj, currentItem, lastReceivedItem);
 					} else if (type.startsWith("string")) {
-						triggered = checkString(currentObj, currentItem, lastItem);
+						triggered = checkString(currentObj, currentItem, lastReceivedItem);
+					} else if (type.startsWith("timestamp")) {
+						triggered = checkTimestamp(currentObj, currentItem, lastReceivedItem);
 					}
 
 					long checkedTS = System.currentTimeMillis();
@@ -84,7 +91,8 @@ public class AlarmMonitorThreadV2 {
 					JSONObject conditions = currentObj.optJSONObject("condition");
 					boolean conditionsMet = false;
 					try {
-						conditionsMet = conditions == null || checkConditionalRule(conditions, item, toNotify);
+						conditionsMet = conditions == null
+								|| checkConditionalRule(currentObj, conditions, item, toNotify);
 					} catch (Exception e) {
 						OpenWareInstance.getInstance()
 								.logWarn("Could not evaluate alarm conditions due to error\n" + e.getMessage());
@@ -94,15 +102,6 @@ public class AlarmMonitorThreadV2 {
 					if (triggered && conditionsMet) {
 						// Alarm was triggered
 						lastEventTriggered.put(currentObj.getString("_id"), true);
-						if (currentObj.optBoolean("save")) {
-							JSONObject meta = new JSONObject();
-							meta.put("alarm", true);
-							OpenWareDataItem alarmItem = currentItem.cloneItem();
-							alarmItem.setId(currentObj.getString("_id"));
-							alarmItem.setName(currentItem.getName() + " (Alarm " + currentObj.getString("_id"));
-							alarmItem.value(currentItem.value());
-							DataService.onNewData(alarmItem);
-						}
 
 						boolean shouldSendAgain = (!lastTriggered || (lastTriggered
 								&& checkedTS - sentTS.getOrDefault(currentObj.getString("_id"), 0l) > currentObj
@@ -112,27 +111,18 @@ public class AlarmMonitorThreadV2 {
 								.canAccessRead(currentObj.getString("item_source"), currentObj.getString("item_id"));
 
 						if (shouldSendAgain && userIsAllowed) {
-
 							// Notification needs to be send again
-							String text = "Alarm " + currentObj.optString("name") + " Sensor " + currentItem.getName()
-									+ " :\n" + "\nErfasste Werte:\n"
-									+ currentItem.getValueTypes().get(currentObj.getInt("item_dimension")).getName()
-									+ ": " + currentItem.value().get(0).get(currentObj.getInt("item_dimension")).value()
-									+ " "
-									+ currentItem.getValueTypes().get(currentObj.getInt("item_dimension")).getUnit()
-									+ "\nZeitpunkt:" + new Date(currentItem.value().get(0).getDate()).toLocaleString();
 
 							OpenWareDataItem notifyItem = currentItem.cloneItem();
-							notifyItem.value(currentItem.value());
-							if (lastItem != null && lastItem.value().size() > 0) {
-								notifyItem.value().add(lastItem.value().get(0));
+
+							// Get the item that was created when the alarm was triggered the last time
+							OpenWareDataItem lastSentAlarmItem = lastSentEventItem
+									.getOrDefault(currentObj.getString("_id"), lastReceivedItem);
+
+							if (lastSentAlarmItem != null && lastSentAlarmItem.value().size() > 0) {
+								notifyItem.value().add(lastSentAlarmItem.value().get(0));
 							}
 
-							/*
-							 * String title = "Alarm " + currentObj.optString("name") + " (" +
-							 * notifyItem.getName() + ")"; notifyItem.getMeta().put("alarmTitle", title);
-							 * notifyItem.getMeta().put("alarmText", text);
-							 */
 							ActuatorAdapter actor = DataService
 									.getActuator(currentObj.getJSONObject("action").getString("type"));
 							JSONObject options = currentObj.getJSONObject("action");
@@ -152,6 +142,8 @@ public class AlarmMonitorThreadV2 {
 							options.put("item", optionsItem);
 							options.put("trigger", currentObj.get("trigger"));
 							options.put("user", toNotify.toJSON());
+							options.put("end", currentItem.value().get(0).getDate());
+							options.put("start", lastSentAlarmItem.value().get(0).getDate());
 							if (actor != null) {
 								Future result = actor.send(currentObj.getJSONObject("action").getString("target"),
 										currentObj.getJSONObject("action").getString("topic"),
@@ -159,12 +151,14 @@ public class AlarmMonitorThreadV2 {
 										Arrays.asList(notifyItem));
 
 							}
+							sentTS.put(currentObj.getString("_id"), checkedTS);
+							lastSentEventItem.put(currentObj.getString("_id"), notifyItem);
 							try {
 								UserService.getInstance().notifyActiveUser(toNotify, notifyItem.toJSON());
 							} catch (Exception e) {
 								// Could not notify via websocket
 							}
-							sentTS.put(currentObj.getString("_id"), checkedTS);
+
 						}
 					} else {
 						// Alarm loest nicht mehr aus; Werte wieder normal
@@ -178,7 +172,7 @@ public class AlarmMonitorThreadV2 {
 
 	}
 
-	private boolean checkConditionalRule(JSONObject rule, OpenWareDataItem triggerItem, User user)
+	private boolean checkConditionalRule(JSONObject alarm, JSONObject rule, OpenWareDataItem triggerItem, User user)
 			throws IllegalAccessError {
 		String type = rule.getString("type");
 		if (type.equals("rule")) {
@@ -193,24 +187,24 @@ public class AlarmMonitorThreadV2 {
 			} else {
 				item = DataService.getLiveSensorData(id, source);
 			}
-
+			Object refValue = triggerItem.value().get(0).get(alarm.getInt("item_dimension")).value();
 			if (ruletype.startsWith("number")) {
 				double value = (double) item.value().get(0).get(rule.getInt("dimension")).value();
-				return checkNumericRule(rule.getJSONObject("rule"), value);
+				return checkNumericRule(rule.getJSONObject("rule"), value, refValue);
 			}
 			if (ruletype.startsWith("string")) {
 				String value = (String) item.value().get(0).get(rule.getInt("dimension")).value();
-				return checkStringRule(rule.getJSONObject("rule"), value);
+				return checkStringRule(rule.getJSONObject("rule"), value, refValue);
 			}
 			if (ruletype.startsWith("boolean")) {
 				boolean value = (boolean) item.value().get(0).get(rule.getInt("dimension")).value();
-				return checkBoolRule(rule.getJSONObject("rule"), value);
+				return checkBoolRule(rule.getJSONObject("rule"), value, refValue);
 			}
 		}
 		if (type.equals("and")) {
 			JSONArray children = rule.getJSONArray("children");
 			for (int i = 0; i < children.length(); i++) {
-				if (!checkConditionalRule(children.getJSONObject(i), triggerItem, user))
+				if (!checkConditionalRule(alarm, children.getJSONObject(i), triggerItem, user))
 					return false;
 			}
 			return true;
@@ -218,7 +212,7 @@ public class AlarmMonitorThreadV2 {
 		if (type.equals("or")) {
 			JSONArray children = rule.getJSONArray("children");
 			for (int i = 0; i < children.length(); i++) {
-				if (checkConditionalRule(children.getJSONObject(i), triggerItem, user))
+				if (checkConditionalRule(alarm, children.getJSONObject(i), triggerItem, user))
 					return true;
 			}
 			return false;
@@ -226,11 +220,12 @@ public class AlarmMonitorThreadV2 {
 		return false;
 	}
 
-	private boolean checkNumericRule(JSONObject rule, double currentValue) {
+	private boolean checkNumericRule(JSONObject rule, double currentValue, Object refValue) {
 		String ruleType = rule.getString("type");
 		double value = rule.optDouble("value");
 		double max = rule.optDouble("max");
 		double min = rule.optDouble("min");
+		boolean isDouble = refValue instanceof Double;
 
 		switch (ruleType) {
 		case "number_equals":
@@ -248,14 +243,26 @@ public class AlarmMonitorThreadV2 {
 		case "max":
 		case "number_gt":
 			return currentValue > value;
+		case "number_gt_ref":
+			return isDouble && currentValue > (double) refValue;
+		case "number_lt_ref":
+			return isDouble && currentValue < (double) refValue;
+		case "number_equals_ref":
+			return isDouble && currentValue == (double) refValue;
+		case "number_equals_not_ref":
+			return isDouble && currentValue != (double) refValue;
 		default:
 			return false;
 		}
 	}
 
-	private boolean checkStringRule(JSONObject rule, String currentValue) {
+	private boolean checkStringRule(JSONObject rule, String currentValue, Object refValue) {
 		String ruleType = rule.getString("type");
 		String match = rule.optString("match");
+		if (ruleType.endsWith("_ref")) {
+			match = refValue.toString();
+			ruleType.replace("_ref", "");
+		}
 
 		switch (ruleType) {
 		case "string_equals":
@@ -287,14 +294,19 @@ public class AlarmMonitorThreadV2 {
 		}
 	}
 
-	private boolean checkBoolRule(JSONObject rule, boolean currentValue) {
+	private boolean checkBoolRule(JSONObject rule, boolean currentValue, Object refValue) {
 		String ruleType = rule.getString("type");
+		boolean isBool = refValue instanceof Boolean;
 
 		switch (ruleType) {
 		case "boolean_true":
 			return currentValue;
 		case "boolean_false":
 			return !currentValue;
+		case "boolean_equals_ref":
+			return isBool && currentValue == (boolean) refValue;
+		case "boolean_equals_not_ref":
+			return isBool && currentValue != (boolean) refValue;
 		default:
 			return false;
 		}
@@ -423,6 +435,14 @@ public class AlarmMonitorThreadV2 {
 		default:
 			return false;
 		}
+	}
+
+	private boolean checkTimestamp(JSONObject currentObj, OpenWareDataItem currentItem, OpenWareDataItem lastItem) {
+		Instant currTS = Instant.ofEpochMilli(currentItem.value().get(0).getDate());
+		ZonedDateTime zdt = ZonedDateTime.ofInstant(currTS, ZoneId.of(currentObj.getString("timezone")));
+
+		// TODO Auto-generated method stub
+		return false;
 	}
 
 	public HashMap<String, JSONArray> updateMonitors(JSONArray alarms) {

@@ -176,8 +176,9 @@ public class MiddlewareApi implements OpenWareAPI {
 			get(HISTORICAL_DATA_API, (req, res) -> {
 				String source = req.params("source");
 				String sensorid = req.params("sensorid");
+				User user = null;
 				if (Config.getBool("accessControl", true)) {
-					User user = req.session().attribute("user");
+					user = req.session().attribute("user");
 					if (user == null || !user.canAccessRead(source, sensorid))
 						halt(403, "Not allowed to read data");
 				}
@@ -190,7 +191,7 @@ public class MiddlewareApi implements OpenWareAPI {
 				if (sensorid.startsWith(Config.get("analyticPrefix", "analytic."))) {
 					OpenWareInstance.getInstance().logDebug(
 							"Received analytics data request for sensor: " + sensorid + " and source: " + source);
-					item = AnalyticsService.getInstance().handle(source, sensorid, timestampStart, timestampEnd);
+					item = AnalyticsService.getInstance().handle(user, sensorid, timestampStart, timestampEnd);
 				} else {
 					OpenWareInstance.getInstance().logDebug(
 							"Received historical data request for sensor: " + sensorid + " and source: " + source);

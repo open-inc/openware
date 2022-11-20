@@ -28,11 +28,10 @@ import de.openinc.ow.helper.Config;
  * 
  */
 public abstract class TransformationOperation {
-	private Long start = null;
-	private Long end = null;
+	protected Long start = null;
+	protected Long end = null;
 
-	public abstract TransformationOperation apply(User user, OpenWareDataItem old, JSONObject params)
-			throws Exception;
+	public abstract TransformationOperation apply(User user, OpenWareDataItem old, JSONObject params) throws Exception;
 
 	public abstract OpenWareDataItem getResult();
 
@@ -45,6 +44,8 @@ public abstract class TransformationOperation {
 		this.end = endTS;
 
 	}
+
+	public abstract void setReference(String ref);
 
 	public final OpenWareDataItem process(User user, OpenWareDataItem old, JSONObject params) throws Exception {
 		if (start != null) {

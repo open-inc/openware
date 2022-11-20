@@ -54,6 +54,12 @@ public class FilterTransformer extends TransformationOperation {
 
 	}
 
+	@Override
+	public void setReference(String ref) {
+		// TODO Auto-generated method stub
+
+	}
+
 }
 
 class Holder {

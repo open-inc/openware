@@ -5,8 +5,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -19,6 +17,7 @@ import org.json.JSONObject;
 import de.openinc.api.AnalyticSensorProvider;
 import de.openinc.model.data.OpenWareDataItem;
 import de.openinc.model.data.OpenWareValueDimension;
+import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.helper.Config;
 
@@ -38,10 +37,10 @@ public class JSONAnalyticsSensorProvider implements AnalyticSensorProvider {
 	}
 
 	@Override
-	public Map<String, Map<String, OpenWareDataItem>> getAnalyticSensors() {
-		//this.cachedSensorData = readJSONFile();
+	public Map<String, OpenWareDataItem> getAnalyticSensors(User user) {
+		// this.cachedSensorData = readJSONFile();
 		JSONArray sensors = this.cachedSensorData.getJSONArray("sensors");
-		Map<String, Map<String, OpenWareDataItem>> items = new HashMap<>();
+		Map<String, OpenWareDataItem> items = new HashMap<>();
 		for (int i = 0; i < sensors.length(); i++) {
 
 			JSONObject o = sensors.getJSONObject(i);
@@ -76,22 +75,19 @@ public class JSONAnalyticsSensorProvider implements AnalyticSensorProvider {
 			OpenWareDataItem owdi = new OpenWareDataItem(prefix + obj.getString("id"), obj.getString("user"),
 					obj.getString("name"), obj.getJSONObject("meta"), dims);
 
-			Map<String, OpenWareDataItem> userItems = items.getOrDefault(owdi.getSource(),
-					new HashMap<String, OpenWareDataItem>());
-			userItems.put(owdi.getId(), owdi);
-			items.put(owdi.getSource(), userItems);
+			items.put(owdi.getId(), owdi);
 		}
 
 		return items;
 	}
 
 	@Override
-	public boolean deleteAnalyticSensor(String user, String sensorid) {
+	public boolean deleteAnalyticSensor(User user, String sensorid) {
 		JSONArray array = this.cachedSensorData.getJSONArray("sensors");
 		int toDelete = -1;
 		for (int i = 0; i < array.length(); i++) {
 			JSONObject obj = array.getJSONObject(i);
-			if (obj.optString("user").equals(user) && obj.optString("sensorid").equals(sensorid)) {
+			if (obj.optString("sensorid").equals(sensorid)) {
 				toDelete = i;
 				break;
 			}
@@ -104,7 +100,7 @@ public class JSONAnalyticsSensorProvider implements AnalyticSensorProvider {
 	}
 
 	@Override
-	public boolean addAnalyticSensor(JSONObject parameter) {
+	public String addAnalyticSensor(JSONObject parameter, JSONObject acl) {
 		JSONObject obj = new JSONObject();
 		obj.put("valueTypes", parameter.getString("valueTypes"));
 		obj.put("name", parameter.getString("name"));
@@ -114,7 +110,12 @@ public class JSONAnalyticsSensorProvider implements AnalyticSensorProvider {
 		obj.put("operation", parameter.getString("operation"));
 		obj.put("objectId", "ID" + new Date().getTime());
 		this.cachedSensorData.getJSONArray("sensors").put(obj);
-		return saveFile();
+		if (saveFile()) {
+			return obj.getString("objectId");
+		} else {
+			return null;
+		}
+
 	}
 
 	private JSONObject readJSONFile() {
@@ -173,27 +174,20 @@ public class JSONAnalyticsSensorProvider implements AnalyticSensorProvider {
 	}
 
 	synchronized private boolean saveFile() {
-		JSONAnalyticsSensorProvider.fileOpen = true;
-		PrintWriter writer;
-		try {
-			writer = new PrintWriter(myFile, "UTF-8");
-			writer.print(this.cachedSensorData.toString(2));
-			writer.flush();
-			writer.close();
-
-		} catch (FileNotFoundException e) {
-			OpenWareInstance.getInstance().logError("Could not save analytics sensors file", e);
-			e.printStackTrace();
-			return false;
-		} catch (UnsupportedEncodingException e) {
-			OpenWareInstance.getInstance().logError("Could not save analytics sensors file", e);
-			e.printStackTrace();
-			return false;
-		} finally {
-			JSONAnalyticsSensorProvider.fileOpen = false;
-		}
-		JSONAnalyticsSensorProvider.fileOpen = false;
-		return true;
-
+		/*
+		 * JSONAnalyticsSensorProvider.fileOpen = true; PrintWriter writer; try { writer
+		 * = new PrintWriter(myFile, "UTF-8");
+		 * writer.print(this.cachedSensorData.toString(2)); writer.flush();
+		 * writer.close();
+		 * 
+		 * } catch (FileNotFoundException e) { OpenWareInstance.getInstance().
+		 * logError("Could not save analytics sensors file", e); e.printStackTrace();
+		 * return false; } catch (UnsupportedEncodingException e) {
+		 * OpenWareInstance.getInstance().
+		 * logError("Could not save analytics sensors file", e); e.printStackTrace();
+		 * return false; } finally { JSONAnalyticsSensorProvider.fileOpen = false; }
+		 * JSONAnalyticsSensorProvider.fileOpen = false; return true;
+		 */
+		return false;
 	}
 }

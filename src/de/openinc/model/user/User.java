@@ -76,6 +76,9 @@ public class User {
 	}
 
 	public boolean canAccessRead(String owner, String sensor) {
+		if (owner.equals("_owinternal") && sensor.equals("heartbeat")) {
+			return true;
+		}
 		if (sensor == null) {
 			permissions.serviceAccess(owner, "read");
 		}
@@ -170,7 +173,8 @@ public class User {
 
 	@Override
 	public boolean equals(Object obj) {
-		if(obj == null || !(obj instanceof User))return false;
-		return ((User)obj).getUID().equals(this.getUID());
+		if (obj == null || !(obj instanceof User))
+			return false;
+		return ((User) obj).getUID().equals(this.getUID());
 	}
 }

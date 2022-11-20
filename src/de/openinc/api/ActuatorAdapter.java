@@ -13,6 +13,7 @@ import java.util.concurrent.Future;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.Velocity;
 import org.apache.velocity.tools.generic.DateTool;
+import org.apache.velocity.tools.generic.EscapeTool;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -74,10 +75,13 @@ public abstract class ActuatorAdapter {
 			c.put("datasets", params.get("datasets"));
 			c.put("user", params.get("user"));
 			c.put("datetool", new DateTool());
+			c.put("esc", new EscapeTool());
 			final String templatedTarget = applyVelocityTemplate(target, c);
 			final String templatedTopic = applyVelocityTemplate(topic, c);
 			final String templatedPayload = applyVelocityTemplate(payload, c);
-			final JSONObject templatedOptions = new JSONObject(applyVelocityTemplate(options.toString(), c));
+			String json = options.toString();
+			String processed = applyVelocityTemplate(json, c);
+			final JSONObject templatedOptions = new JSONObject(processed);
 
 			return executor.submit(new Callable<Object>() {
 

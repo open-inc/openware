@@ -14,6 +14,7 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.servlet.ServletOutputStream;
@@ -22,12 +23,12 @@ import org.apache.commons.io.IOUtils;
 import org.json.JSONObject;
 
 import de.openinc.api.OpenWareAPI;
+import de.openinc.model.data.OpenWareDataItem;
 import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.helper.Config;
 import de.openinc.ow.helper.HTTPResponseHelper;
 import de.openinc.ow.middleware.services.DataService;
-
 
 public class AdminAPI implements OpenWareAPI {
 	/**
@@ -41,9 +42,6 @@ public class AdminAPI implements OpenWareAPI {
 	 * API constant to GET/POST Sensor Config
 	 */
 	public static final String SENSOR_CONFIG = "/sensors";
-
-	
-
 
 	@Override
 	public void registerRoutes() {
@@ -88,7 +86,7 @@ public class AdminAPI implements OpenWareAPI {
 						return 0;
 					}
 				}).limit(files).collect(Collectors.toList());
-				
+
 				BufferedOutputStream bout = new BufferedOutputStream(out);
 				for (String file : filteredFiles) {
 					File f = new File("logs" + File.separatorChar + file);
@@ -103,35 +101,66 @@ public class AdminAPI implements OpenWareAPI {
 				bout.flush();
 				return null;
 			});
-			
+
 			post(SENSOR_CONFIG, (req, res) -> {
 
 				User user = null;
 				if (Config.getBool("accessControl", true)) {
 					user = req.session().attribute("user");
 					if (user == null)
-						halt(403, "You need to log in to configure items");
+						return HTTPResponseHelper.generateResponse(res, 403, null,
+								"You need to log in to configure items");
 				}
 				try {
 					if (DataService.storeItemConfiguration(user, req.body())) {
-						return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_OK, "Stored configuration",null);
+						return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_OK,
+								"Stored configuration", null);
 					} else {
-						return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_INTERNAL_ERROR, null,"Could not store configuration");
+						return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_INTERNAL_ERROR, null,
+								"Could not store configuration");
 					}
 
 				} catch (org.json.JSONException e) {
 					OpenWareInstance.getInstance().logError("Malformed data posted to Sensor Config API\n" + req.body(),
 							e);
-					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_BAD_REQUEST, null,"Malformed data posted to Sensor Config API\n" +e.getMessage() );
-					
+					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_BAD_REQUEST, null,
+							"Malformed data posted to Sensor Config API\n" + e.getMessage());
+
 				} catch (SecurityException e2) {
-					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,"Not allowed to configure sensor\n" +e2.getMessage() );
-					
+					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_FORBIDDEN, null,
+							"Not allowed to configure sensor\n" + e2.getMessage());
+
 				}
+			});
+
+			get(SENSOR_CONFIG + "/:source", (req, res) -> {
+				User user = null;
+				String source = req.params("source");
+				if (Config.getBool("accessControl", true)) {
+					user = req.session().attribute("user");
+					if (user == null)
+						return HTTPResponseHelper.generateResponse(res, 403, null,
+								"You need to log in to configure items");
+				}
+				try {
+
+					return DataService.getItemConfiguration(user).values().stream()
+							.filter(new Predicate<OpenWareDataItem>() {
+
+								@Override
+								public boolean test(OpenWareDataItem t) {
+									return source == null || t.getSource().equals(source);
+								}
+							}).collect(Collectors.toList());
+				} catch (Exception e) {
+					return HTTPResponseHelper.generateResponse(res, 400, null, e.getMessage());
+				}
+
 			});
 
 			get(SENSOR_CONFIG, (req, res) -> {
 				User user = null;
+				String source = req.params("source");
 				if (Config.getBool("accessControl", true)) {
 					user = req.session().attribute("user");
 					if (user == null)
@@ -146,6 +175,7 @@ public class AdminAPI implements OpenWareAPI {
 				}
 
 			});
+
 			delete(SENSOR_CONFIG + "/:owner/:sensor", (req, res) -> {
 				User user = null;
 				if (Config.getBool("accessControl", true)) {
@@ -169,20 +199,19 @@ public class AdminAPI implements OpenWareAPI {
 					return "Malformed data posted to Sensor Config API\n" + req.body();
 				} catch (SecurityException e2) {
 					res.status(403);
-					return "No Permission \n" + e2.getMessage() +
-							"\n" +
-							req.body();
+					return "No Permission \n" + e2.getMessage() + "\n" + req.body();
 				}
 			});
 
 			get(GET_STATS, (req, res) -> {
+
 				return HTTPResponseHelper.generateResponse(res, 200, OpenWareInstance.getInstance().getState(), null);
 
 			});
 
 			get(GET_ANALYTIC_STATS, (req, res) -> {
 				JSONObject obj = new JSONObject();
-				//TODO: Replace Analytic sensor
+				// TODO: Replace Analytic sensor
 				return obj;
 			});
 

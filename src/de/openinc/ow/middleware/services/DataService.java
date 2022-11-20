@@ -11,15 +11,13 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
-import org.apache.commons.lang3.concurrent.ConcurrentUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -83,7 +81,7 @@ public class DataService {
 		handler = new ArrayList<>();
 		actuators = new HashMap<>();
 		itemConfigs = new HashMap<>();
-		pool = Executors.newFixedThreadPool(4);
+		pool = Executors.newFixedThreadPool(10);
 
 	}
 
@@ -334,9 +332,10 @@ public class DataService {
 		}
 		String id_source = item.getMeta().getString("id_source");
 
-		if (!user.canAccessWrite(owner, id_source)) {
+		if (!user.canAccessWrite(owner, id_source) || !user.canAccessRead(item.getSource(), item.getId())) {
 			throw new SecurityException(
-					"No Permission to configure item " + owner + Config.get("idSeperator", "---") + id_source);
+					"No Permission to configure base item " + owner + Config.get("idSeperator", "---") + id_source
+							+ " for target  " + item.getSource() + "---" + item.getId());
 		}
 		return item;
 	}
@@ -502,42 +501,37 @@ public class DataService {
 		return sub;
 	}
 
-	public static Future<List<CompletableFuture<Boolean>>> onNewData(String id, String data) {
+	public static CompletableFuture<CompletableFuture<Boolean>> onNewData(String id, String data) {
 		OpenWareInstance.getInstance().logData(System.currentTimeMillis(), id, data);
 		// MQTT-Seperator to AMQP seperator
 		id = id.replace("/", ".");
 		if (data != null && data.length() > 0) {
-			return pool.submit(new DataProcessTask(id, data));
+			return CompletableFuture.supplyAsync(new DataProcessTask(id, data, pool));
+
 		}
-		ArrayList<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
-		res.add(CompletableFuture.completedFuture(false));
-		return ConcurrentUtils.constantFuture(res);
+		return CompletableFuture.completedFuture(CompletableFuture.completedFuture(false));
 	}
 
-	public static Future<List<CompletableFuture<Boolean>>> onNewData(List<OpenWareDataItem> item) {
-		try {
-			if (item != null && item.size() > 0) {
-				return pool.submit(new DataProcessTask(item));
-			}
-		} catch (Exception e) {
-			OpenWareInstance.getInstance().logError("Exception while processing new Data \n", e);
-		}
-		ArrayList<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
-		res.add(CompletableFuture.completedFuture(false));
-		return ConcurrentUtils.constantFuture(res);
-	}
-
-	public static Future<List<CompletableFuture<Boolean>>> onNewData(OpenWareDataItem item) {
+	public static CompletableFuture<CompletableFuture<Boolean>> onNewData(List<OpenWareDataItem> item) {
 		try {
 			if (item != null) {
-				return pool.submit(new DataProcessTask(item));
+				return CompletableFuture.supplyAsync(new DataProcessTask(item, pool));
 			}
 		} catch (Exception e) {
 			OpenWareInstance.getInstance().logError("Exception while processing new Data \n", e);
 		}
-		ArrayList<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
-		res.add(CompletableFuture.completedFuture(false));
-		return ConcurrentUtils.constantFuture(res);
+		return CompletableFuture.completedFuture(CompletableFuture.completedFuture(false));
+	}
+
+	public static CompletableFuture<CompletableFuture<Boolean>> onNewData(OpenWareDataItem item) {
+		try {
+			if (item != null) {
+				return CompletableFuture.supplyAsync(new DataProcessTask(item, pool));
+			}
+		} catch (Exception e) {
+			OpenWareInstance.getInstance().logError("Exception while processing new Data \n", e);
+		}
+		return CompletableFuture.completedFuture(CompletableFuture.completedFuture(false));
 	}
 
 	protected static List<DataHandler> getHandler() {
@@ -736,11 +730,14 @@ public class DataService {
 			int dim = parameters.get("dimension").integerValue();
 			opts = new RetrievalOptions(mode, dim, maxAmount);
 		}
+
+		// Normal Sensor Data Request
 		if (ref != null && !ref.equals("")) {
 			data = getHistoricalSensorData(sensorName, source, timestamp, until, ref, opts);
 		} else {
 			data = getHistoricalSensorData(sensorName, source, timestamp, until, opts);
 		}
+
 		if (parameters.hasKey("filter")) {
 			try {
 				data = filter(parameters, data);
@@ -918,8 +915,16 @@ public class DataService {
 		}
 	}
 
-	public static JSONArray getStats() {
-		return adapter.getStats();
+	public static JSONObject getStats() {
+		List<OpenWareDataItem> items = DataService.getItems();
+		int sensors = items.size();
+		int datapoints = items.stream().mapToInt(item -> item.getValueTypes().size()).sum();
+		int liveOnly = items.stream().filter(item -> !item.persist()).mapToInt(item -> 1).sum();
+		JSONObject o = new JSONObject();
+		o.put("sensors", sensors);
+		o.put("datapoints", datapoints);
+		o.put("liveSensors", liveOnly);
+		return o;
 	}
 
 	public static OpenWareDataItem getLiveSensorData(String sensorID, String source) {
@@ -954,7 +959,12 @@ public class DataService {
 	}
 
 	protected static CompletableFuture<Boolean> storeData(OpenWareDataItem item) throws Exception {
-		return adapter.storeData(item);
+		if (item.value().size() > 0) {
+			return adapter.storeData(item);
+		} else {
+			return CompletableFuture.completedFuture(false);
+		}
+
 	}
 
 	protected static void setCurrentItem(OpenWareDataItem item) {
@@ -967,8 +977,7 @@ public class DataService {
 	public static String storeGenericData(String type, String key, JSONObject value) throws Exception {
 		String res = adapter.storeGenericData(type, key, value);
 		if (res != null) {
-			OpenWareInstance.getInstance().logDebug("Stored Generic Data " + type + ":" + res + "\n" + value);
-
+			OpenWareInstance.getInstance().logDebug("Stored Generic Data " + type + ":" + res + "::" + key);
 		}
 		return res;
 	}
@@ -1008,56 +1017,81 @@ public class DataService {
 
 }
 
-class DataProcessTask implements Callable<List<CompletableFuture<Boolean>>> {
+class DataProcessTask implements Supplier<CompletableFuture<Boolean>> {
 
 	private List<OpenWareDataItem> item;
 	private OpenWareDataItem singleItem;
 	private String id;
 	private String data;
+	private ExecutorService pool;
 
-	public DataProcessTask(List<OpenWareDataItem> item) {
+	public DataProcessTask(List<OpenWareDataItem> item, ExecutorService pool) {
 		this.item = item;
+		this.pool = pool;
 	}
 
-	public DataProcessTask(OpenWareDataItem sItem) {
+	public DataProcessTask(OpenWareDataItem sItem, ExecutorService pool) {
 		this.singleItem = sItem;
+		this.pool = pool;
 	}
 
-	public DataProcessTask(String id, String data) {
+	public DataProcessTask(String id, String data, ExecutorService pool) {
 		this.id = id;
 		this.data = data;
+		this.pool = pool;
 	}
 
 	@Override
-	public List<CompletableFuture<Boolean>> call() throws Exception {
-		if (item != null) {
+	public CompletableFuture<Boolean> get() {
+		List<CompletableFuture<Boolean>> results = null;
+		try {
 
-			return processItems(item);
-		}
-		if (singleItem != null) {
-			ArrayList<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
-			res.add(processItem(singleItem));
-			return res;
-
-		}
-		if (data != null) {
-			List<OpenWareDataItem> toProcess = null;
-			for (DataHandler dh : DataService.getHandler()) {
-				try {
-					toProcess = dh.handleData(id, data);
-					if (toProcess == null)
+			if (item != null) {
+				results = processItems(item);
+			}
+			if (singleItem != null) {
+				ArrayList<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
+				res.add(processItem(singleItem));
+				results = res;
+			}
+			if (data != null) {
+				List<OpenWareDataItem> toProcess = null;
+				for (DataHandler dh : DataService.getHandler()) {
+					try {
+						toProcess = dh.handleData(id, data);
+						if (toProcess == null)
+							continue;
+					} catch (Exception e) {
+						OpenWareInstance.getInstance().logError("Exception in Handler", e);
 						continue;
-				} catch (Exception e) {
-					OpenWareInstance.getInstance().logError("Exception in Handler", e);
-					continue;
+					}
+					results = processItems(toProcess);
 				}
-				return processItems(toProcess);
+
+			}
+			if (results == null) {
+				return CompletableFuture.completedFuture(false);
 			}
 
+			final List<CompletableFuture<Boolean>> resultsToCheck = results;
+
+			return CompletableFuture.supplyAsync(() -> {
+				boolean failed = resultsToCheck.stream().parallel().anyMatch(cf -> {
+					try {
+						return !cf.get();
+					} catch (Exception e) {
+						OpenWareInstance.getInstance().logError("Could not Process data", e);
+						return true;
+					}
+				});
+				return !failed;
+			}, pool);
+
+		} catch (Exception e) {
+			OpenWareInstance.getInstance().logError("Could not Process data", e);
+			return CompletableFuture.completedFuture(false);
 		}
-		ArrayList<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
-		res.add(CompletableFuture.completedFuture(false));
-		return res;
+
 	}
 
 	private List<CompletableFuture<Boolean>> processItems(List<OpenWareDataItem> items) throws Exception {
@@ -1077,6 +1111,7 @@ class DataProcessTask implements Callable<List<CompletableFuture<Boolean>>> {
 		}
 		return DataService.processNewData(item);
 	}
+
 }
 
 class SubscriberRunnable implements Runnable {

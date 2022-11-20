@@ -74,12 +74,36 @@
             </Policies>
              <DefaultRolloverStrategy max="10"/>
         </RollingFile>
+        <RollingFile name="persistence"
+            fileName="./logs/persistence.log"
+            filePattern="./logs/persistence-%i.log">
+            <PatternLayout>
+                <pattern>%d %p %C{1.} [%t] %m%n</pattern>
+            </PatternLayout>
+            <Policies>
+                <!-- rollover on startup, daily and when the file reaches 
+                    10 MegaBytes -->
+                <OnStartupTriggeringPolicy />
+                <SizeBasedTriggeringPolicy
+                    size="10 MB" />
+            </Policies>
+             <DefaultRolloverStrategy max="5"/>
+        </RollingFile>
+         
     </Appenders>
 
     <Loggers>
         <Logger name="openware" level="trace" additivity="false">
         	    <AppenderRef ref="Console" />
         	    <AppenderRef ref="RollingFile" />
+        </Logger>
+         <Logger name="accessLogger" level="trace" additivity="false">
+        	    <AppenderRef ref="Console" />
+        	    <AppenderRef ref="accessLogs" />
+        </Logger>
+        <Logger name="persistenceLogger" level="trace" additivity="false">
+        	    <AppenderRef ref="Console" />
+        	    <AppenderRef ref="persistence" />
         </Logger>
         <Logger name="errorLogger" level="warn" additivity="false">
         	    <AppenderRef ref="Console" />

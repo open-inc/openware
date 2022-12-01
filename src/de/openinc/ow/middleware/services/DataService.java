@@ -1,23 +1,25 @@
 package de.openinc.ow.middleware.services;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.ConcurrentModificationException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -36,7 +38,6 @@ import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.helper.Config;
 import de.openinc.ow.transformation.FilterTransformer;
-import spark.QueryParamsMap;
 
 /**
  * The DataService provides the central interface all data related actions of
@@ -81,7 +82,9 @@ public class DataService {
 		handler = new ArrayList<>();
 		actuators = new HashMap<>();
 		itemConfigs = new HashMap<>();
-		pool = Executors.newFixedThreadPool(10);
+		BasicThreadFactory factory = new BasicThreadFactory.Builder().namingPattern("openware-DataServiceThread-%d")
+				.daemon(false).priority(Thread.NORM_PRIORITY).build();
+		pool = Executors.newFixedThreadPool(Config.getInt("WORKPOOLSIZE", 16), factory);
 
 	}
 
@@ -370,6 +373,9 @@ public class DataService {
 		List<OpenWareDataItem> items = DataService.getItems(user);
 		HashMap<String, OpenWareDataItem> res = new HashMap<>();
 		for (OpenWareDataItem item : items) {
+			if (item.getId().equals("shelly_shelly1_e098069580da_device_wifiSignal")) {
+				System.out.println("here");
+			}
 			String id = item.getId();
 			String source = item.getSource();
 			if (item.getMeta().has("id_source")) {
@@ -502,7 +508,10 @@ public class DataService {
 	}
 
 	public static CompletableFuture<CompletableFuture<Boolean>> onNewData(String id, String data) {
-		OpenWareInstance.getInstance().logData(System.currentTimeMillis(), id, data);
+		if (Config.getBool("verbose", false)) {
+			OpenWareInstance.getInstance().logData(System.currentTimeMillis(), id, data);
+		}
+
 		// MQTT-Seperator to AMQP seperator
 		id = id.replace("/", ".");
 		if (data != null && data.length() > 0) {
@@ -549,7 +558,7 @@ public class DataService {
 		}
 	}
 
-	public static List<OpenWareDataItem> getItems(User user) {
+	public static List<OpenWareDataItem> getItems(User user, Set<String> sourceFilter) {
 
 		User cUser = user;
 		if (cUser == null) {
@@ -562,16 +571,27 @@ public class DataService {
 		ArrayList<OpenWareDataItem> items2return = new ArrayList<>();
 		while (it.hasNext()) {
 			OpenWareDataItem cItem = it.next();
-			if (cUser.canAccessRead(cItem.getSource(), cItem.getId())) {
+			boolean include = sourceFilter == null || sourceFilter.contains(cItem.getSource());
+			if (cUser.canAccessRead(cItem.getSource(), cItem.getId()) && include) {
 				items2return.add(cItem);
 			}
 		}
 		Map<String, OpenWareDataItem> analytics = AnalyticsService.getInstance().getAnalyticSensors(user); // TEST
 		if (analytics != null && analytics.size() > 0) {
-			items2return.addAll(analytics.values());
+			items2return.addAll(analytics.values().stream().filter(new Predicate<OpenWareDataItem>() {
+				@Override
+				public boolean test(OpenWareDataItem t) {
+					//
+					return sourceFilter == null || sourceFilter.contains(t.getSource());
+				}
+			}).collect(Collectors.toList()));
 		}
 		return items2return;
 
+	}
+
+	public static List<OpenWareDataItem> getItems(User user) {
+		return getItems(user, null);
 	}
 
 	public static List<OpenWareDataItem> getItems() {
@@ -618,11 +638,71 @@ public class DataService {
 
 	}
 
+	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp, long until,
+			Map<String, List<String>> parameters) {
+
+		String ref = null;
+		if (parameters.containsKey("reference")) {
+			ref = parameters.get("reference").get(0);
+		}
+
+		OpenWareDataItem data;
+		RetrievalOptions opts = null;
+		if (parameters.containsKey("mode")) {
+			String mode = parameters.get("mode").get(0);
+			int maxAmount = Integer.valueOf(parameters.get("maxValues").get(0));
+			int dim = Integer.valueOf(parameters.get("dimension").get(0));
+			opts = new RetrievalOptions(mode, dim, maxAmount);
+		}
+
+		// Normal Sensor Data Request
+		if (ref != null && !ref.equals("")) {
+			data = getHistoricalSensorData(sensorName, source, timestamp, until, ref, opts);
+		} else {
+			data = getHistoricalSensorData(sensorName, source, timestamp, until, opts);
+		}
+
+		if (parameters.containsKey("filter")) {
+			try {
+				data = filter(parameters.get("filter").get(0), data);
+			} catch (Exception e) {
+				OpenWareInstance.getInstance().logError("Error while filtering data", e);
+			}
+		}
+
+		if (!parameters.containsKey("mode")) {
+			return data;
+		}
+
+		String mode = parameters.get("mode").get(0);
+		int maxAmount = Integer.valueOf(parameters.get("maxValues").get(0));
+		int dim = Integer.valueOf(parameters.get("dimension").get(0));
+
+		if (maxAmount >= data.value().size()) {
+			return data;
+		}
+		if (!data.getValueTypes().get(dim).type().equals(OpenWareNumber.TYPE)) {
+			return data;
+		}
+		if (mode.toLowerCase().equals("minmax")) {
+			data.value(getMinMax(data, maxAmount, dim));
+			return data;
+		}
+		if (mode.toLowerCase().equals("minmax2")) {
+			data.value(getMinMaxOld(data, maxAmount, dim));
+			return data;
+		}
+
+		return data;
+
+	}
+
 	private static List<OpenWareValue> getMinMax(OpenWareDataItem data, int maxAmount, int dim) {
 		if (!data.getValueTypes().get(dim).type().toLowerCase().equals(OpenWareNumber.TYPE.toLowerCase()))
 			return data.value();
 		int bucketSize = (int) (data.value().size() / (double) (maxAmount / 2));
-		ArrayList<OpenWareValue> resNew = new ArrayList<OpenWareValue>();
+		ArrayList<OpenWareValue> res = new ArrayList<OpenWareValue>();
+		List<OpenWareValue> resNew = Collections.synchronizedList(res);
 		int i = 0;
 		Map<Integer, List<OpenWareValue>> groups = new HashMap<Integer, List<OpenWareValue>>();
 		while (i < data.value().size()) {
@@ -634,27 +714,23 @@ public class DataService {
 
 			@Override
 			public void accept(List<OpenWareValue> list) {
-				try {
-					OpenWareValue min = list.parallelStream().reduce(new BinaryOperator<OpenWareValue>() {
-						@Override
-						public OpenWareValue apply(OpenWareValue t, OpenWareValue u) {
-							return (double) t.get(dim).value() < (double) u.get(dim).value() ? t : u;
-						}
-					}).get();
-
-					OpenWareValue max = list.parallelStream().reduce(new BinaryOperator<OpenWareValue>() {
-						@Override
-						public OpenWareValue apply(OpenWareValue t, OpenWareValue u) {
-							return (double) t.get(dim).value() > (double) u.get(dim).value() ? t : u;
-						}
-					}).get();
-					synchronized (resNew) {
-						resNew.add(max);
-						resNew.add(min);
+				OpenWareValue currMax = null;
+				OpenWareValue currMin = null;
+				for (OpenWareValue t : list) {
+					if (currMax == null) {
+						currMax = t;
+						continue;
 					}
-				} catch (NoSuchElementException e) {
-					OpenWareInstance.getInstance().logError("No Result for Min/Max in Bucket", e);
+					if (currMin == null) {
+						currMin = t;
+						continue;
+					}
+					currMax = (double) currMax.get(dim).value() < (double) t.get(dim).value() ? t : currMax;
+					currMin = (double) currMin.get(dim).value() > (double) t.get(dim).value() ? t : currMin;
+
 				}
+				resNew.add(currMax);
+				resNew.add(currMin);
 
 			}
 
@@ -710,67 +786,11 @@ public class DataService {
 
 	}
 
-	private static OpenWareDataItem filter(QueryParamsMap params, OpenWareDataItem item) throws Exception {
+	private static OpenWareDataItem filter(String filter, OpenWareDataItem item) throws Exception {
 		FilterTransformer ft = new FilterTransformer();
 		JSONObject filterOpts = new JSONObject();
-		filterOpts.put("filterExpression", params.value("filter"));
+		filterOpts.put("filterExpression", filter);
 		return ft.apply(null, item, filterOpts).getResult();
-
-	}
-
-	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp, long until,
-			QueryParamsMap parameters) {
-
-		String ref = parameters.value("reference");
-		OpenWareDataItem data;
-		RetrievalOptions opts = null;
-		if (parameters.hasKey("mode")) {
-			String mode = parameters.value("mode");
-			int maxAmount = parameters.get("maxValues").integerValue();
-			int dim = parameters.get("dimension").integerValue();
-			opts = new RetrievalOptions(mode, dim, maxAmount);
-		}
-
-		// Normal Sensor Data Request
-		if (ref != null && !ref.equals("")) {
-			data = getHistoricalSensorData(sensorName, source, timestamp, until, ref, opts);
-		} else {
-			data = getHistoricalSensorData(sensorName, source, timestamp, until, opts);
-		}
-
-		if (parameters.hasKey("filter")) {
-			try {
-				data = filter(parameters, data);
-				System.gc();
-			} catch (Exception e) {
-				OpenWareInstance.getInstance().logError("Error while filtering data", e);
-			}
-		}
-
-		if (!parameters.hasKey("mode")) {
-			return data;
-		}
-
-		String mode = parameters.value("mode");
-		int maxAmount = parameters.get("maxValues").integerValue();
-		int dim = parameters.get("dimension").integerValue();
-
-		if (maxAmount >= data.value().size()) {
-			return data;
-		}
-		if (!data.getValueTypes().get(dim).type().equals(OpenWareNumber.TYPE)) {
-			return data;
-		}
-		if (mode.toLowerCase().equals("minmax")) {
-			data.value(getMinMax(data, maxAmount, dim));
-			return data;
-		}
-		if (mode.toLowerCase().equals("minmax2")) {
-			data.value(getMinMaxOld(data, maxAmount, dim));
-			return data;
-		}
-
-		return data;
 
 	}
 
@@ -854,7 +874,10 @@ public class DataService {
 		item = item.cloneItem();
 		item = applyItemConfiguration(item);
 		if (item == null) {
-			OpenWareInstance.getInstance().logDebug("Item was not stored after applying configuration");
+			if (Config.getBool("verbose", false)) {
+				OpenWareInstance.getInstance().logDebug("Item was not stored after applying configuration");
+			}
+
 			return CompletableFuture.completedFuture(true);
 		}
 
@@ -906,9 +929,10 @@ public class DataService {
 		if (Config.getBool("dbPersistValue", true) && item.persist()) {
 			return DataService.storeData(item);
 		} else {
-			OpenWareInstance.getInstance().logWarn("Item was not Stored due to configuration: " + item.getSource()
-					+ Config.get("idSeperator", "---") + item.getId());
+
 			if (Config.getBool("verbose", false)) {
+				OpenWareInstance.getInstance().logWarn("Item was not Stored due to configuration: " + item.getSource()
+						+ Config.get("idSeperator", "---") + item.getId());
 				OpenWareInstance.getInstance().logTrace("Item:" + item.toString());
 			}
 			return CompletableFuture.completedFuture(true);
@@ -977,7 +1001,7 @@ public class DataService {
 	public static String storeGenericData(String type, String key, JSONObject value) throws Exception {
 		String res = adapter.storeGenericData(type, key, value);
 		if (res != null) {
-			OpenWareInstance.getInstance().logDebug("Stored Generic Data " + type + ":" + res + "::" + key);
+			OpenWareInstance.getInstance().logDebug("Stored Generic Data " + type + ":" + res);
 		}
 		return res;
 	}

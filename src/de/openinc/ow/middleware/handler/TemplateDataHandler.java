@@ -1,6 +1,5 @@
 package de.openinc.ow.middleware.handler;
 
-
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -97,9 +96,7 @@ public class TemplateDataHandler implements DataHandler {
 			}
 
 		} catch (Exception e) {
-			OpenWareInstance.getInstance()
-					.logTrace(this.options.get(TYPE) + "-TemplateDataHandler could not handle data from " +
-								id);
+
 			OpenWareInstance.getInstance().logDebug("TEMPLATE_DATA_HANDLER " + e.getLocalizedMessage(), e);
 			return null;
 		}
@@ -121,8 +118,7 @@ public class TemplateDataHandler implements DataHandler {
 		return res;
 	}
 
-	private List<OpenWareValue> parseCSV(OpenWareDataItem item, String data)
-			throws Exception {
+	private List<OpenWareValue> parseCSV(OpenWareDataItem item, String data) throws Exception {
 		ArrayList<OpenWareValue> res = new ArrayList<>();
 		String sep = options.get(CSV_SEPERATOR);
 		String valIndexString = options.get(CSV_VALUE_INDEXES);
@@ -179,8 +175,7 @@ public class TemplateDataHandler implements DataHandler {
 		return res;
 	}
 
-	private List<OpenWareValue> parseJSONTVPair(OpenWareDataItem item, String data)
-			throws Exception {
+	private List<OpenWareValue> parseJSONTVPair(OpenWareDataItem item, String data) throws Exception {
 		ArrayList<OpenWareValue> res = new ArrayList<>();
 		JSONArray values = new JSONArray();
 		if (!data.startsWith("[")) {
@@ -200,8 +195,7 @@ public class TemplateDataHandler implements DataHandler {
 		return res;
 	}
 
-	private List<OpenWareValue> parseJSONTVArrayPair(OpenWareDataItem item, String data)
-			throws Exception {
+	private List<OpenWareValue> parseJSONTVArrayPair(OpenWareDataItem item, String data) throws Exception {
 		ArrayList<OpenWareValue> res = new ArrayList<>();
 		JSONArray values = new JSONArray();
 		if (!data.startsWith("[")) {

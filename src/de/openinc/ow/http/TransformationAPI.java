@@ -1,8 +1,8 @@
 package de.openinc.ow.http;
 
-import static spark.Spark.get;
-import static spark.Spark.path;
-import static spark.Spark.post;
+import static io.javalin.apibuilder.ApiBuilder.get;
+import static io.javalin.apibuilder.ApiBuilder.path;
+import static io.javalin.apibuilder.ApiBuilder.post;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -11,9 +11,11 @@ import de.openinc.api.OpenWareAPI;
 import de.openinc.api.TransformationOperation;
 import de.openinc.model.data.OpenWareDataItem;
 import de.openinc.model.user.User;
+import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.helper.Config;
 import de.openinc.ow.helper.HTTPResponseHelper;
 import de.openinc.ow.middleware.services.TransformationService;
+import io.javalin.validation.ValidationException;
 
 public class TransformationAPI implements OpenWareAPI {
 
@@ -21,67 +23,65 @@ public class TransformationAPI implements OpenWareAPI {
 	public void registerRoutes() {
 		path("/transform", () -> {
 
-			get("/:transformOp/:source/:sensor/:start/:end", (req, res) -> {
+			get("/{transformOp}/{source}/{sensor}/{start}/{end}", ctx -> {
 				JSONObject params = new JSONObject();
-				for (String key : req.queryParams()) {
-					params.put(key, req.queryParams(key));
+				for (String key : ctx.queryParamMap().keySet()) {
+					params.put(key, ctx.queryParam(key));
 				}
 				TransformationOperation op = TransformationService.getInstance()
-						.getOperation(req.params("transformOp"));
+						.getOperation(ctx.pathParam("transformOp"));
 				if (op == null) {
-					return HTTPResponseHelper.generateResponse(res, 403, null,
-							"Unkown operation " + req.params("transformOp"));
+					HTTPResponseHelper.badRequest("Unkown operation " + ctx.pathParam("transformOp"));
 				}
-				String source = req.params("source");
-				String sensor = req.params("sensor");
+				String source = ctx.pathParam("source");
+				String sensor = ctx.pathParam("sensor");
 				params.put("source", source);
 				params.put("id", sensor);
 
 				if (Config.getBool("accessControl", true)) {
-					User user = req.session().attribute("user");
+					User user = ctx.sessionAttribute("user");
 					if (user == null || !user.canAccessRead(source, sensor))
-						return HTTPResponseHelper.generateResponse(res, 403, null, "Not allowed to add data");
+						HTTPResponseHelper.forbidden("Not allowed to add data");
 				}
 
-				long start;
-				long end;
+				Long start = null;
+				Long end = null;
 				try {
-					start = Long.valueOf(req.params("start"));
-					end = Long.valueOf(req.params("end"));
-				} catch (NumberFormatException e) {
-					return HTTPResponseHelper.generateResponse(res, 422, null,
-							"Could not parse start/end time parameters!\n(" +	e.getMessage() +
-																				")");
+					start = ctx.pathParamAsClass("start", Long.class).get();
+					end = ctx.pathParamAsClass("end", Long.class).get();
+				} catch (ValidationException e) {
+					HTTPResponseHelper
+							.badRequest("Could not parse start/end time parameters!\n(" + e.getMessage() + ")");
 				}
 
 				params.put("start", start);
 				params.put("end", end);
-				int dim;
+
 				OpenWareDataItem res_data;
-				res_data = op.process(req.session().attribute("user"), null, params);
+				res_data = op.process(ctx.sessionAttribute("user"), null, params);
 
 				if (Config.getBool("accessControl", true) && res_data != null) {
-					User user = req.session().attribute("user");
+					User user = ctx.sessionAttribute("user");
 					if (user == null || !user.canAccessRead(res_data.getSource(), res_data.getId()))
-						return HTTPResponseHelper.generateResponse(res, 403, null, "Not allowed to add data");
+						HTTPResponseHelper.forbidden(
+								"Not allowed to read data " + res_data.getSource() + "---" + res_data.getId());
 				}
 				op = null;
-				return HTTPResponseHelper.generateResponse(res, 200, res_data.toJSON(), null);
+				HTTPResponseHelper.ok(ctx, res_data);
 			});
-			post("/pipe", (req, res) -> {
-				JSONObject body = new JSONObject(req.body());
+			post("/pipe", ctx -> {
+				JSONObject body = new JSONObject(ctx.body());
 				JSONArray stages = body.optJSONArray("stages");
-				User user = req.session().attribute("user");
+				User user = ctx.sessionAttribute("user");
 				if (stages == null) {
-					return HTTPResponseHelper.generateResponse(res, 422, null,
-							"Could not parse stages!");
+					HTTPResponseHelper.badRequest("Could not parse stages!");
 				}
 				try {
-					return HTTPResponseHelper.generateResponse(res, 200,
-							TransformationService.getInstance().pipeOperations(user, null, body).toJSON(), null);
+					HTTPResponseHelper.ok(ctx, TransformationService.getInstance().pipeOperations(user, null, body));
 
 				} catch (Exception e) {
-					return HTTPResponseHelper.generateResponse(res, 403, null, e.getMessage());
+					OpenWareInstance.getInstance().logError("Could not process transform pipeline", e);
+					HTTPResponseHelper.internalError("Could not process transform pipeline: " + e.getMessage());
 				}
 
 			});

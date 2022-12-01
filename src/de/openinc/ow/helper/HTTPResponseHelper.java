@@ -1,8 +1,13 @@
 package de.openinc.ow.helper;
 
-import org.json.JSONObject;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 
-import spark.Response;
+import de.openinc.ow.OpenWareInstance;
+import io.javalin.http.BadRequestResponse;
+import io.javalin.http.Context;
+import io.javalin.http.ForbiddenResponse;
+import io.javalin.http.InternalServerErrorResponse;
 
 public class HTTPResponseHelper {
 	public static int STATUS_OK = 200;
@@ -10,17 +15,24 @@ public class HTTPResponseHelper {
 	public static int STATUS_FORBIDDEN = 403;
 	public static int STATUS_BAD_REQUEST = 400;
 
-	public static JSONObject generateResponse(Response response, int statuscode, Object result, Object err) {
-		if (err instanceof Exception) {
-			err = ((Exception) err).getMessage();
-		}
-		JSONObject res = new JSONObject();
-		res.put("status", statuscode);
-		res.put("result", result);
-		res.put("err", err);
-		response.body(res.toString());
-		response.status(statuscode);
-		response.type("application/json");
-		return res;
+	public static void ok(Context ctx, Object result) {
+		Gson gson = OpenWareInstance.getInstance().getGSONInstance();
+		JsonObject res = new JsonObject();
+		res.addProperty("status", 200);
+		res.add("result", gson.toJsonTree(result));
+		ctx.json(res);
+		ctx.status(200);
+	}
+
+	public static void forbidden(String reason) {
+		throw new ForbiddenResponse(reason);
+	}
+
+	public static void internalError(String reason) {
+		throw new InternalServerErrorResponse(reason);
+	}
+
+	public static void badRequest(String reason) {
+		throw new BadRequestResponse(reason);
 	}
 }

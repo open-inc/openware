@@ -1,8 +1,9 @@
 package de.openinc.ow.http;
 
-import static spark.Spark.get;
-import static spark.Spark.post;
+import static io.javalin.apibuilder.ApiBuilder.get;
+import static io.javalin.apibuilder.ApiBuilder.post;
 
+import java.util.List;
 import java.util.Map;
 
 import org.json.JSONArray;
@@ -12,9 +13,9 @@ import de.openinc.api.OpenWareAPI;
 import de.openinc.model.data.OpenWareDataItem;
 import de.openinc.model.data.ReferenceDataItem;
 import de.openinc.model.user.User;
+import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.helper.HTTPResponseHelper;
 import de.openinc.ow.middleware.services.DataService;
-import spark.QueryParamsMap;
 
 public class ReferenceAPI implements OpenWareAPI {
 	public static String SERVICE_ACCESS_ID = "SERVICE_REFERENCE";
@@ -22,82 +23,67 @@ public class ReferenceAPI implements OpenWareAPI {
 
 	@Override
 	public void registerRoutes() {
-		get(REF_URL + "/:reference/:start/:end", (req, res) -> {
-			QueryParamsMap params = req.queryMap();
-			if (params.hasKey("sensor") && params.hasKey("source")) {
+		get(REF_URL + "/{reference}/{start}/{end}", ctx -> {
+			Map<String, List<String>> params = ctx.queryParamMap();
+			if (params.containsKey("sensor") && params.containsKey("source")) {
 				try {
 					ReferenceDataItem rdi = DataService.getReferenceAdapter().getReferencedData(
-							req.params("reference"),
-							req.session().attribute("user"), params.get("source").value(), params.get("sensor").value(),
-							Long.valueOf(req.params("start")),
-							Long.valueOf(req.params("end")));
-					return HTTPResponseHelper.generateResponse(res, 200, rdi.toJSON(), null);
+							ctx.pathParam("reference"), ctx.sessionAttribute("user"), params.get("source").get(0),
+							params.get("sensor").get(0), ctx.pathParamAsClass("start", Long.class).get(),
+							ctx.pathParamAsClass("end", Long.class).get());
+					HTTPResponseHelper.ok(ctx, rdi.toJSON());
 				} catch (Exception e) {
-					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_INTERNAL_ERROR, null, e);
+					OpenWareInstance.getInstance().logError("Reference Error", e);
+					HTTPResponseHelper.internalError("Could not retrieve referenced data: " + e.getCause());
 				}
 			} else {
 				try {
 					ReferenceDataItem rdi = DataService.getReferenceAdapter().getAllReferencedData(
-							req.params("reference"),
-							req.session().attribute("user"), Long.valueOf(req.params("start")),
-							Long.valueOf(req.params("end")));
-					return HTTPResponseHelper.generateResponse(res, 200, rdi.toJSON(), null);
+							ctx.pathParam("reference"), ctx.sessionAttribute("user"),
+							ctx.pathParamAsClass("start", Long.class).get(),
+							ctx.pathParamAsClass("end", Long.class).get());
+					HTTPResponseHelper.ok(ctx, rdi.toJSON());
 				} catch (Exception e) {
-					return HTTPResponseHelper.generateResponse(res, HTTPResponseHelper.STATUS_INTERNAL_ERROR, null, e);
+					HTTPResponseHelper.internalError("Could not retrieve referenced data: " + e.getCause());
 				}
 			}
 
 		});
 
-		get(REF_URL + "/:reference", (req, res) -> {
-			ReferenceDataItem rdi = DataService.getReferenceAdapter().getReferenceInfo(req.params("reference"),
-					req.session().attribute("user"));
-			return HTTPResponseHelper.generateResponse(res, 200, rdi.toJSON(), null);
+		get(REF_URL + "/{reference}", ctx -> {
+			ReferenceDataItem rdi = DataService.getReferenceAdapter().getReferenceInfo(ctx.pathParam("reference"),
+					ctx.sessionAttribute("user"));
+			HTTPResponseHelper.ok(ctx, rdi.toJSON());
 		});
 
-		get(REF_URL, (req, res) -> {
+		get(REF_URL, ctx -> {
 			JSONArray refs = new JSONArray();
 			Map<String, OpenWareDataItem> cRefs = DataService.getReferenceAdapter()
-					.getCurrentReferences(req.session().attribute("user"));
-			/*
-			Set<String> sources = DataService.getItems(req.session().attribute("user")).stream().map(item -> {
-				return item.getUser();
-			}).collect(Collectors.toSet());
-			
-			for (String ref : cRefs.keySet()) {
-				if (sources.contains(ref)) {
-					JSONObject toPut = new JSONObject();
-					toPut.put("item", cRefs.get(ref).toJSON());
-					toPut.put("reference", ref);
-					refs.put(toPut);
-				}
-			
-			}
-			*/
+					.getCurrentReferences(ctx.sessionAttribute("user"));
+
 			for (String ref : cRefs.keySet()) {
 				JSONObject toPut = new JSONObject();
 				toPut.put("item", cRefs.get(ref).toJSON());
 				toPut.put("reference", ref);
 				refs.put(toPut);
 			}
-			return HTTPResponseHelper.generateResponse(res, 200, refs, null);
+			HTTPResponseHelper.ok(ctx, refs);
 
 		});
 
-		post(REF_URL + "/:refid", (req, res) -> {
-			JSONObject body = new JSONObject(req.body());
-			String ref = req.params("refid");
+		post(REF_URL + "/{refid}", ctx -> {
+			JSONObject body = new JSONObject(ctx.body());
+			String ref = ctx.pathParam("refid");
 			if (!body.has("source")) {
-				return HTTPResponseHelper.generateResponse(res, 422, null, "Missing source parameter");
+				HTTPResponseHelper.badRequest("Missing source parameter");
 			}
 			String source = body.getString("source");
-			User user = (User) req.session().attribute("user");
+			User user = (User) ctx.sessionAttribute("user");
 			if (!user.canAccessWrite(SERVICE_ACCESS_ID, source)) {
-				return HTTPResponseHelper.generateResponse(res, 405, null,
-						"Missing access permission to set reference for " + source);
+				HTTPResponseHelper.forbidden("Missing access permission to set reference for " + source);
 			}
 			DataService.getReferenceAdapter().setReferenceGlobalReferenceForSource(source, ref);
-			return HTTPResponseHelper.generateResponse(res, 200, "Reference set for " + source, null);
+			HTTPResponseHelper.ok(ctx, "Reference set for " + source);
 		});
 	}
 

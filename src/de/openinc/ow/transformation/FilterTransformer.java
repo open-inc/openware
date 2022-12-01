@@ -36,7 +36,7 @@ public class FilterTransformer extends TransformationOperation {
 					return exp.getValue(holder, Boolean.class);
 				} catch (EvaluationException e) {
 					OpenWareInstance.getInstance()
-							.logTrace("Filter Error: " + e.getMessage() + "\n" + e.getCause().toString());
+							.logError("Filter Error: " + e.getMessage() + "\n" + e.getCause().toString());
 					return false;
 				}
 

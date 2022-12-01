@@ -1,11 +1,8 @@
 package de.openinc.ow.http;
 
-import static spark.Spark.post;
+import static io.javalin.apibuilder.ApiBuilder.post;
 
 import java.io.IOException;
-import java.io.OutputStream;
-
-import javax.servlet.http.HttpServletResponse;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -14,9 +11,10 @@ import de.openinc.api.OpenWareAPI;
 import de.openinc.api.ReportInterface;
 import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
+import de.openinc.ow.helper.HTTPResponseHelper;
 import de.openinc.ow.middleware.services.ReportsService;
-import spark.Request;
-import spark.Response;
+import io.javalin.http.Context;
+import jakarta.servlet.ServletOutputStream;
 
 public class ReportsAPI implements OpenWareAPI {
 	private ReportsService service;
@@ -27,76 +25,68 @@ public class ReportsAPI implements OpenWareAPI {
 
 	@Override
 	public void registerRoutes() {
-		post("/report/:type", (req, res) -> {
-			return handle(req, res);
+		post("/report/{type}", ctx -> {
+			handle(ctx);
 		});
 	}
 
-	public Object handle(Request request, Response response) throws Exception {
+	public void handle(Context ctx) throws Exception {
 
-		if (request.requestMethod().equals("POST")) {
-			return handlePost(request, response);
+		if (ctx.method().toString().toUpperCase().equals("POST")) {
+			handlePost(ctx);
 		}
-		return null;
+
 	}
 
-	private Object handlePost(Request request, Response response) {
-		User user = request.session().attribute("user");
+	private void handlePost(Context ctx) {
+		User user = ctx.sessionAttribute("user");
 		if (user == null) {
 			OpenWareInstance.getInstance().logError("No User Provided for report");// TODO Auto-generated catch block
-			response.status(300);
-			return "Please login to access reporting service";
+			HTTPResponseHelper.forbidden("Please login to access reporting service");
 		}
 
-		String reportType = request.params("type");
-		JSONObject params = new JSONObject(request.body());
+		String reportType = ctx.pathParam("type");
+		JSONObject params = new JSONObject(ctx.body());
 
 		if (!params.has("params")) {
-			response.status(500);
-			return "Post Body needs Parameter Object 'params' to configure report";
+			HTTPResponseHelper.badRequest("Request body needs parameter object 'params' to configure report");
 		}
 
 		Class<ReportInterface> clazz = service.getReportType(reportType);
 
 		try {
 
-			HttpServletResponse raw = response.raw();
-
-			OutputStream out = raw.getOutputStream();
+			ServletOutputStream out = ctx.res().getOutputStream();
 
 			ReportInterface rep = service.generateReport(params.getJSONObject("params"), clazz, out, user);
 
 			if (rep == null) {
 				out.flush();
-				out.close();
-				response.status(500);
-
 				OpenWareInstance.getInstance().logError(
-						"Could not generate report for user: " +	user +
-														" with params \n" +
-														params.toString(2));
-				return "Error while handling report";
+						"Could not generate report for user: " + user + " with params \n" + params.toString(2));
+				HTTPResponseHelper.badRequest(
+						"Could not generate report for user: " + user + " with params \n" + params.toString(2));
+
 			}
-			raw.setContentType(rep.getContentType());
-			raw.setHeader("Content-disposition", "attachment; filename=" + rep.getReportNameAndExtension());
+			ctx.contentType(rep.getContentType());
+			ctx.header("Content-disposition", "attachment; filename=" + rep.getReportNameAndExtension());
+
 			out.flush();
 			out.close();
 
 		} catch (IOException e) {
-			OpenWareInstance.getInstance().logError("Could not read/write data to target", e);// TODO Auto-generated catch block
-			response.status(500);
-			return e.getMessage();
+			OpenWareInstance.getInstance().logError("Could not read/write data to target", e);// TODO Auto-generated
+			HTTPResponseHelper.internalError("Could not read/write data to target\n" + e.getMessage());
 
 		} catch (JSONException e) {
 			OpenWareInstance.getInstance().logError("Parameter error", e);// TODO Auto-generated catch block
-			response.status(500);
-			return "Parameter error:\n" + e.getMessage();
+			HTTPResponseHelper.badRequest("Illegal Parameters provided " + e.getMessage());
+
 		} catch (Exception e) {
 			OpenWareInstance.getInstance().logError("Error while handling report", e);// TODO Auto-generated catch block
-			response.status(500);
-			return e.getMessage();
+			HTTPResponseHelper.internalError("Error while handling report\n" + e.getMessage());
 		}
-		return 200;
+
 	}
 
 }

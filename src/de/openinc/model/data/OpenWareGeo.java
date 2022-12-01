@@ -16,20 +16,21 @@ public class OpenWareGeo extends OpenWareValueDimension {
 
 	public OpenWareGeo(String name, String unit, JSONObject value) {
 		super(name, unit, "Geo");
-		OpenWareGeo temp=null;
+		OpenWareGeo temp = null;
 		try {
 			temp = checkValue(value);
 		} catch (Exception e) {
 			this.value = null;
-		} 
-		this.value = temp!=null?temp.value():null;
+		}
+		this.value = temp != null ? temp.value() : null;
 
 	}
+
 	public OpenWareGeo(String name, String unit, JSONObject value, boolean checkedGeometry) {
 		super(name, unit, "Geo");
-		if(checkedGeometry) {
-			this.value =value;	
-		}		
+		if (checkedGeometry) {
+			this.value = value;
+		}
 
 	}
 
@@ -49,8 +50,9 @@ public class OpenWareGeo extends OpenWareValueDimension {
 		return new OpenWareGeo(this.getName(), this.getUnit(), this.value, true);
 	}
 
-	private OpenWareGeo checkValue(Object value) throws Exception{
-		if(value==null) return null;
+	private OpenWareGeo checkValue(Object value) throws JSONException {
+		if (value == null)
+			return null;
 		try {
 			JSONObject obj = null;
 			if (value instanceof String) {
@@ -117,16 +119,16 @@ public class OpenWareGeo extends OpenWareValueDimension {
 				}
 				return null;
 			}
-			//NON GeoJSON Json Data
+			// NON GeoJSON Json Data
 			return null;
-		} catch (JSONException e) {
+		} catch (Exception e) {
 			OpenWareInstance.getInstance().logError("Tried parsing GeoJSON but was not valid\n" + value.toString(), e);
-			throw new IllegalArgumentException("The provided value needs to be a a GeoJSON Object but is " + value.toString());
+			throw new JSONException("The provided value needs to be a a GeoJSON Object but is " + value.toString());
 		}
 	}
-	
+
 	@Override
-	public OpenWareValueDimension createValueForDimension(Object value) throws Exception{
+	public OpenWareValueDimension createValueForDimension(Object value) throws JSONException {
 		return checkValue(value);
 
 	}

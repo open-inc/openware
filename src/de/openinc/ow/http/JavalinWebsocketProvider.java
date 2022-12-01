@@ -2,14 +2,11 @@ package de.openinc.ow.http;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 
 import org.eclipse.jetty.websocket.api.Session;
-import org.eclipse.jetty.websocket.api.annotations.OnWebSocketClose;
-import org.eclipse.jetty.websocket.api.annotations.OnWebSocketConnect;
-import org.eclipse.jetty.websocket.api.annotations.OnWebSocketMessage;
-import org.eclipse.jetty.websocket.api.annotations.WebSocket;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -19,31 +16,55 @@ import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.middleware.services.DataService;
 import de.openinc.ow.middleware.services.UserService;
+import io.javalin.websocket.WsConfig;
+import io.javalin.websocket.WsContext;
 
-@WebSocket
-public class SubscriptionProvider {
+public class JavalinWebsocketProvider {
 
-	private ConcurrentHashMap<String, List<Session>> sessions;
+	private ConcurrentHashMap<String, List<WsContext>> sessions;
 	private ExecutorService pool;
 	private DataSubscriber ds;
-	private UserService uService;
+	// private UserService uService;
 
-	public SubscriptionProvider() {
-		this.sessions = new ConcurrentHashMap();
+	public JavalinWebsocketProvider() {
+		this.sessions = new ConcurrentHashMap<String, List<WsContext>>();
 		this.pool = OpenWareInstance.getInstance().getCommonExecuteService();
-		this.uService = UserService.getInstance();
+		// this.uService = UserService.getInstance();
 		ds = new DataSubscriber() {
 
 			@Override
 			public void receive(OpenWareDataItem old, OpenWareDataItem item) throws Exception {
-				if (sessions.containsKey(item.getSource() + item.getId())) {
+				if (sessions.containsKey(item.getSource() + item.getId())
+						&& sessions.get(item.getSource() + item.getId()).size() > 0) {
 					// HashMap<String, List<Session>> tempSession = new HashMap<>();
 					// tempSession.putAll(sessions);
-					List<Session> relevantSessions = sessions.get(item.getSource() + item.getId());
-					if (relevantSessions.size() > 0) {
-						// pool.execute(new WSDeliverRunnable(relevantSessions, item));
-					}
 
+					List<WsContext> relevantSessions = new ArrayList();
+					relevantSessions.addAll(sessions.get(item.getSource() + item.getId()));
+					// new WSDeliver(relevantSessions, item)
+					CompletableFuture<List<WsContext>> cf = CompletableFuture.supplyAsync(() -> {
+						List<WsContext> errors = new ArrayList<WsContext>();
+						for (WsContext session : relevantSessions) {
+							try {
+								session.send(item.toString());
+							} catch (Exception e) {
+								OpenWareInstance.getInstance().logError("Error while sending via Websocket:\nUser: "
+										+ item.getSource() + "\nID: " + item.getId(), e);
+								errors.add(session);
+							}
+						}
+						return errors;
+					}, pool);
+					cf.whenComplete((res, ex) -> {
+						if (ex != null) {
+							OpenWareInstance.getInstance().logError(ex);
+						}
+						if (res.size() > 0) {
+							for (WsContext ctx : res) {
+								onClose(ctx, 0, "Connection lost");
+							}
+						}
+					});
 				}
 			}
 		};
@@ -51,27 +72,24 @@ public class SubscriptionProvider {
 
 	}
 
-	@OnWebSocketConnect
 	public void onConnect(Session user) throws Exception {
 		OpenWareInstance.getInstance().logDebug("User connected" + user.getRemoteAddress());
 	}
 
-	@OnWebSocketClose
-	public void onClose(Session wsSession, int statusCode, String reason) {
-		ConcurrentHashMap<String, List<Session>> tempSession = new ConcurrentHashMap();
+	public void onClose(WsContext wsSession, int statusCode, String reason) {
+		ConcurrentHashMap<String, List<WsContext>> tempSession = new ConcurrentHashMap();
 		tempSession.putAll(sessions);
 		for (String key : tempSession.keySet()) {
 			tempSession.get(key).remove(wsSession);
 		}
-		uService.removeUserSession(wsSession);
+		// uService.removeUserSession(wsSession);
 		sessions = tempSession;
-		OpenWareInstance.getInstance().logDebug("User " + wsSession.getRemoteAddress() + " disconnected");
+		OpenWareInstance.getInstance().logDebug("User " + wsSession.host() + " disconnected");
 		// sessions.get(user).stopThread();
 
 	}
 
-	@OnWebSocketMessage
-	public void onMessage(Session wsSession, String message) {
+	public void onMessage(WsContext wsSession, String message) {
 
 		JSONObject msg = new JSONObject(message);
 
@@ -93,10 +111,11 @@ public class SubscriptionProvider {
 			for (OpenWareDataItem item : items) {
 
 				if (sources.contains(item.getSource())) {
-					List<Session> cSessions = sessions.getOrDefault(item.getSource() + item.getId(), new ArrayList<>());
+					List<WsContext> cSessions = sessions.getOrDefault(item.getSource() + item.getId(),
+							new ArrayList<>());
 					cSessions.add(wsSession);
 					sessions.put(item.getSource() + item.getId(), cSessions);
-					uService.addUserSession(reqUser, wsSession);
+					// uService.addUserSession(reqUser, wsSession);
 					count++;
 				}
 
@@ -105,5 +124,17 @@ public class SubscriptionProvider {
 		}
 
 	}
+
+	public void registerWSforJavalin(WsConfig ws) {
+		ws.onConnect(ctx -> {
+			OpenWareInstance.getInstance().logDebug("User connected" + ctx.host());
+		});
+		ws.onMessage(ctx -> {
+			onMessage(ctx, ctx.message());
+		});
+		ws.onClose(ctx -> {
+			this.onClose(ctx, ctx.status(), ctx.reason());
+		});
+	};
 
 }

@@ -10,6 +10,7 @@ import java.util.List;
 
 import org.apache.commons.text.StringEscapeUtils;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import de.openinc.ow.helper.DataConversion;;
@@ -201,7 +202,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		this.source = source;
 	}
 
-	public static OpenWareDataItem fromJSON(JSONObject jobj) throws Exception {
+	public static OpenWareDataItem fromJSON(JSONObject jobj) throws JSONException {
 
 		ArrayList<OpenWareValueDimension> valueTypes = new ArrayList<>();
 		JSONArray vTypes = jobj.getJSONArray("valueTypes");
@@ -266,7 +267,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		return item;
 	}
 
-	public static OpenWareDataItem fromJSON(String data) throws Exception {
+	public static OpenWareDataItem fromJSON(String data) throws JSONException {
 
 		JSONObject jobj = new JSONObject(data);
 		return fromJSON(jobj);

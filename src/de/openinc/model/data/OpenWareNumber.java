@@ -1,17 +1,18 @@
 package de.openinc.model.data;
 
+import org.json.JSONException;
+
 public class OpenWareNumber extends OpenWareValueDimension {
 
 	public static final String TYPE = "Number";
-	double value;
+	private double value;
 
 	public OpenWareNumber(String name, String unit, Double value) {
 		super(name, unit, TYPE);
-		if (value == null) {
-			this.value = Double.NaN;
-		} else {
+		if (value != null) {
 			this.value = value;
 		}
+
 	}
 
 	@Override
@@ -31,22 +32,22 @@ public class OpenWareNumber extends OpenWareValueDimension {
 	}
 
 	@Override
-	public OpenWareValueDimension createValueForDimension(Object value) throws Exception{
+	public OpenWareValueDimension createValueForDimension(Object value) throws JSONException {
 		double val = Double.NaN;
 		if (value instanceof Number) {
 			val = ((Number) value).doubleValue();
 		}
 		if (Double.isNaN(val)) {
 			try {
-				val = Double.valueOf(("" + value));	
-			}catch(Exception e) {
+				val = Double.valueOf(("" + value));
+			} catch (Exception e) {
 				String exceptionCause = "The provided value needs to be a Number but is " + value.toString();
 				if (value instanceof Number) {
 					exceptionCause = "The provided value is invalid: " + val;
 				}
-				throw new IllegalArgumentException(exceptionCause);
+				throw new JSONException(exceptionCause);
 			}
-			
+
 		}
 		return new OpenWareNumber(getName(), getUnit(), val);
 	}

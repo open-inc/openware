@@ -1,8 +1,8 @@
 package de.openinc.ow.http;
 
-import static spark.Spark.delete;
-import static spark.Spark.get;
-import static spark.Spark.post;
+import static io.javalin.apibuilder.ApiBuilder.delete;
+import static io.javalin.apibuilder.ApiBuilder.get;
+import static io.javalin.apibuilder.ApiBuilder.post;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -12,73 +12,70 @@ import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.helper.HTTPResponseHelper;
 import de.openinc.ow.middleware.services.AnalyticsService;
-import spark.Request;
-import spark.Response;
+import io.javalin.http.Context;
 
 public class AnalyticsServiceAPI implements OpenWareAPI {
 	/**
 	 * API constant to get analytics data from the analytic services
 	 */
 	public static final String ANALYTICS = "/analytics";
-	public static final String ANALYTICS_DELETE = "/analytics/:id";
+	public static final String ANALYTICS_DELETE = "/analytics/{id}";
 
-	public Object handle(Request request, Response response) throws Exception {
-		if (request.requestMethod().equals("GET")) {
-			return handleGet(request, response);
+	public void handle(Context ctx) throws Exception {
+		if (ctx.method().toString().toUpperCase().equals("GET")) {
+			handleGet(ctx);
 		}
-		if (request.requestMethod().equals("POST")) {
-			return handlePost(request, response);
+		if (ctx.method().toString().toUpperCase().equals("POST")) {
+			handlePost(ctx);
 		}
-		return null;
+		HTTPResponseHelper.badRequest("Method " + ctx.method().toString() + " not supported by Analytics Endpoint");
 	}
 
-	private Object handlePost(Request request, Response response) {
-		JSONObject parameter = new JSONObject(request.body());
+	private void handlePost(Context ctx) {
+		JSONObject parameter = new JSONObject(ctx.body());
 		JSONObject vSensorObject = parameter.getJSONObject("parameters");
 		JSONObject acl = parameter.getJSONObject("acl");
 		AnalyticsService.getInstance().saveAnalyticSensor(vSensorObject, acl);
-		return HTTPResponseHelper.generateResponse(response, HTTPResponseHelper.STATUS_OK, vSensorObject, null);
+		HTTPResponseHelper.ok(ctx, vSensorObject);
 	}
 
-	private Object handleGet(Request request, Response response) {
-		User user = request.session().attribute("user");
+	private void handleGet(Context ctx) {
+		User user = ctx.sessionAttribute("user");
 		JSONObject result = new JSONObject();
 		result.put("results", AnalyticsService.getInstance().getAnalyticSensors(user).values());
-		return result;
+		ctx.json(result);
+
 	}
 
-	private Object handleDelete(Request request, Response response) {
-		User user = request.session().attribute("user");
-		String id = request.params("id");
+	private void handleDelete(Context ctx) {
+		User user = ctx.sessionAttribute("user");
+		String id = ctx.pathParam("id");
 		boolean success = AnalyticsService.getInstance().deleteSensor(user, id);
 
 		try {
 			if (success) {
-				return HTTPResponseHelper.generateResponse(response, HTTPResponseHelper.STATUS_OK,
-						"Successfully deleted " + id, null);
+				HTTPResponseHelper.ok(ctx, "Successfully deleted " + id);
 			} else {
-				return HTTPResponseHelper.generateResponse(response, HTTPResponseHelper.STATUS_BAD_REQUEST, null,
-						"Could not delete " + id);
+				HTTPResponseHelper.badRequest("Could not delete " + id);
 			}
 
 		} catch (JSONException e) {
 			OpenWareInstance.getInstance().logError("Delete Sensor Error: Could not delete sensor\n" + id, e);
-			return HTTPResponseHelper.generateResponse(response, HTTPResponseHelper.STATUS_BAD_REQUEST, null,
-					"Could not delete " + id);
+			HTTPResponseHelper.badRequest("Could not delete " + id);
 		}
 
 	}
 
 	@Override
 	public void registerRoutes() {
-		get(ANALYTICS, (req, res) -> {
-			return handle(req, res);
+		get(ANALYTICS, ctx -> {
+			handle(ctx);
 		});
-		post(ANALYTICS, (req, res) -> {
-			return handle(req, res);
+		post(ANALYTICS, ctx -> {
+			handle(ctx);
 		});
-		delete(ANALYTICS_DELETE, (req, res) -> {
-			return handleDelete(req, res);
+		delete(ANALYTICS_DELETE, ctx -> {
+			handleDelete(ctx);
 		});
 
 	}

@@ -7,7 +7,6 @@ import java.io.Writer;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import org.apache.velocity.VelocityContext;
@@ -163,7 +162,7 @@ public abstract class ActuatorAdapter {
 	public abstract String getType();
 
 	final public void init(JSONObject options, boolean really) throws Exception {
-		executor = Executors.newSingleThreadExecutor();
+		executor = OpenWareInstance.getInstance().getCommonExecuteService();
 		if (really)
 			init(options);
 	}

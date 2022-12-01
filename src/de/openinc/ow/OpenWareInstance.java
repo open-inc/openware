@@ -1,21 +1,8 @@
 package de.openinc.ow;
 
-import static spark.Spark.after;
-import static spark.Spark.before;
-import static spark.Spark.exception;
-import static spark.Spark.externalStaticFileLocation;
-import static spark.Spark.get;
-import static spark.Spark.halt;
-import static spark.Spark.init;
-import static spark.Spark.path;
-import static spark.Spark.port;
-import static spark.Spark.secure;
-import static spark.Spark.stop;
-import static spark.Spark.webSocket;
+import static io.javalin.apibuilder.ApiBuilder.path;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.lang.reflect.Type;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -24,12 +11,16 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.ServiceLoader;
 import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -37,10 +28,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import de.openinc.api.ActuatorAdapter;
 import de.openinc.api.AnalyticSensorProvider;
@@ -54,20 +49,20 @@ import de.openinc.api.ReportInterface;
 import de.openinc.api.TransformationOperation;
 import de.openinc.api.UserAdapter;
 import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareDataItemSerializer;
 import de.openinc.model.data.OpenWareNumber;
 import de.openinc.model.data.OpenWareValue;
 import de.openinc.model.data.OpenWareValueDimension;
 import de.openinc.model.user.User;
 import de.openinc.ow.helper.Config;
 import de.openinc.ow.helper.DataConversion;
-import de.openinc.ow.helper.HTTPResponseHelper;
 import de.openinc.ow.http.AdminAPI;
 import de.openinc.ow.http.AlarmAPI;
 import de.openinc.ow.http.AnalyticsServiceAPI;
+import de.openinc.ow.http.JavalinWebsocketProvider;
 import de.openinc.ow.http.MiddlewareApi;
 import de.openinc.ow.http.ReferenceAPI;
 import de.openinc.ow.http.ReportsAPI;
-import de.openinc.ow.http.SubscriptionProvider;
 import de.openinc.ow.http.TransformationAPI;
 import de.openinc.ow.http.UserAPI;
 import de.openinc.ow.middleware.services.AnalyticsService;
@@ -77,6 +72,10 @@ import de.openinc.ow.middleware.services.ReportsService;
 import de.openinc.ow.middleware.services.ServiceRegistry;
 import de.openinc.ow.middleware.services.TransformationService;
 import de.openinc.ow.middleware.services.UserService;
+import io.javalin.Javalin;
+import io.javalin.http.ForbiddenResponse;
+import io.javalin.http.staticfiles.Location;
+import io.javalin.json.JsonMapper;
 
 public class OpenWareInstance {
 	/**
@@ -103,12 +102,14 @@ public class OpenWareInstance {
 	Logger apiLogger;
 	Logger dataLogger;
 	private LoggerContext ctx;
-
+	private ExecutorService commonExecuteService;
 	private static OpenWareInstance me;
 	private ArrayList<OpenWareAPI> services;
 	private boolean running = false;
 	private JSONObject state;
 	private CompletableFuture<Boolean> started;
+	private Javalin javalinInstance;
+	private Gson gson;
 
 	public void logData(long ts, String topic, String msg) {
 		this.dataLogger.info("", "" + ts, topic, msg);
@@ -179,7 +180,9 @@ public class OpenWareInstance {
 		// this.infoLogger = LogManager.getRootLogger();
 		this.started = new CompletableFuture<Boolean>();
 		ctx = (LoggerContext) LogManager.getContext();
-
+		ThreadFactory factory = new ThreadFactoryBuilder().setDaemon(false).setNameFormat("openware-commonpool-%d")
+				.build();
+		this.commonExecuteService = Executors.newFixedThreadPool(4, factory);
 		this.apacheLogger = ctx.getConfiguration().getLoggerConfig("org.apache.http");
 		this.sparkLogger = ctx.getConfiguration().getLoggerConfig("spark");
 		this.jettyLogger = ctx.getConfiguration().getLoggerConfig("org.eclipse.jetty");
@@ -312,17 +315,8 @@ public class OpenWareInstance {
 		}
 		logInfo("Locale set to " + Locale.getDefault().toLanguageTag());
 
-		if (Config.getBool("enableWebserver", true)) {
-			logInfo("Initializing open.WARE v" + OpenWareInstance.getInstance().VERSION + " on port "
-					+ Config.getInt("sparkPort", 4567));
-			port(Integer.valueOf(Config.getInt("sparkPort", 4567)));
-
-			if (Config.getBool("sparkSSL", false)) {
-				OpenWareInstance.getInstance().logInfo(
-						"Setting up encryption. Warning: keystore file expires and has to be manually replaced.");
-				secure(Config.get("keystoreFilePath", "."), Config.get("keystorePassword", "pass"), null, null);
-			}
-		}
+		logInfo("Initializing open.WARE v" + OpenWareInstance.getInstance().VERSION + " on port "
+				+ Config.getInt("sparkPort", 4567));
 
 		// ------------------- Services & API --------------------
 		UserService userService = UserService.getInstance();
@@ -378,131 +372,121 @@ public class OpenWareInstance {
 		ReferenceAPI refApi = new ReferenceAPI();
 		OpenWareInstance.getInstance().registerService(refApi);
 
-		OpenWareInstance.getInstance()
-				.logTrace("[PlUGINS] " + "------------------Plugins loading...-------------------------");
-		// Plugins
-		loadPlugins();
-		OpenWareInstance.getInstance()
-				.logTrace("[PLUGINS] " + "------------------Plugins loaded...-------------------------");
 		OpenWareInstance.getInstance().logInfo("Using external file path: " + Config.get("publicHTTP", "app"));
-		externalStaticFileLocation(Config.get("publicHTTP", "app")); // index.html is served at localhost:4567 (default
-																		// port)
-		webSocket(LIVE_API, SubscriptionProvider.class);
+		// Gson gson = new GsonBuilder().serializeSpecialFloatingPointValues().create();
+		gson = new GsonBuilder().registerTypeAdapter(OpenWareDataItem.class, new OpenWareDataItemSerializer()).create();
+		JsonMapper gsonMapper = new JsonMapper() {
+			@Override
+			public String toJsonString(@NotNull Object obj, @NotNull Type type) {
+				return gson.toJson(obj, type);
+			}
 
-		after((req, res) -> {
-			Long started = req.session().attribute("request_started");
+			@Override
+			public <T> T fromJsonString(@NotNull String json, @NotNull Type targetType) {
+				return gson.fromJson(json, targetType);
+			}
+		};
+		javalinInstance = Javalin.create(config -> {
+			config.staticFiles.add(staticFiles -> {
+				staticFiles.location = Location.EXTERNAL;
+				staticFiles.directory = Config.get("publicHTTP", "app");
+			});
+
+			config.spaRoot.addFile("/", Config.get("publicHTTP", "app") + "/index.html", Location.EXTERNAL);
+			config.http.defaultContentType = "application/json";
+			config.jsonMapper(gsonMapper);
+			config.plugins.enableCors(cors -> {
+				cors.add(it -> {
+					it.anyHost();
+				});
+			});
+		}).routes(() -> {
+			OpenWareInstance.getInstance()
+					.logTrace("[PlUGINS] " + "------------------Plugins loading...-------------------------");
+			// Plugins
+			loadPlugins();
+			OpenWareInstance.getInstance()
+					.logTrace("[PLUGINS] " + "------------------Plugins loaded...-------------------------");
+
+			path("api", () -> {
+				for (OpenWareAPI os : services) {
+					os.registerRoutes();
+				}
+			});
+
+		}).ws(LIVE_API, ws -> {
+			JavalinWebsocketProvider jwp = new JavalinWebsocketProvider();
+			jwp.registerWSforJavalin(ws);
+		}).after(ctx -> {
+			Long started = ctx.sessionAttribute("request_started");
 			if (started != null) {
 				long ended = System.currentTimeMillis();
 				long duration = ended - started;
-				accessLogger.debug("[API-ACCESS][SOURCE:" + req.ip() + "][" + req.requestMethod() + "]" + req.pathInfo()
-						+ "handled in" + duration + "ms");
+				accessLogger.debug("[API-ACCESS][SOURCE:" + ctx.host() + "][" + ctx.method() + "]" + ctx.path()
+						+ "handled in " + duration + "ms");
 			}
 
-			if (req.url().contains("/api/transform")) {
+		}).before("/api/*", ctx -> {
+			accessLogger.debug("[API-ACCESS][SOURCE:" + ctx.host() + "][" + ctx.method() + "]" + ctx.path());
 
-				// System.gc();
+			// request.session(true);
+			if (Config.getBool("accessControl", true)) {
+				String method = ctx.method().toString().toLowerCase();
+				if (!method.equals("options")) {
+					boolean authorized = false;
+					User user;
+					if (ctx.queryParamMap().keySet().contains("username")
+							&& ctx.queryParamMap().keySet().contains("password")) {
+						user = UserService.getInstance().login(ctx.queryParam("username"), ctx.queryParam("password"));
+					} else {
+						Map<String, String> header = ctx.headerMap();
+
+						user = UserService.getInstance().checkAuth(ctx.header(UserAPI.OD_SESSION));
+					}
+
+					if (ctx.headerMap().keySet().contains("Authorization")
+							&& ctx.header("Authorization").startsWith("Bearer ")) {
+						user = UserService.getInstance().jwtToUser(ctx.header("Authorization").substring(7));
+						ctx.sessionAttribute("apiaccess", true);
+					}
+					authorized = user != null;
+
+					if (!authorized) {
+						throw new ForbiddenResponse("Not authorized");
+					}
+					ctx.sessionAttribute("user", user);
+					ctx.sessionAttribute("request_started", System.currentTimeMillis());
+
+				}
+
 			}
-
-		});
-
-		exception(Exception.class, (e, req, res) -> {
+		}).exception(Exception.class, (e, ctx) -> {
 			JSONObject details = new JSONObject();
 
 			JSONObject params = new JSONObject();
-			for (String key : req.params().keySet()) {
-				params.put(key, req.params(key));
+			for (String key : ctx.pathParamMap().keySet()) {
+				params.put(key, ctx.pathParam(key));
 			}
-			details.put("urlParams", params);
+			details.put("pathParams", params);
 
 			JSONObject queryP = new JSONObject();
-			for (String key : req.queryMap().toMap().keySet()) {
-				queryP.put(key, req.params(key));
+			for (String key : ctx.queryParamMap().keySet()) {
+				queryP.put(key, ctx.queryParam(key));
 			}
-			User user = (User) req.session().attribute("user");
+			User user = (User) ctx.sessionAttribute("user");
 			JSONObject uInfo = new JSONObject();
 			if (user != null) {
 				uInfo = user.toJSON();
 			}
 			details.put("queryParams", queryP);
-			details.put("url", req.url());
+			details.put("url", ctx.fullUrl());
 			details.put("user", uInfo);
 
-			OpenWareInstance.getInstance()
-					.logError("Error on " + req.url() + ": " + e.getLocalizedMessage() + "\n" + details.toString(2), e);
-			HTTPResponseHelper.generateResponse(res, 400, null, e.getMessage());
+			OpenWareInstance.getInstance().logError(
+					"Error on " + ctx.fullUrl() + ": " + e.getLocalizedMessage() + "\n" + details.toString(2), e);
+			// HTTPResponseHelper.generateResponse(ctx, 400, null, e.getMessage());
 		});
 
-		path("/api", () -> {
-			for (OpenWareAPI os : services) {
-				os.registerRoutes();
-			}
-		});
-
-		before("/api/*", (request, response) -> {
-			accessLogger.debug(
-					"[API-ACCESS][SOURCE:" + request.ip() + "][" + request.requestMethod() + "]" + request.pathInfo());
-			response.header("Access-Control-Allow-Origin", "*");
-
-			if (request.requestMethod().equals("OPTIONS")) {
-				String accessControlRequestHeaders = request.headers("Access-Control-Request-Headers");
-				if (accessControlRequestHeaders != null) {
-					response.header("Access-Control-Allow-Headers", accessControlRequestHeaders);
-				}
-
-				String accessControlRequestMethod = request.headers("Access-Control-Request-Method");
-				if (accessControlRequestMethod != null) {
-					response.header("Access-Control-Allow-Methods", accessControlRequestMethod);
-				}
-
-				response.status(200);
-				return;
-			}
-
-			// request.session(true);
-			if (Config.getBool("accessControl", true)) {
-				boolean authorized = false;
-				User user;
-				if (request.queryParams().contains("username") && request.queryParams().contains("password")) {
-					user = UserService.getInstance().login(request.queryParams("username"),
-							request.queryParams("password"));
-				} else {
-					user = UserService.getInstance().checkAuth(request.headers(UserAPI.OD_SESSION));
-				}
-
-				if (request.headers().contains("Authorization")
-						&& request.headers("Authorization").startsWith("Bearer ")) {
-					user = UserService.getInstance().jwtToUser(request.headers("Authorization").substring(7));
-					request.session().attribute("apiaccess", true);
-				}
-				authorized = user != null;
-				request.session().attribute("user", user);
-				request.session().attribute("request_started", System.currentTimeMillis());
-
-				if (!authorized) {
-					halt(HTTPResponseHelper
-							.generateResponse(response, HTTPResponseHelper.STATUS_FORBIDDEN, null, "Not authorized")
-							.toString());
-
-				}
-			}
-		}
-
-		);
-		String index;
-		try {
-			index = new String(Files.readAllBytes(Paths.get(Config.get("publicHTTP", "app") + "/index.html")));
-			get("*", (req, res) -> {
-				if (!req.pathInfo().startsWith("/static") && !req.pathInfo().startsWith("/subscription")) {
-					res.status(404);
-					return index;
-				}
-				return null;
-			});
-		} catch (IOException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
-		this.started.complete(true);
 		System.out.println("INSTANCE CREATED");
 
 	}
@@ -615,7 +599,8 @@ public class OpenWareInstance {
 	public void startInstance() {
 
 		if (!isRunning()) {
-			init();
+			this.started.complete(true);
+			javalinInstance.start(Config.getInt("sparkPort", 4567));
 			OpenWareInstance.getInstance().logInfo("Started WebServer...");
 			getInstance().awaitInitialization().whenComplete((success, error) -> {
 				startStatsMonitoring();
@@ -626,7 +611,7 @@ public class OpenWareInstance {
 
 	public void stopInstance() {
 		if (isRunning()) {
-			stop();
+			javalinInstance.close();
 		}
 		setRunning(false);
 	}
@@ -889,4 +874,11 @@ public class OpenWareInstance {
 		}
 	}
 
+	public ExecutorService getCommonExecuteService() {
+		return commonExecuteService;
+	}
+
+	public Gson getGSONInstance() {
+		return gson;
+	}
 }

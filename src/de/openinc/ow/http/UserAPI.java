@@ -1,7 +1,7 @@
 package de.openinc.ow.http;
 
-import static spark.Spark.get;
-import static spark.Spark.post;
+import static io.javalin.apibuilder.ApiBuilder.get;
+import static io.javalin.apibuilder.ApiBuilder.post;
 
 import org.json.JSONObject;
 
@@ -10,8 +10,7 @@ import de.openinc.model.user.User;
 import de.openinc.ow.helper.Config;
 import de.openinc.ow.helper.HTTPResponseHelper;
 import de.openinc.ow.middleware.services.UserService;
-import spark.Request;
-import spark.Response;
+import io.javalin.http.Context;
 
 public class UserAPI implements OpenWareAPI {
 
@@ -24,50 +23,49 @@ public class UserAPI implements OpenWareAPI {
 	/**
 	 * API constant to access User Management
 	 */
-	public static final String USER_API = "/users/:operation";
-	public static final String USER_API_OBJECT = "/users/:operation/:oid";
-	public static final String USER_API_ACCESS_OBJECT = "/users/:operation/:sourceid/:sensorid";
+	public static final String USER_API = "/users/{operation}";
+	public static final String USER_API_OBJECT = "/users/{operation}/{oid}";
+	public static final String USER_API_ACCESS_OBJECT = "/users/{operation}/{sourceid}/{sensorid}";
 
-	private Object handlePostData(Request request, Response response) {
-		String header = request.headers(OD_SESSION);
-		JSONObject parameter = new JSONObject(request.body());
+	private void handlePostData(Context ctx) {
+		String header = ctx.header(OD_SESSION);
+		JSONObject parameter = new JSONObject(ctx.body());
 		parameter.put(OD_SESSION, header);
-		String op = request.params("operation");
-		String key = request.params("oid");
+		String op = ctx.pathParam("operation");
+		String key = ctx.pathParam("oid");
 		switch (op) {
 		case OPERATION_DATA: {
 			boolean success = UserService.getInstance().storeData(header, parameter);
 			if (success) {
-				response.status(200);
-				return "Successfully saved value";
+				HTTPResponseHelper.ok(ctx, "Successfully saved value");
+				break;
 			} else {
-				response.status(400);
-				return "Could not save value";
+				HTTPResponseHelper.badRequest("Could not save value");
+				break;
 			}
 		}
 		default: {
-			response.status(400);
-			return "Unkown User Operation";
+			HTTPResponseHelper.badRequest("Unkown User Operation");
 		}
 		}
 
 	}
 
-	private Object handleUserGet(Request request, Response response) {
-		String op = request.params("operation");
-		String header = request.headers(OD_SESSION);
+	private void handleUserGet(Context ctx) {
+		String op = ctx.pathParam("operation");
+		String header = ctx.header(OD_SESSION);
 
 		switch (op) {
 		case OPERATION_ACCESS: {
 			User user = null;
 			if (Config.getBool("accessControl", true)) {
-				user = request.session().attribute("user");
+				user = ctx.sessionAttribute("user");
 				if (user == null)
-					return HTTPResponseHelper.generateResponse(response, 403, null,
-							"You need to signin before checking access!");
+					HTTPResponseHelper.forbidden("You need to login first");
 			}
-			String source = request.params("sourceid");
-			String sensor = request.params("sensorid");
+
+			String source = ctx.pathParam("sourceid");
+			String sensor = ctx.pathParam("sensorid");
 			JSONObject res = new JSONObject();
 			JSONObject access = new JSONObject();
 			res.put("user", user.getName());
@@ -77,80 +75,62 @@ public class UserAPI implements OpenWareAPI {
 			access.put("write", user.canAccessWrite(source, sensor));
 			access.put("delete", user.canAccessDelete(source, sensor));
 			res.put("access", access);
-			return HTTPResponseHelper.generateResponse(response, 200, res, null);
+			HTTPResponseHelper.ok(ctx, res);
+			break;
 		}
 		case OPERATION_ME: {
 			User user = UserService.getInstance().checkAuth(header);
 			if (user != null) {
-				response.status(200);
-				response.type("application/json");
-				return user.toString();
+				HTTPResponseHelper.ok(ctx, user);
+				break;
 			} else {
-				response.status(400);
-				return "Invalid Session Token";
+				HTTPResponseHelper.ok(ctx, "The provided session is invalid");
 			}
 		}
 		case OPERATION_LOGIN: {
-			String username = request.queryParams("username");
-			String pw = request.queryParams("password");
+			String username = ctx.queryParam("username");
+			String pw = ctx.queryParam("password");
 			User user = UserService.getInstance().login(username, pw);
 			if (user != null) {
-				response.status(200);
-				response.type("application/json");
-				return HTTPResponseHelper.generateResponse(response, 200, user.toJSON(), null);
+				HTTPResponseHelper.ok(ctx, user);
+				break;
 			} else {
-				return HTTPResponseHelper.generateResponse(response, 400, null, "Invalid Credentials");
+				HTTPResponseHelper.forbidden("Invalid Credentials");
 
 			}
 		}
 		case OPERATION_DATA: {
 			User user = UserService.getInstance().checkAuth(header);
 			if (user != null) {
-				response.status(200);
-				response.type("application/json");
-				return user.getData();
+				HTTPResponseHelper.ok(ctx, user.getData());
+				break;
 			} else {
-				response.status(400);
-				return "Invalid Session Token";
-			}
-		}
-		case OPERATION_SESSION_REFRESH: {
-			User user = UserService.getInstance().checkAuth(header);
-			if (user != null) {
-				UserService.getInstance().refreshUsers();
-				response.status(200);
-				return "Triggered Refresh";
-			} else {
-				response.status(400);
-				return "Invalid Session Token";
+				HTTPResponseHelper.forbidden("Not authorized");
 			}
 		}
 		default: {
-			response.status(400);
-			return "Unkown User Operation";
+			HTTPResponseHelper.badRequest("Invalid operation");
 		}
 		}
 
 	}
 
-	private Object handleSpecifcDataGet(Request request, Response response) {
-		String op = request.params("operation");
-		String key = request.params("oid");
-		String header = request.headers(OD_SESSION);
+	private void handleSpecifcDataGet(Context ctx) {
+		String op = ctx.pathParam("operation");
+		String key = ctx.pathParam("oid");
+		String header = ctx.header(OD_SESSION);
 		switch (op) {
 		case OPERATION_DATA: {
 			JSONObject value = UserService.getInstance().readData(header);
 			if (value != null) {
-				response.status(200);
-				return value;
+				HTTPResponseHelper.ok(ctx, value);
+				break;
 			} else {
-				response.status(400);
-				return "Error retrieving value; Check Session Token and Key for value";
+				HTTPResponseHelper.badRequest("Could not retrieve data");
 			}
 		}
 		default: {
-			response.status(400);
-			return "Unkown User Operation";
+			HTTPResponseHelper.badRequest("Invalid operation");
 		}
 		}
 
@@ -158,20 +138,20 @@ public class UserAPI implements OpenWareAPI {
 
 	@Override
 	public void registerRoutes() {
-		get(USER_API, (req, res) -> {
-			return handleUserGet(req, res);
+		get(USER_API, ctx -> {
+			handleUserGet(ctx);
 		});
 
-		get(USER_API_OBJECT, (req, res) -> {
-			return handleSpecifcDataGet(req, res);
+		get(USER_API_OBJECT, ctx -> {
+			handleSpecifcDataGet(ctx);
 		});
 
-		post(USER_API_OBJECT, (req, res) -> {
-			return handlePostData(req, res);
+		post(USER_API_OBJECT, ctx -> {
+			handlePostData(ctx);
 		});
 
-		get(USER_API_ACCESS_OBJECT, (req, res) -> {
-			return handleUserGet(req, res);
+		get(USER_API_ACCESS_OBJECT, (ctx) -> {
+			handleUserGet(ctx);
 		});
 
 	}

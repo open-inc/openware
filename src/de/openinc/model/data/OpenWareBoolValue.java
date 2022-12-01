@@ -1,5 +1,7 @@
 package de.openinc.model.data;
 
+import org.json.JSONException;
+
 public class OpenWareBoolValue extends OpenWareValueDimension {
 
 	Boolean value;
@@ -26,25 +28,35 @@ public class OpenWareBoolValue extends OpenWareValueDimension {
 	}
 
 	@Override
-	public OpenWareValueDimension createValueForDimension(Object value) throws Exception{
+	public OpenWareValueDimension createValueForDimension(Object value) throws JSONException {
 
-		Boolean val = null;
-		if (value instanceof Boolean) {
-			val = ((Boolean) value).booleanValue();
-		}
-		if (value instanceof String) {
-			val = Boolean.valueOf((String) value);
-		}
-		if (value instanceof Integer) {
-			val = ((Integer) value).intValue() >= 1;
-		}
-		if (value instanceof Double) {
-			val = ((Double) value).doubleValue() >= 1.0;
-		}
-		if (val == null)
-			throw new IllegalArgumentException("The provided value needs to be a boolean value,  a String (which will be parsed), or a number larger than 1 but is " + value);
+		try {
+			Boolean val = null;
+			if (value instanceof Boolean) {
+				val = ((Boolean) value).booleanValue();
+			}
+			if (value instanceof String) {
+				val = Boolean.valueOf((String) value);
+			}
+			if (value instanceof Integer) {
+				val = ((Integer) value).intValue() >= 1;
+			}
+			if (value instanceof Double) {
+				val = ((Double) value).doubleValue() >= 1.0;
+			}
+			if (val == null)
+				throw new JSONException(
+						"The provided value needs to be a boolean value,  a String (which will be parsed), or a number larger than 1 but is "
+								+ value);
 
-		return new OpenWareBoolValue(this.getName(), this.getUnit(), val);
+			return new OpenWareBoolValue(this.getName(), this.getUnit(), val);
+
+		} catch (Exception e) {
+			throw new JSONException(
+					"The provided value needs to be a boolean value,  a String (which will be parsed), or a number larger than 1 but is "
+							+ value,
+					e.getCause());
+		}
 
 	}
 

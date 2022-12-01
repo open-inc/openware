@@ -2,17 +2,12 @@ package de.openinc.ow.analytics.routes;
 
 import java.util.Map;
 
-import org.json.JSONObject;
-
 import de.openinc.ow.analytics.model.Dataset;
-import spark.Request;
-import spark.Response;
-import spark.Route;
 
 /**
  * Created by Martin on 18.10.2016.
  */
-public class DTWRoute implements Route {
+public class DTWRoute {
 
 	private static final String DAILY = "daily";
 	private static final String WEEKLY = "weekly";
@@ -23,6 +18,7 @@ public class DTWRoute implements Route {
 		datasets = current;
 	}
 
+	/*-
 	public Object handle(Request request, Response response) throws Exception {
 		JSONObject resp = new JSONObject();
 		JSONObject options = new JSONObject();
@@ -46,7 +42,7 @@ public class DTWRoute implements Route {
 					"Epoch " + request.params("epoch") + " not allowed. Use 'weekly', 'daily','hourly' instead.");
 			return resp.toString();
 		}
-
+	
 		Dataset before = datasets.get(request.params("name"));
 		if (before == null || before.size() == 0) {
 			resp.put("status", "error");
@@ -57,7 +53,8 @@ public class DTWRoute implements Route {
 		int index = 0;
 		//Dataset x = DataSplitter.convertToEpochInstances(before,epoch,index);
 		//DensityBasedSpatialClustering dbscan = new DensityBasedSpatialClustering();
-
+	
 		return null;
 	}
+	*/
 }

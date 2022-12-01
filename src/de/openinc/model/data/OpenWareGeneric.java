@@ -30,21 +30,26 @@ public class OpenWareGeneric extends OpenWareValueDimension {
 	}
 
 	@Override
-	public OpenWareValueDimension createValueForDimension(Object value) throws Exception {
-		if (value instanceof JSONObject) {
-			return new OpenWareGeneric(getName(), getUnit(), (JSONObject) value);
-		}
-		if (value instanceof String) {
-			try {
-				JSONObject o = new JSONObject((String) value);
-				return new OpenWareGeneric(getName(), getUnit(), o);
-			} catch (JSONException e) {
-				throw new IllegalArgumentException("The provided value needs to be a JSON-Object but is " + value.toString());
+	public OpenWareValueDimension createValueForDimension(Object value) throws JSONException {
+		try {
+			if (value instanceof JSONObject) {
+				return new OpenWareGeneric(getName(), getUnit(), (JSONObject) value);
+			}
+			if (value instanceof String) {
+				try {
+					JSONObject o = new JSONObject((String) value);
+					return new OpenWareGeneric(getName(), getUnit(), o);
+				} catch (JSONException e) {
+					throw new IllegalArgumentException(
+							"The provided value needs to be a JSON-Object but is " + value.toString());
+				}
+
 			}
 
+			throw new IllegalArgumentException(
+					"The provided value needs to be a JSON-Object but is " + value.toString());
+		} catch (Exception e) {
+			throw new JSONException(e);
 		}
-		
-		throw new IllegalArgumentException("The provided value needs to be a JSON-Object but is " + value.toString());
 	}
-
 }

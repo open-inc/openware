@@ -19,7 +19,8 @@ public class PersistActuator extends ActuatorAdapter {
 	@Override
 	protected Future<Boolean> processAction(String target, String topic, String payload, User user, JSONObject options,
 			List<OpenWareDataItem> optionalData, Object optionalTemplateOptions) throws Exception {
-		OpenWareInstance.getInstance().logTrace("Performing persist action\n" + options.toString(2));
+		// OpenWareInstance.getInstance().logTrace("Performing persist action\n" +
+		// options.toString(2));
 		CompletableFuture<Boolean>[] results = new CompletableFuture[optionalData.size()];
 		int i = 0;
 		for (OpenWareDataItem item : optionalData) {

@@ -24,26 +24,47 @@ import de.openinc.ow.middleware.services.UserService;
 
 public class AlarmMonitorThreadV2 {
 	private boolean RUNNING;
+	private final String ALARM_TRIGGER_STATE = "ALARM_TRIGGER_STATES";
 	private HashMap<String, JSONArray> alarms;
 	private HashMap<String, Long> sentTS;
 	private HashMap<String, Boolean> lastEventTriggered;
 	private HashMap<String, OpenWareDataItem> lastSentEventItem;
 	private long lastUpdate;
+	private String alarmStatesPersistenceID;
+	private boolean refreshing;
 
 	public AlarmMonitorThreadV2(JSONArray alarms) {
 		this.alarms = updateMonitors(alarms);
 		sentTS = new HashMap<>();
 		lastEventTriggered = new HashMap<String, Boolean>();
 		lastSentEventItem = new HashMap<>();
+		alarmStatesPersistenceID = null;
+		refreshing = false;
 		init();
 	}
 
 	public void init() {
+		try {
+			List<JSONObject> states = DataService.getGenericData(ALARM_TRIGGER_STATE, null);
+			if (states.size() <= 0) {
+				throw new Exception("No previous alarm trigger state found");
+			}
+			JSONObject lastState = states.get(0);
+			alarmStatesPersistenceID = lastState.getString("_id");
+			for (String key : lastState.keySet()) {
+				JSONObject cState = lastState.getJSONObject(key);
+				sentTS.put(key, cState.optLong("sent"));
+				lastEventTriggered.put(key, cState.optBoolean("lastTriggered"));
+			}
+		} catch (Exception e1) {
+			OpenWareInstance.getInstance().logError("Error retrieving Alarm States", e1);
+		}
 		DataService.addSubscription(new DataSubscriber() {
 
 			@Override
 			public void receive(OpenWareDataItem old, OpenWareDataItem item) throws Exception {
-
+				// An alarm exists... Better check if update is necessary
+				refresh();
 				OpenWareDataItem currentItem = item;
 				OpenWareDataItem lastReceivedItem = old;
 
@@ -59,8 +80,6 @@ public class AlarmMonitorThreadV2 {
 				if (alarm == null || alarm.length() == 0)
 					return;
 
-				OpenWareInstance.getInstance()
-						.logTrace("Checking Alarms triggered: " + item.getSource() + "." + item.getId());
 				for (int i = 0; i < alarm.length(); i++) {
 					JSONObject currentObj = alarm.getJSONObject(i);
 					String type = currentObj.getJSONObject("trigger").getString("type").toLowerCase();
@@ -480,10 +499,15 @@ public class AlarmMonitorThreadV2 {
 	}
 
 	public void refresh(boolean force) {
-		if (System.currentTimeMillis() - lastUpdate < 30000 && !force)
+		if (refreshing)
 			return;
+		refreshing = true;
+		if (System.currentTimeMillis() - lastUpdate < 30000 && !force) {
+			refreshing = false;
+			return;
+		}
 		OpenWareInstance.getInstance().logDebug("Refreshing alarms...");
-		List<JSONObject> alarmsCheck;
+		List<JSONObject> alarmsCheck = null;
 		try {
 			alarmsCheck = DataService.getGenericData(AlarmAPI.ALARMSV2, null);
 			JSONArray update = new JSONArray();
@@ -495,6 +519,23 @@ public class AlarmMonitorThreadV2 {
 			OpenWareInstance.getInstance().logWarn("Could not refresh alarms");
 		}
 
+		if (alarmsCheck != null) {
+			try {
+				JSONObject state = new JSONObject();
+				for (JSONObject o : alarmsCheck) {
+					JSONObject cState = new JSONObject();
+					cState.put("sent", sentTS.getOrDefault(o.getString("_id"), 0l));
+					cState.put("lastTriggered", lastEventTriggered.getOrDefault(o.getString("_id"), false));
+					state.put(o.getString("_id"), cState);
+				}
+
+				alarmStatesPersistenceID = DataService.storeGenericData(ALARM_TRIGGER_STATE, alarmStatesPersistenceID,
+						state);
+			} catch (Exception e) {
+				OpenWareInstance.getInstance().logError("Could not store alarm states", e);
+			}
+		}
+		refreshing = false;
 	}
 
 	/*

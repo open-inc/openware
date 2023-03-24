@@ -59,8 +59,7 @@ public class ReportsService {
 	}
 
 	public ReportInterface generateReport(JSONObject params, Class<ReportInterface> reportType, OutputStream out,
-			User user,
-			List<OpenWareDataItem> preloadedData) {
+			User user, List<OpenWareDataItem> preloadedData) {
 		JSONObject parameter = params;
 		ReportInterface clazz;
 
@@ -68,37 +67,34 @@ public class ReportsService {
 			ReportInterface o = reportType.newInstance();
 			clazz = o;
 			clazz.init(parameter, user);
+
+			List<OpenWareDataItem> data = clazz.getData(parameter);
+			if (Config.getBool("accessControl", true)) {
+				Iterator<OpenWareDataItem> it = data.iterator();
+				while (it.hasNext()) {
+					OpenWareDataItem item = it.next();
+					if (!user.canAccessRead(item.getSource(), item.getId())) {
+						OpenWareInstance.getInstance().logError(user.getName()
+								+ "tried to access data without permission:" + item.getSource() + ":" + item.getId());
+						it.remove();
+					}
+				}
+
+			}
+			if (preloadedData == null) {
+				preloadedData = new ArrayList<OpenWareDataItem>();
+			}
+			preloadedData.addAll(data);
 		} catch (Exception e1) {
-			OpenWareInstance.getInstance().logError("Error while handling report", e1);// TODO Auto-generated catch block
+			OpenWareInstance.getInstance().logError("Error while handling report", e1);// TODO Auto-generated catch
+																						// block
 
 			return null;
 		}
-
-		List<OpenWareDataItem> data = clazz.getData(parameter);
-		if (Config.getBool("accessControl", true)) {
-			Iterator<OpenWareDataItem> it = data.iterator();
-			while (it.hasNext()) {
-				OpenWareDataItem item = it.next();
-				if (!user.canAccessRead(item.getSource(), item.getId())) {
-					OpenWareInstance.getInstance()
-							.logError(user.getName() +	"tried to access data without permission:" +
-										item.getSource() +
-										":" +
-										item.getId());
-					it.remove();
-				}
-			}
-
-		}
-		if (preloadedData == null) {
-			preloadedData = new ArrayList<OpenWareDataItem>();
-		}
-		preloadedData.addAll(data);
 		try {
 			clazz.generate(out, preloadedData);
 		} catch (Exception e) {
-			OpenWareInstance.getInstance().logError("Report generation error:\n" +	clazz.getClass().toString() +
-													"\n",
+			OpenWareInstance.getInstance().logError("Report generation error:\n" + clazz.getClass().toString() + "\n",
 					e);
 			return null;
 		}

@@ -22,7 +22,7 @@ public abstract class ReportInterface {
 
 	public abstract ReportInterface generate(OutputStream out, List<OpenWareDataItem> data) throws Exception;
 
-	public abstract List<OpenWareDataItem> getData(JSONObject opts);
+	public abstract List<OpenWareDataItem> getData(JSONObject opts) throws Exception;
 
 	public abstract String getReportNameAndExtension();
 

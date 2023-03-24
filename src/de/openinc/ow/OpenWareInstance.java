@@ -83,7 +83,7 @@ public class OpenWareInstance {
 	 */
 	public static final String LIVE_API = "/subscription";
 
-	public String VERSION = "1.00";
+	public String VERSION = "2.00";
 
 	protected Logger logger;
 
@@ -330,7 +330,8 @@ public class OpenWareInstance {
 		DataService.init();
 		DataService.setPersistenceAdapter(loadPersistenceAdapter());
 		DataService.setReferenceAdapter(loadReferenceAdapterAdapter());
-		AnalyticsService.getInstance().setSensorProvider(loadAnalyticSensorProvider());
+		OpenWareInstance.getInstance().logTrace("[ANALYTICS API] " + "Middleware loading...");
+		loadAnalyticSensorProvider();
 
 		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Middleware loading...");
 		// Middleware Data API
@@ -491,14 +492,19 @@ public class OpenWareInstance {
 
 	}
 
-	private AnalyticSensorProvider loadAnalyticSensorProvider() {
+	private void loadAnalyticSensorProvider() {
 		ServiceLoader<AnalyticSensorProvider> loader = ServiceLoader.load(AnalyticSensorProvider.class);
 		try {
-			AnalyticSensorProvider provider = loader.iterator().next();
-			logInfo("Loaded AnalyticSensorProvider: " + provider.getClass().toString());
-			return provider;
+			Iterator<AnalyticSensorProvider> iterator = loader.iterator();
+			while (iterator.hasNext()) {
+				AnalyticSensorProvider provider = iterator.next();
+				AnalyticsService.getInstance().addSensorProvider(provider);
+				logInfo("Loaded AnalyticSensorProvider: " + provider.getClass().toString());
+
+			}
+
 		} catch (NoSuchElementException e) {
-			return null;
+			logInfo("No Analytic Providers Loaded!");
 		}
 
 	}

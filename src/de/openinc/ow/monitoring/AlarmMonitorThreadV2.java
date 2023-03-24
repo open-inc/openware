@@ -21,6 +21,7 @@ import de.openinc.ow.helper.Config;
 import de.openinc.ow.http.AlarmAPI;
 import de.openinc.ow.middleware.services.DataService;
 import de.openinc.ow.middleware.services.UserService;
+import de.openinc.ow.monitoring.Condition.ConditionValueHolder;
 
 public class AlarmMonitorThreadV2 {
 	private boolean RUNNING;
@@ -63,7 +64,8 @@ public class AlarmMonitorThreadV2 {
 
 			@Override
 			public void receive(OpenWareDataItem old, OpenWareDataItem item) throws Exception {
-				// An alarm exists... Better check if update is necessary
+				// Update Alarms regularly to make sure alarms that have been added through
+				// other systems will be recognized
 				refresh();
 				OpenWareDataItem currentItem = item;
 				OpenWareDataItem lastReceivedItem = old;
@@ -83,9 +85,11 @@ public class AlarmMonitorThreadV2 {
 				for (int i = 0; i < alarm.length(); i++) {
 					JSONObject currentObj = alarm.getJSONObject(i);
 					String type = currentObj.getJSONObject("trigger").getString("type").toLowerCase();
+					Rule mainRule = Rule.fromJSON(currentObj.getJSONObject("trigger"));
 					boolean lastTriggered = lastEventTriggered.getOrDefault(currentObj.getString("_id"), false);
 					boolean triggered = false;
 
+					/*-
 					if (type.equals("always") || type.endsWith("_always")) {
 						triggered = true;
 					} else if (type.startsWith("number") || type.equals("min") || type.equals("max")
@@ -98,25 +102,40 @@ public class AlarmMonitorThreadV2 {
 					} else if (type.startsWith("timestamp")) {
 						triggered = checkTimestamp(currentObj, currentItem, lastReceivedItem);
 					}
-
-					long checkedTS = System.currentTimeMillis();
-
+					*/
+					int dim = currentObj.getInt("item_dimension");
+					Object currentValue = null;
+					Object lastValue = null;
+					if (currentItem.value().size() > 0 && currentItem.value().get(0) != null
+							&& currentItem.value().get(0).get(dim) != null) {
+						currentValue = currentItem.value().get(0).get(dim).value();
+					}
 					String ownerField = "owner";
 					if (!currentObj.has("owner")) {
 						ownerField = "user";
 					}
 					User toNotify = UserService.getInstance()
 							.getUserByUID(currentObj.getJSONObject(ownerField).getString("objectId"));
+
+					if (lastReceivedItem.value().size() > 0 && lastReceivedItem.value().get(0) != null
+							&& lastReceivedItem.value().get(0).get(dim) != null) {
+						lastValue = lastReceivedItem.value().get(0).get(dim).value();
+					}
+					triggered = mainRule.check(currentValue, lastValue, null);
+
 					JSONObject conditions = currentObj.optJSONObject("condition");
 					boolean conditionsMet = false;
 					try {
-						conditionsMet = conditions == null
-								|| checkConditionalRule(currentObj, conditions, item, toNotify);
+						conditionsMet = conditions == null || Condition.fromJSON(conditions, toNotify).checkCondition(
+								new ConditionValueHolder(currentItem, dim),
+								new ConditionValueHolder(lastReceivedItem, dim));
 					} catch (Exception e) {
+						e.printStackTrace();
 						OpenWareInstance.getInstance()
 								.logWarn("Could not evaluate alarm conditions due to error\n" + e.getMessage());
 						return;
 					}
+					long checkedTS = System.currentTimeMillis();
 
 					if (triggered && conditionsMet) {
 						// Alarm was triggered
@@ -379,7 +398,7 @@ public class AlarmMonitorThreadV2 {
 
 	private boolean checkString(JSONObject currentObj, OpenWareDataItem currentItem, OpenWareDataItem lastItem) {
 		int dimension = currentObj.getInt("item_dimension");
-		if (!currentObj.getJSONObject("trigger").has("string_match"))
+		if (!currentObj.getJSONObject("trigger").has("string"))
 			return false;
 
 		String currentValue = currentItem.value().get(0).get(dimension).value().toString().toLowerCase();
@@ -506,9 +525,10 @@ public class AlarmMonitorThreadV2 {
 			refreshing = false;
 			return;
 		}
-		OpenWareInstance.getInstance().logDebug("Refreshing alarms...");
+
 		List<JSONObject> alarmsCheck = null;
 		try {
+			OpenWareInstance.getInstance().logDebug("Refreshing alarms...");
 			alarmsCheck = DataService.getGenericData(AlarmAPI.ALARMSV2, null);
 			JSONArray update = new JSONArray();
 			for (JSONObject o : alarmsCheck) {

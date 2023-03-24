@@ -24,7 +24,6 @@ import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.helper.Config;
 import de.openinc.ow.helper.HTTPResponseHelper;
-import de.openinc.ow.middleware.services.AnalyticsService;
 import de.openinc.ow.middleware.services.DataService;
 import io.javalin.http.Context;
 import io.javalin.validation.ValidationException;
@@ -193,18 +192,15 @@ public class MiddlewareApi implements OpenWareAPI {
 				Long timestampStart = ctx.pathParamAsClass("timestampStart", Long.class).get();
 				Long timestampEnd = ctx.pathParamAsClass("timestampEnd", Long.class).get();
 				OpenWareDataItem item;
-				if (sensorid.startsWith(Config.get("analyticPrefix", "analytic."))) {
-					item = AnalyticsService.getInstance().handle(user, sensorid, timestampStart, timestampEnd);
+
+				if (ctx.queryParamMap().size() > 0) {
+
+					item = DataService.getHistoricalSensorData(sensorid, source, timestampStart, timestampEnd,
+							ctx.queryParamMap());
 				} else {
-					if (ctx.queryParamMap().size() > 0) {
-
-						item = DataService.getHistoricalSensorData(sensorid, source, timestampStart, timestampEnd,
-								ctx.queryParamMap());
-					} else {
-						item = DataService.getHistoricalSensorData(sensorid, source, timestampStart, timestampEnd);
-					}
-
+					item = DataService.getHistoricalSensorData(sensorid, source, timestampStart, timestampEnd);
 				}
+
 				if (item == null) {
 					ctx.json(new JSONObject());
 				} else {
@@ -272,7 +268,8 @@ public class MiddlewareApi implements OpenWareAPI {
 
 		}
 
-		OpenWareInstance.getInstance().logDebug("Received getItems request for " + filter.size() + " source(s)");
+		OpenWareInstance.getInstance()
+				.logDebug("Received getItems request for " + (filter == null ? "all" : filter.size()) + " source(s)");
 
 		Collection<OpenWareDataItem> items = DataService.getItems(user, filter);
 

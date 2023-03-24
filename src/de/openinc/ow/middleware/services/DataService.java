@@ -567,6 +567,16 @@ public class DataService {
 
 		ArrayList<OpenWareDataItem> cItems = new ArrayList<OpenWareDataItem>();
 		cItems.addAll(items.values());
+		Map<String, OpenWareDataItem> analytics = AnalyticsService.getInstance().getAnalyticSensors();
+		if (analytics != null && analytics.size() > 0) {
+			cItems.addAll(analytics.values().stream().filter(new Predicate<OpenWareDataItem>() {
+				@Override
+				public boolean test(OpenWareDataItem t) {
+					//
+					return sourceFilter == null || sourceFilter.contains(t.getSource());
+				}
+			}).collect(Collectors.toList()));
+		}
 		Iterator<OpenWareDataItem> it = cItems.iterator();
 		ArrayList<OpenWareDataItem> items2return = new ArrayList<>();
 		while (it.hasNext()) {
@@ -576,16 +586,7 @@ public class DataService {
 				items2return.add(cItem);
 			}
 		}
-		Map<String, OpenWareDataItem> analytics = AnalyticsService.getInstance().getAnalyticSensors(user); // TEST
-		if (analytics != null && analytics.size() > 0) {
-			items2return.addAll(analytics.values().stream().filter(new Predicate<OpenWareDataItem>() {
-				@Override
-				public boolean test(OpenWareDataItem t) {
-					//
-					return sourceFilter == null || sourceFilter.contains(t.getSource());
-				}
-			}).collect(Collectors.toList()));
-		}
+
 		return items2return;
 
 	}
@@ -610,10 +611,18 @@ public class DataService {
 		return adapter.updateData(item);
 	}
 
-	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp,
-			long until) {
+	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp, long until)
+			throws Exception {
+		return getHistoricalSensorDataWithUser(sensorName, source, timestamp, until, null);
+	}
 
-		return adapter.historicalData(sensorName, source, timestamp, until, null, null);
+	public static OpenWareDataItem getHistoricalSensorDataWithUser(String sensorName, String source, long timestamp,
+			long until, User user) throws Exception {
+		if (sensorName.startsWith(Config.get("analyticPrefix", "analytic."))) {
+			return AnalyticsService.getInstance().handle(user, sensorName, timestamp, until);
+		} else {
+			return adapter.historicalData(sensorName, source, timestamp, until, null, null);
+		}
 
 	}
 
@@ -639,7 +648,12 @@ public class DataService {
 	}
 
 	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp, long until,
-			Map<String, List<String>> parameters) {
+			Map<String, List<String>> parameters) throws Exception {
+		return getHistoricalSensorData(sensorName, source, timestamp, until, parameters, null);
+	}
+
+	public static OpenWareDataItem getHistoricalSensorData(String sensorName, String source, long timestamp, long until,
+			Map<String, List<String>> parameters, User user) throws Exception {
 
 		String ref = null;
 		if (parameters.containsKey("reference")) {
@@ -656,10 +670,15 @@ public class DataService {
 		}
 
 		// Normal Sensor Data Request
-		if (ref != null && !ref.equals("")) {
-			data = getHistoricalSensorData(sensorName, source, timestamp, until, ref, opts);
+		if (sensorName.startsWith(Config.get("analyticPrefix", "analytic."))) {
+			data = AnalyticsService.getInstance().handle(user, sensorName, timestamp, until);
 		} else {
-			data = getHistoricalSensorData(sensorName, source, timestamp, until, opts);
+			if (ref != null && !ref.equals("")) {
+				data = getHistoricalSensorData(sensorName, source, timestamp, until, ref, opts);
+			} else {
+				data = getHistoricalSensorData(sensorName, source, timestamp, until, opts);
+			}
+
 		}
 
 		if (parameters.containsKey("filter")) {
@@ -1094,6 +1113,9 @@ class DataProcessTask implements Supplier<CompletableFuture<Boolean>> {
 
 			}
 			if (results == null) {
+				if (Config.getBool("verbose", false)) {
+					OpenWareInstance.getInstance().logWarn("[DataService] Unparseable Message:\n" + data);
+				}
 				return CompletableFuture.completedFuture(false);
 			}
 

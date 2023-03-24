@@ -37,7 +37,7 @@ public class JSONAnalyticsSensorProvider implements AnalyticSensorProvider {
 	}
 
 	@Override
-	public Map<String, OpenWareDataItem> getAnalyticSensors(User user) {
+	public Map<String, OpenWareDataItem> getAnalyticSensors() {
 		// this.cachedSensorData = readJSONFile();
 		JSONArray sensors = this.cachedSensorData.getJSONArray("sensors");
 		Map<String, OpenWareDataItem> items = new HashMap<>();
@@ -189,5 +189,23 @@ public class JSONAnalyticsSensorProvider implements AnalyticSensorProvider {
 		 * JSONAnalyticsSensorProvider.fileOpen = false; return true;
 		 */
 		return false;
+	}
+
+	@Override
+	public String getType() {
+		// TODO Auto-generated method stub
+		return "json";
+	}
+
+	@Override
+	public OpenWareDataItem handle(User user, String sensor, long start, long end) throws Exception {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public void init(JSONObject options) throws Exception {
+		// TODO Auto-generated method stub
+
 	}
 }

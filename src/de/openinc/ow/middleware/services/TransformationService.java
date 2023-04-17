@@ -97,11 +97,20 @@ public class TransformationService {
 		JSONArray stages = options.getJSONArray("stages");
 		Long start = null;
 		Long end = null;
+		String ref = null;
+		try {
+			ref = options.getString("reference");
+		} catch (JSONException e) {
+			ref = null;
+		}
 		try {
 			start = options.getLong("start");
-			end = options.getLong("end");
 		} catch (JSONException e) {
 			start = null;
+		}
+		try {
+			end = options.getLong("end");
+		} catch (JSONException e) {
 			end = null;
 		}
 
@@ -110,12 +119,17 @@ public class TransformationService {
 					.getOperation(stages.getJSONObject(i).getString("action"));
 			if (op == null) {
 				throw new IllegalArgumentException("Unkown operation " + stages.getJSONObject(i).getString("action"));
-
 			}
 			if (start != null) {
 				op.setStart(start);
+			}
+			if (end != null) {
 				op.setEnd(end);
 			}
+			if (ref != null) {
+				op.setReference(ref);
+			}
+
 			tempItem = op.process(user, tempItem, stages.getJSONObject(i).getJSONObject("params"));
 			if (tempItem == null) {
 				throw new IllegalStateException(

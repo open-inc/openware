@@ -1,5 +1,6 @@
 package de.openinc.ow.http;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -120,6 +121,7 @@ public class JavalinWebsocketProvider {
 
 	public void onConnect(Session user) throws Exception {
 		OpenWareInstance.getInstance().logDebug("User connected " + user.getRemoteAddress());
+		user.setIdleTimeout(Duration.ofMinutes(15));
 	}
 
 	public void onClose(WsContext wsSession, int statusCode, String reason) {
@@ -146,6 +148,7 @@ public class JavalinWebsocketProvider {
 			List cSessions = sessions.get(key);
 			synchronized (cSessions) {
 				cSessions.remove(wsSession);
+
 			}
 
 		}

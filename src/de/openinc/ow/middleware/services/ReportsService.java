@@ -67,7 +67,15 @@ public class ReportsService {
 			ReportInterface o = reportType.newInstance();
 			clazz = o;
 			clazz.init(parameter, user);
-
+			if (parameter.has("start")) {
+				clazz.setStart(parameter.getLong("start"));
+			}
+			if (parameter.has("end")) {
+				clazz.setEnd(parameter.getLong("end"));
+			}
+			if (parameter.has("reference")) {
+				clazz.setReference(parameter.getString("reference"));
+			}
 			List<OpenWareDataItem> data = clazz.getData(parameter);
 			if (Config.getBool("accessControl", true)) {
 				Iterator<OpenWareDataItem> it = data.iterator();

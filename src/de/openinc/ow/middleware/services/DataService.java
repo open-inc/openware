@@ -1109,6 +1109,7 @@ class DataProcessTask implements Supplier<CompletableFuture<Boolean>> {
 						continue;
 					}
 					results = processItems(toProcess);
+					break;
 				}
 
 			}

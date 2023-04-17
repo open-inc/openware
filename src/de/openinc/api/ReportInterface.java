@@ -30,4 +30,10 @@ public abstract class ReportInterface {
 
 	public abstract String getTag();
 
+	public abstract void setStart(long start);
+
+	public abstract void setEnd(long end);
+
+	public abstract void setReference(String reference);
+
 }

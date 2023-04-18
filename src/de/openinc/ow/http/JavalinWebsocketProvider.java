@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -213,7 +215,15 @@ public class JavalinWebsocketProvider {
 
 				}
 				OpenWareInstance.getInstance().logInfo(reqUser.getName() + " subscribed to " + count + " items");
-
+				
+				Timer t = new Timer();
+				t.schedule(new TimerTask() {
+				    @Override
+				    public void run() {
+				    	wsSession.send("{'action': 'ping'}");
+				    }
+				}, 0, 15000);
+				
 			}
 		}
 

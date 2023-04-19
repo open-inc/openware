@@ -5,11 +5,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.jetty.websocket.api.Session;
 import org.json.JSONArray;
@@ -118,7 +121,7 @@ public class JavalinWebsocketProvider {
 			}
 		};
 		DataService.addSubscription(ds);
-
+		loadPingService();
 	}
 
 	public void onConnect(Session user) throws Exception {
@@ -215,15 +218,6 @@ public class JavalinWebsocketProvider {
 
 				}
 				OpenWareInstance.getInstance().logInfo(reqUser.getName() + " subscribed to " + count + " items");
-				
-				Timer t = new Timer();
-				t.schedule(new TimerTask() {
-				    @Override
-				    public void run() {
-				    	wsSession.send("{'action': 'ping'}");
-				    }
-				}, 0, 15000);
-				
 			}
 		}
 
@@ -241,5 +235,30 @@ public class JavalinWebsocketProvider {
 			this.onClose(ctx, ctx.status(), ctx.reason());
 		});
 	};
+	
+	private void loadPingService() {
+		Runnable pingRunnable = new Runnable() {
+			@Override
+			public void run() {
+				 
+				List<WsContext> contextList = new ArrayList<WsContext>();
+				for (Map.Entry<String, List<WsContext>> entry : sessions.entrySet()) { 
+					List<WsContext> value = entry.getValue(); 
+					for(WsContext contextValue: value) {
+						if(!contextList.contains(contextValue)) {
+							contextList.add(contextValue);
+						}
+					}
+					 
+				}
+				for(WsContext selectedContext: contextList) {
+					selectedContext.send("{'action': 'ping'}");
+				}
+			}
+		};
+		
+		ScheduledExecutorService pingService = OpenWareInstance.getInstance().getCommonExecuteService();
+		pingService.scheduleAtFixedRate(pingRunnable, 5, 15, TimeUnit.SECONDS);
+	}
 
 }

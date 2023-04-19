@@ -18,8 +18,8 @@ import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 
 import org.apache.logging.log4j.Level;
@@ -102,7 +102,7 @@ public class OpenWareInstance {
 	Logger apiLogger;
 	Logger dataLogger;
 	private LoggerContext ctx;
-	private ExecutorService commonExecuteService;
+	private ScheduledExecutorService commonExecuteService;
 	private static OpenWareInstance me;
 	private ArrayList<OpenWareAPI> services;
 	private boolean running = false;
@@ -182,7 +182,7 @@ public class OpenWareInstance {
 		ctx = (LoggerContext) LogManager.getContext();
 		ThreadFactory factory = new ThreadFactoryBuilder().setDaemon(false).setNameFormat("openware-commonpool-%d")
 				.build();
-		this.commonExecuteService = Executors.newFixedThreadPool(4, factory);
+		this.commonExecuteService = Executors.newScheduledThreadPool(4, factory);
 		this.apacheLogger = ctx.getConfiguration().getLoggerConfig("org.apache.http");
 		this.sparkLogger = ctx.getConfiguration().getLoggerConfig("spark");
 		this.jettyLogger = ctx.getConfiguration().getLoggerConfig("org.eclipse.jetty");
@@ -880,7 +880,7 @@ public class OpenWareInstance {
 		}
 	}
 
-	public ExecutorService getCommonExecuteService() {
+	public ScheduledExecutorService getCommonExecuteService() {
 		return commonExecuteService;
 	}
 

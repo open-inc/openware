@@ -128,12 +128,10 @@ public class AdminAPI implements OpenWareAPI {
 			});
 
 			get(SENSOR_CONFIG + "/{source}", ctx -> {
-				User user = null;
+				User user = ctx.sessionAttribute("user");
 				String source = ctx.pathParam("source");
-				if (Config.getBool("accessControl", true)) {
-					user = ctx.sessionAttribute("user");
-					if (user == null)
-						HTTPResponseHelper.forbidden("You need to log in to configure items");
+				if (Config.getBool("accessControl", true) && user == null) {
+					HTTPResponseHelper.forbidden("You need to log in to configure items");
 				}
 				try {
 
@@ -144,6 +142,20 @@ public class AdminAPI implements OpenWareAPI {
 								public boolean test(OpenWareDataItem t) {
 									return source == null || t.getSource().equals(source);
 								}
+							}).filter(new Predicate<OpenWareDataItem>() {
+
+								@SuppressWarnings("null")
+								@Override
+								public boolean test(OpenWareDataItem t) {
+									String source = t.getMeta().optString("source_source");
+									String id = t.getMeta().optString("id_source");
+									if (source.equals(""))
+										source = t.getSource();
+									if (id.equals(""))
+										id = t.getId();
+									return user.canAccessWrite(source, id);
+								}
+
 							}).collect(Collectors.toList()));
 				} catch (Exception e) {
 					HTTPResponseHelper.internalError(e.getMessage());
@@ -152,13 +164,26 @@ public class AdminAPI implements OpenWareAPI {
 			});
 
 			get(SENSOR_CONFIG, ctx -> {
-				User user = null;
-				if (Config.getBool("accessControl", true)) {
-					user = ctx.sessionAttribute("user");
-					if (user == null)
-						HTTPResponseHelper.forbidden("You need to log in to configure items");
+				User user = ctx.sessionAttribute("user");
+				if (Config.getBool("accessControl", true) && user == null) {
+					HTTPResponseHelper.forbidden("You need to log in to configure items");
 				}
-				ctx.json(DataService.getItemConfiguration(user).values());
+				ctx.json(DataService.getItemConfiguration(user).values().stream()
+						.filter(new Predicate<OpenWareDataItem>() {
+
+							@SuppressWarnings("null")
+							@Override
+							public boolean test(OpenWareDataItem t) {
+								String source = t.getMeta().optString("source_source");
+								String id = t.getMeta().optString("id_source");
+								if (source.equals(""))
+									source = t.getSource();
+								if (id.equals(""))
+									id = t.getId();
+								return user.canAccessWrite(source, id);
+							}
+
+						}).collect(Collectors.toList()));
 
 			});
 

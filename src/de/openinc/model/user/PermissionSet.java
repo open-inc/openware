@@ -19,11 +19,11 @@ public class PermissionSet {
 	}
 
 	public boolean evaluateWrite(String sensor) {
-		return sensor.matches(read);
+		return sensor.matches(write);
 	}
 
 	public boolean evaluateDelete(String sensor) {
-		return sensor.matches(read);
+		return sensor.matches(delete);
 	}
 
 	public String getRead() {
@@ -50,12 +50,12 @@ public class PermissionSet {
 		this.delete = delete;
 	}
 
+	@Override
 	public boolean equals(Object obj) {
 		if (obj instanceof PermissionSet) {
 			PermissionSet toCompare = (PermissionSet) obj;
-			if (this.getDelete().equals(toCompare.getDelete()) &&
-					this.getWrite().equals(toCompare.getWrite()) &&
-					this.getRead().equals(toCompare.getRead())) {
+			if (this.getDelete().equals(toCompare.getDelete()) && this.getWrite().equals(toCompare.getWrite())
+					&& this.getRead().equals(toCompare.getRead())) {
 				return true;
 			}
 		}

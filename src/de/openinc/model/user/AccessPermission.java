@@ -17,9 +17,9 @@ public class AccessPermission {
 		this.regExpGroups = new HashMap<>();
 	}
 
-	public void addPermission(String owner, PermissionSet permission) {
-		if (owner.startsWith("group:")) {
-			String regex = owner.substring(6, owner.length());
+	public void addPermission(String owner, PermissionSet permission, boolean group) {
+		if (group) {
+			String regex = owner;
 			List<PermissionSet> list = regExpGroups.getOrDefault(owner, new ArrayList<PermissionSet>());
 			if (regExpGroups.containsKey(regex) && list.contains(permission))
 				return;

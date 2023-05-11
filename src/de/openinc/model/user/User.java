@@ -76,9 +76,6 @@ public class User {
 	}
 
 	public boolean canAccessRead(String owner, String sensor) {
-		if (owner.equals("_owinternal") && sensor.equals("heartbeat")) {
-			return true;
-		}
 		if (sensor == null) {
 			permissions.serviceAccess(owner, "read");
 		}
@@ -106,8 +103,11 @@ public class User {
 	}
 
 	private void initPermissions() {
+		permissions.addPermission("_owinternal", new PermissionSet("heartbeat", "^$", "^$"), false);
+
 		if (selfPermission)
-			permissions.addPermission(name, new PermissionSet(".*", ".*", ".*"));
+			permissions.addPermission(name, new PermissionSet(".*", ".*", ".*"), false);
+
 	}
 
 	@Override

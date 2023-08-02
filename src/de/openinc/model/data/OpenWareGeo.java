@@ -166,4 +166,11 @@ public class OpenWareGeo extends OpenWareValueDimension {
 		}
 		return false;
 	}
+
+	@Override
+	public OpenWareValueDimension empty() {
+		return new OpenWareGeo(this.getName(), this.getUnit(), new JSONObject("{\n" + "  \"type\": \"Feature\",\n"
+				+ "  \"geometry\": {\n" + "    \"type\": \"Point\",\n" + "    \"coordinates\": [0, 0]\n" + "  },\n"
+				+ "  \"properties\": {\n" + "    \"name\": \"THIS IS AN DEFAULT EMPTY GEO VALUE\"\n" + "  }\n" + "}"));
+	}
 }

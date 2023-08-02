@@ -13,11 +13,11 @@ import de.openinc.model.data.OpenWareNumber;
 import de.openinc.model.data.OpenWareValue;
 import de.openinc.model.data.OpenWareValueDimension;
 
-public class DataConversion {
+public class DataTools {
 	private static CharMatcher isoMatcher = CharMatcher.javaIsoControl();
 
 	public static long floorDate(long dateInMillis) {
-		return floorDate(dateInMillis, Config.getLong("baseTimeInterval",(60l*60l*1000l)));
+		return floorDate(dateInMillis, Config.getLong("baseTimeInterval", (60l * 60l * 1000l)));
 	}
 
 	public static long floorDate(long dateInMillis, long interval) {
@@ -29,13 +29,13 @@ public class DataConversion {
 	}
 
 	public static Object listGetOrDefault(List<Object> list, int index, Object defaultVal) {
-		
-		if(list.size()<=index || list.get(index)==null) {
+
+		if (list.size() <= index || list.get(index) == null) {
 			return defaultVal;
 		}
 		return list.get(index);
 	}
-	
+
 	public static String mapSPSDataType(String type) {
 		HashMap<String, String> mapping = new HashMap<>();
 		mapping.put("WORD", "number");
@@ -66,8 +66,7 @@ public class DataConversion {
 
 	public static String getJSONPartial(String key, Object value, boolean last, boolean isString) {
 		if (isString) {
-			value = "\"" +	value +
-					"\"";
+			value = "\"" + value + "\"";
 		}
 		return String.format("\"%s\" : %s", key, value) + (last ? "" : ",");
 	}

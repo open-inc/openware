@@ -4,7 +4,7 @@ import org.apache.commons.text.StringEscapeUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import de.openinc.ow.helper.DataConversion;
+import de.openinc.ow.helper.DataTools;
 
 public abstract class OpenWareValueDimension {
 
@@ -132,14 +132,16 @@ public abstract class OpenWareValueDimension {
 		}
 	}
 
+	public abstract OpenWareValueDimension empty();
+
 	public static OpenWareValueDimension createNewDimension(String name, String unit, String odType) {
 		return createNewDimension(name, unit, odType, null);
 	}
 
 	@Override
 	public String toString() {
-		return "{" + DataConversion.getJSONPartial("name", StringEscapeUtils.escapeJava(name), false, true)
-				+ DataConversion.getJSONPartial("unit", StringEscapeUtils.escapeJava(unit), false, true)
-				+ DataConversion.getJSONPartial("type", type, true, true) + "}";
+		return "{" + DataTools.getJSONPartial("name", StringEscapeUtils.escapeJava(name), false, true)
+				+ DataTools.getJSONPartial("unit", StringEscapeUtils.escapeJava(unit), false, true)
+				+ DataTools.getJSONPartial("type", type, true, true) + "}";
 	}
 }

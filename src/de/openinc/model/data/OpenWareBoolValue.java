@@ -60,4 +60,9 @@ public class OpenWareBoolValue extends OpenWareValueDimension {
 
 	}
 
+	@Override
+	public OpenWareValueDimension empty() {
+		return new OpenWareBoolValue(this.getName(), this.getUnit(), Boolean.FALSE); 
+	}
+
 }

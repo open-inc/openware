@@ -30,6 +30,7 @@ import de.openinc.ow.helper.Config;
 public abstract class TransformationOperation {
 	protected Long start = null;
 	protected Long end = null;
+	protected String reference = null;
 
 	public abstract TransformationOperation apply(User user, OpenWareDataItem old, JSONObject params) throws Exception;
 
@@ -45,7 +46,9 @@ public abstract class TransformationOperation {
 
 	}
 
-	public abstract void setReference(String ref);
+	public void setReference(String ref) {
+		this.reference = ref;
+	};
 
 	public final OpenWareDataItem process(User user, OpenWareDataItem old, JSONObject params) throws Exception {
 		if (start != null) {

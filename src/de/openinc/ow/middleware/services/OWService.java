@@ -51,7 +51,9 @@ public class OWService {
 			String key = it.next();
 			if (key.toLowerCase().contains("password") || key.toLowerCase().contains("passwort")
 					|| key.toLowerCase().contains("secret") || key.toLowerCase().contains("masterkey")
-					|| key.toLowerCase().contains("passwort") || key.toLowerCase().equals("pw")) {
+					|| key.toLowerCase().contains("passwort") || key.toLowerCase().equals("pw")
+					|| key.toLowerCase().equals("token") || key.toLowerCase().equals("secret")
+					|| key.toLowerCase().equals("jwt_secret")) {
 				it.remove();
 			}
 			try {

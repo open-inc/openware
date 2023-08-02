@@ -60,18 +60,15 @@ public class AlarmAPI implements OpenWareAPI {
 			List<JSONObject> alarms = DataService.getGenericData(ALARMS, null);
 			List<JSONObject> alarms2 = DataService.getGenericData(ALARMSV2, null);
 
+			/*-
 			initialAlarms = new JSONArray();
 			for (JSONObject alarm : alarms) {
 				initialAlarms.put(alarm);
 			}
 			amt = new AlarmMonitorThreadV1(initialAlarms);
 			amt.start();
-
-			initialAlarmsV2 = new JSONArray();
-			for (JSONObject alarm : alarms2) {
-				initialAlarmsV2.put(alarm);
-			}
-			amt2 = new AlarmMonitorThreadV2(initialAlarmsV2);
+			*/
+			amt2 = new AlarmMonitorThreadV2(alarms2);
 
 			OpenWareInstance.getInstance().logInfo("Started AlarmServices V1&V2");
 		} catch (Exception e) {
@@ -150,11 +147,7 @@ public class AlarmAPI implements OpenWareAPI {
 					if (user2check.equals(user.getUID())) {
 						DataService.removeGenericData(ALARMSV2, alarmid);
 						List<JSONObject> alarms = DataService.getGenericData(ALARMSV2, null);
-						initialAlarmsV2 = new JSONArray();
-						for (JSONObject alarm2 : alarms) {
-							initialAlarmsV2.put(alarm2);
-						}
-						amt2.updateMonitors(initialAlarmsV2);
+						amt2.updateMonitors(alarms);
 						return true;
 					}
 				}
@@ -322,6 +315,7 @@ public class AlarmAPI implements OpenWareAPI {
 				result.put("msg", "Successfully deleted alarm!");
 				result.put("deleted", alarmid);
 				HTTPResponseHelper.ok(ctx, result);
+				return;
 			}
 			HTTPResponseHelper.badRequest("You must provide a user and existing alarm id");
 
@@ -354,11 +348,10 @@ public class AlarmAPI implements OpenWareAPI {
 			User user = ctx.sessionAttribute("user");
 
 			JSONArray userAlarms = new JSONArray();
-			Collection<JSONArray> registeredAlarms = amt2.getCurrentAlarms().values();
+			Collection<List<JSONObject>> registeredAlarms = amt2.getCurrentAlarms().values();
 
-			for (JSONArray cAlarmset : registeredAlarms) {
-				for (int i = 0; i < cAlarmset.length(); i++) {
-					JSONObject current = cAlarmset.getJSONObject(i);
+			for (List<JSONObject> cAlarmset : registeredAlarms) {
+				for (JSONObject current : cAlarmset) {
 					String ownerField = "owner";
 					if (!current.has("owner")) {
 						ownerField = "user";

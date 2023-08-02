@@ -32,4 +32,8 @@ public class OpenWareString extends OpenWareValueDimension {
 		return new OpenWareString(getName(), getUnit(), value.toString());
 	}
 
+	@Override
+	public OpenWareValueDimension empty() {
+		return new OpenWareString(this.getName(), this.getUnit(), "");
+	}
 }

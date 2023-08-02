@@ -1,6 +1,6 @@
 package de.openinc.model.data;
 
-import static de.openinc.ow.helper.DataConversion.cleanAndValidate;
+import static de.openinc.ow.helper.DataTools.cleanAndValidate;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -13,7 +13,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import de.openinc.ow.helper.DataConversion;;
+import de.openinc.ow.helper.DataTools;;
 
 /**
  * Basic data structure of the open.WARE Middleware
@@ -317,6 +317,31 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		return this;
 	}
 
+	/**
+	 * Will remove all dimension from **valueTypes** and **values** except the
+	 * dimension with the specified index
+	 * 
+	 * @param dim The index of the dimension to keep
+	 * @return The same {@link OpenWareDataItem} as before with altered valueTypes
+	 * @throws IllegalArgumentException if the specified dimension is larger than
+	 *                                  the valueTypes collection size
+	 */
+	public OpenWareDataItem reduceToSingleDimensionIncludingValues(int dim) {
+		if (dim >= this.valueTypes.size()) {
+			throw new IllegalArgumentException("Item has no Dimension " + dim);
+		}
+		List<OpenWareValueDimension> dim2keep = new ArrayList<OpenWareValueDimension>();
+		dim2keep.add(this.valueTypes.get(dim));
+		this.values = this.values.stream().map(cVal -> {
+			OpenWareValue newVal = new OpenWareValue(cVal.getDate());
+			newVal.add(cVal.get(dim));
+			return newVal;
+		}).toList();
+
+		this.setValueTypes(dim2keep);
+		return this;
+	}
+
 	/*
 	 * public OpenWareValue getCurrentValueAt(long ts) { ArrayList<OpenWareValue>
 	 * vals = new ArrayList<>(); vals.addAll(this.value()); vals.sort(new
@@ -339,13 +364,13 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	@Override
 	public String toString() {
 		StringBuffer res = new StringBuffer("{");
-		res.append(DataConversion.getJSONPartial("id", StringEscapeUtils.escapeJava(this.id), false, true));
-		res.append(DataConversion.getJSONPartial("name", this.name, false, true));
-		res.append(DataConversion.getJSONPartial("meta", this.meta.toString(), false, false));
-		res.append(DataConversion.getJSONPartial("user", this.source, false, true));
-		res.append(DataConversion.getJSONPartial("source", this.source, false, true));
+		res.append(DataTools.getJSONPartial("id", StringEscapeUtils.escapeJava(this.id), false, true));
+		res.append(DataTools.getJSONPartial("name", this.name, false, true));
+		res.append(DataTools.getJSONPartial("meta", this.meta.toString(), false, false));
+		res.append(DataTools.getJSONPartial("user", this.source, false, true));
+		res.append(DataTools.getJSONPartial("source", this.source, false, true));
 		if (reference != null) {
-			res.append(DataConversion.getJSONPartial("reference", this.getReference(), false, true));
+			res.append(DataTools.getJSONPartial("reference", this.getReference(), false, true));
 		}
 		res.append("\"valueTypes\":");
 		boolean first = true;
@@ -374,14 +399,14 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 
 	public void streamPrint(OutputStream out) throws IOException {
 		StringBuffer res = new StringBuffer("{");
-		res.append(DataConversion.getJSONPartial("id", StringEscapeUtils.escapeJava(this.id), false, true));
-		res.append(DataConversion.getJSONPartial("name", StringEscapeUtils.escapeJava(this.name), false, true));
-		res.append(DataConversion.getJSONPartial("meta", this.meta.toString(), false, false));
-		res.append(DataConversion.getJSONPartial("user", StringEscapeUtils.escapeJava(this.source), false, true));
-		res.append(DataConversion.getJSONPartial("source", StringEscapeUtils.escapeJava(this.source), false, true));
+		res.append(DataTools.getJSONPartial("id", StringEscapeUtils.escapeJava(this.id), false, true));
+		res.append(DataTools.getJSONPartial("name", StringEscapeUtils.escapeJava(this.name), false, true));
+		res.append(DataTools.getJSONPartial("meta", this.meta.toString(), false, false));
+		res.append(DataTools.getJSONPartial("user", StringEscapeUtils.escapeJava(this.source), false, true));
+		res.append(DataTools.getJSONPartial("source", StringEscapeUtils.escapeJava(this.source), false, true));
 		if (reference != null) {
-			res.append(DataConversion.getJSONPartial("reference", StringEscapeUtils.escapeJava(this.getReference()),
-					false, true));
+			res.append(DataTools.getJSONPartial("reference", StringEscapeUtils.escapeJava(this.getReference()), false,
+					true));
 		}
 		res.append("\"valueTypes\":");
 		boolean first = true;

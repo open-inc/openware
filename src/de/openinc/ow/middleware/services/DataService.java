@@ -30,6 +30,7 @@ import de.openinc.api.DataSubscriber;
 import de.openinc.api.PersistenceAdapter;
 import de.openinc.api.ReferenceAdapter;
 import de.openinc.api.RetrievalOptions;
+import de.openinc.model.data.OpenWareBoolValue;
 import de.openinc.model.data.OpenWareDataItem;
 import de.openinc.model.data.OpenWareNumber;
 import de.openinc.model.data.OpenWareValue;
@@ -66,6 +67,7 @@ public class DataService {
 	private static HashMap<String, ActuatorAdapter> actuators;
 	private static HashMap<String, OpenWareDataItem> items;
 	private static HashMap<String, OpenWareDataItem> itemConfigs;
+	private static HashMap<String, Long> itemsLastChangedValues;
 	private static ReferenceAdapter reference;
 	private static ExecutorService pool;
 	public static final String CONFIG_STORE_TYPE = "sensorconfig";
@@ -82,6 +84,7 @@ public class DataService {
 		handler = new ArrayList<>();
 		actuators = new HashMap<>();
 		itemConfigs = new HashMap<>();
+		itemsLastChangedValues = new HashMap<>();
 		BasicThreadFactory factory = new BasicThreadFactory.Builder().namingPattern("openware-DataServiceThread-%d")
 				.daemon(false).priority(Thread.NORM_PRIORITY).build();
 		pool = Executors.newFixedThreadPool(Config.getInt("WORKPOOLSIZE", 16), factory);
@@ -103,6 +106,12 @@ public class DataService {
 						OpenWareDataItem owdi = OpenWareDataItem.fromJSON(o);
 						if (owdi.value().size() > 0) {
 							items.put(owdi.getSource() + owdi.getId(), owdi);
+							for (int j = 0; j < owdi.getValueTypes().size(); j++) {
+								itemsLastChangedValues.put(owdi.getSource() + Config.get("idSeperator", "---")
+										+ owdi.getId() + Config.get("idSeperator", "---") + j,
+										owdi.value().get(0).getDate());
+							}
+
 						}
 
 					} catch (Exception e1) {
@@ -873,11 +882,26 @@ public class DataService {
 		if (conf.getMeta().optBoolean("onChange")) {
 			if (conf.equalsLastValue(item, (60000l * 60l))) {
 				OpenWareInstance.getInstance().logDebug("Item was not stored due to 'onChange' flag and same value");
-				return null;
+				conf.setPersist(false);
 			}
 		}
 		return conf;
 
+	}
+
+	/**
+	 * Can be used to get a milliseconds timestamp of the last change of the value
+	 * dimension specified by source, id, dim paramater
+	 * 
+	 * @param source The source of the data item that should be retrieved
+	 * @param id     The id of the data item that should be retrieved
+	 * @param dim    The index of the dimension that should be retrieved
+	 * @return A millisecond timestamp of the last change or 0 if no existing change
+	 *         was found
+	 */
+	public static long getLastChangeOfItemDimension(String source, String id, int dim) {
+		return itemsLastChangedValues.getOrDefault(
+				source + Config.get("idSeperator", "---") + id + Config.get("idSeperator", "---") + dim, 0l);
 	}
 
 	/**
@@ -887,7 +911,7 @@ public class DataService {
 	 * @see de.openinc.ow.core.api.DataSubscriber
 	 * 
 	 * @param item The item to be stored
-	 * @return true if Item was stored
+	 * @return {@link CompletableFuture} containing a boolean if item was stored
 	 */
 	public static CompletableFuture<Boolean> processNewData(OpenWareDataItem item) throws Exception {
 		item = item.cloneItem();
@@ -942,7 +966,42 @@ public class DataService {
 		item.getMeta().put("BaseDataRevision", baseDataRevision);
 		item.getMeta().put("referenceChange", referenceChange);
 
+		// Manage last value changed map
+
+		// Delete existing values if the base data has been changed to prevent index out
+		// of bounds errors and add the new recieved dates for each dimension
+		if (baseDataRevision) {
+			for (int i = 0; i < lastItem.getValueTypes().size(); i++) {
+				itemsLastChangedValues.remove(item.getSource() + Config.get("idSeperator", "---") + item.getId()
+						+ Config.get("idSeperator", "---") + i);
+			}
+			for (int i = 0; i < item.getValueTypes().size(); i++) {
+				itemsLastChangedValues.put(item.getSource() + Config.get("idSeperator", "---") + item.getId()
+						+ Config.get("idSeperator", "---") + i, item.value().get(0).getDate());
+			}
+			// check equality of dimension value and update if necessary
+		} else {
+			for (int i = 0; i < item.getValueTypes().size(); i++) {
+				boolean equal = true;
+				if (lastItem.getValueTypes().get(i) instanceof OpenWareNumber
+						|| lastItem.getValueTypes().get(i) instanceof OpenWareBoolValue) {
+					equal = lastItem.value().get(0).get(i).value() == item.value().get(0).get(i).value();
+				} else {
+					equal = lastItem.value().get(0).get(i).value().toString()
+							.equals(item.value().get(0).get(i).value().toString());
+				}
+				if (!equal) {
+					if (item.getId().contains("berech")) {
+						System.out.println("test");
+					}
+					itemsLastChangedValues.put(item.getSource() + Config.get("idSeperator", "---") + item.getId()
+							+ Config.get("idSeperator", "---") + i, item.value().get(0).getDate());
+				}
+			}
+		}
+
 		DataService.setCurrentItem(item);
+
 		pool.submit(new SubscriberRunnable(lastItem, item));
 
 		if (Config.getBool("dbPersistValue", true) && item.persist()) {

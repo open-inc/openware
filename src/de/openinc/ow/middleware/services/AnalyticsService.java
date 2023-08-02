@@ -39,7 +39,7 @@ public class AnalyticsService {
 	}
 
 	public Map<String, OpenWareDataItem> getAnalyticSensors() {
-		if (lastRefresh + Config.getLong("virtual_sensor_refresh_interval", 30000l) < System.currentTimeMillis()) {
+		if (lastRefresh + Config.getLong("virtual_sensor_refresh_interval", 5000l) < System.currentTimeMillis()) {
 			lastRefresh = System.currentTimeMillis();
 			cachedSensors.clear();
 			for (AnalyticSensorProvider provider : providers.values()) {

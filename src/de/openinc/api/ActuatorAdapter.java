@@ -80,6 +80,7 @@ public abstract class ActuatorAdapter {
 			final String templatedPayload = applyVelocityTemplate(payload, c);
 			String json = options.toString();
 			String processed = applyVelocityTemplate(json, c);
+
 			final JSONObject templatedOptions = new JSONObject(processed);
 
 			return executor.submit(new Callable<Object>() {
@@ -101,7 +102,9 @@ public abstract class ActuatorAdapter {
 			final String templatedTarget = applyJPTemplate(target, jsonDOC);
 			final String templatedTopic = applyJPTemplate(topic, jsonDOC);
 			final String templatedPayload = applyJPTemplate(payload, jsonDOC);
-			final JSONObject templatedOptions = new JSONObject(applyJPTemplate(options.toString(), jsonDOC));
+			String processed = applyJPTemplate(options.toString(), jsonDOC);
+			processed = removeQuotes(processed);
+			final JSONObject templatedOptions = new JSONObject(processed);
 
 			return executor.submit(new Callable<Object>() {
 
@@ -148,12 +151,39 @@ public abstract class ActuatorAdapter {
 		return result.replace("\\}", "}").replace("\\{", "{");
 	}
 
+	private String removeQuotes(String s) {
+		String pre = "<|";
+		String suf = "|>";
+		StringBuilder sb = new StringBuilder(s);
+		int closingIndex = sb.indexOf(suf);
+		int openingIndex = sb.lastIndexOf(pre, closingIndex);
+
+		while (closingIndex != -1 && openingIndex != -1) {
+			if (closingIndex + suf.length() == sb.length()) {
+				sb.delete(closingIndex, closingIndex + (suf.length()));
+			} else {
+				sb.delete(closingIndex, closingIndex + (suf.length() + 1));
+			}
+
+			if (openingIndex == 0) {
+				sb.delete(openingIndex, openingIndex + (pre.length()));
+			} else {
+				sb.delete(openingIndex - 1, openingIndex + (pre.length()));
+			}
+
+			closingIndex = sb.indexOf(suf);
+			openingIndex = sb.lastIndexOf(pre, closingIndex);
+		}
+		return sb.toString();
+	}
+
 	private String applyVelocityTemplate(String s, VelocityContext contextDoc) {
 		Velocity.init();
 		Reader r = new StringReader(s);
 		Writer w = new StringWriter();
 		Velocity.evaluate(contextDoc, w, s, r);
-		return w.toString();
+
+		return removeQuotes(w.toString());
 	}
 
 	protected abstract Object processAction(String target, String topic, String payload, User user, JSONObject options,

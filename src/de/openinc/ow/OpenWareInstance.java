@@ -21,7 +21,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -37,6 +36,11 @@ import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
+import com.google.gson.JsonSyntaxException;
 
 import de.openinc.api.ActuatorAdapter;
 import de.openinc.api.AnalyticSensorProvider;
@@ -56,7 +60,7 @@ import de.openinc.model.data.OpenWareValue;
 import de.openinc.model.data.OpenWareValueDimension;
 import de.openinc.model.user.User;
 import de.openinc.ow.helper.Config;
-import de.openinc.ow.helper.DataConversion;
+import de.openinc.ow.helper.DataTools;
 import de.openinc.ow.http.AdminAPI;
 import de.openinc.ow.http.AlarmAPI;
 import de.openinc.ow.http.AnalyticsServiceAPI;
@@ -376,7 +380,39 @@ public class OpenWareInstance {
 
 		OpenWareInstance.getInstance().logInfo("Using external file path: " + Config.get("publicHTTP", "app"));
 		// Gson gson = new GsonBuilder().serializeSpecialFloatingPointValues().create();
-		gson = new GsonBuilder().registerTypeAdapter(OpenWareDataItem.class, new OpenWareDataItemSerializer()).create();
+		gson = new GsonBuilder().registerTypeAdapter(OpenWareDataItem.class, new OpenWareDataItemSerializer())
+				.registerTypeAdapter(JSONObject.class, new JsonSerializer<JSONObject>() {
+
+					@Override
+					public JsonElement serialize(JSONObject src, Type typeOfSrc, JsonSerializationContext context) {
+						JsonElement elemt;
+						try {
+							elemt = JsonParser.parseString(src.toString()).getAsJsonObject();
+							return elemt;
+						} catch (JsonSyntaxException e) {
+							e.printStackTrace();
+							return null;
+						}
+
+					}
+
+				}).registerTypeAdapter(JSONArray.class, new JsonSerializer<JSONArray>() {
+
+					@Override
+					public JsonElement serialize(JSONArray src, Type typeOfSrc, JsonSerializationContext context) {
+						JsonElement elemt;
+						try {
+							elemt = JsonParser.parseString(src.toString()).getAsJsonArray();
+							return elemt;
+						} catch (JsonSyntaxException e) {
+							e.printStackTrace();
+							return null;
+						}
+
+					}
+
+				}).create();
+
 		JsonMapper gsonMapper = new JsonMapper() {
 			@Override
 			public String toJsonString(@NotNull Object obj, @NotNull Type type) {
@@ -497,10 +533,37 @@ public class OpenWareInstance {
 		ServiceLoader<AnalyticSensorProvider> loader = ServiceLoader.load(AnalyticSensorProvider.class);
 		try {
 			Iterator<AnalyticSensorProvider> iterator = loader.iterator();
+
 			while (iterator.hasNext()) {
 				AnalyticSensorProvider provider = iterator.next();
-				AnalyticsService.getInstance().addSensorProvider(provider);
-				logInfo("Loaded AnalyticSensorProvider: " + provider.getClass().toString());
+				OWService aHandler = new OWService(provider.getClass().getCanonicalName(), provider,
+						new OWServiceActivator() {
+
+							@Override
+							public boolean unload() throws Exception {
+								// TODO:AnalyticsService.getInstance().remove(provider)
+								return false;
+							}
+
+							@Override
+							public Object load(Object prevInstance, JSONObject options) throws Exception {
+								if (prevInstance != null) {
+									// TODO:AnalyticsService.getInstance().remove(provider)
+								}
+								provider.init(options);
+								AnalyticsService.getInstance().addSensorProvider(provider);
+
+								logInfo(provider.getClass().getCanonicalName() + " loaded!");
+								return provider;
+							}
+						});
+				if (!aHandler.isDeactivated()) {
+					try {
+						aHandler.load(null);
+					} catch (Exception e) {
+						logError("Could not load DataHandler " + aHandler.getClass().getCanonicalName(), e);
+					}
+				}
 
 			}
 
@@ -566,7 +629,7 @@ public class OpenWareInstance {
 				OpenWareDataItem heartbeat = new OpenWareDataItem("heartbeat", "_owinternal", "Heartbeat",
 						new JSONObject(), dims);
 
-				long current = DataConversion.floorDate(System.currentTimeMillis(), 60000);
+				long current = DataTools.floorDate(System.currentTimeMillis(), 60000);
 
 				Instant i = Instant.ofEpochMilli(current);
 				LocalDateTime ldt = LocalDateTime.ofInstant(i, ZoneOffset.UTC);

@@ -7,7 +7,7 @@ import java.util.Map;
 
 import de.openinc.model.data.OpenWareDataItem;
 import de.openinc.model.data.OpenWareValue;
-import de.openinc.ow.helper.DataConversion;
+import de.openinc.ow.helper.DataTools;
 
 /**
  * Created by Martin on 15.08.2016.
@@ -44,7 +44,7 @@ public class DataSplitter {
 		long min = Long.MAX_VALUE;
 		long max = Long.MIN_VALUE;
 		for (int i = 0; i < data.value().size(); i++) {
-			long floor = DataConversion.floorDate(data.value().get(i).getDate(), interval);
+			long floor = DataTools.floorDate(data.value().get(i).getDate(), interval);
 			OpenWareDataItem temp = sets.getOrDefault(floor, templateItem.cloneItem());
 			temp.value().add(data.value().get(i));
 			sets.put(floor, temp);

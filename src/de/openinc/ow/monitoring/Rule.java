@@ -7,6 +7,9 @@ import java.time.ZonedDateTime;
 import org.json.JSONObject;
 
 import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareValue;
+import de.openinc.ow.helper.Config;
+import de.openinc.ow.middleware.services.DataService;
 
 public class Rule {
 	private Object condValue;
@@ -40,30 +43,36 @@ public class Rule {
 		if (o.has("geo")) {
 			return new Rule(o.getString("type"), o.optJSONObject("geo"));
 		}
+		if (o.has("time")) {
+			return new Rule(o.getString("type"), TimeRuleProperties.fromJSON(o.optJSONObject("time")));
+		}
 		return new Rule(o.getString("type"), o.optDouble("value"));
 	}
 
-	public boolean check(Object currentValue, Object lastObject, Object refValue) {
+	public boolean check(OpenWareDataItem currentValue, OpenWareDataItem lastObject, Object refValue, int dimension) {
 		boolean triggered = false;
 		if (type.equals("always") || type.endsWith("_always")) {
 			triggered = true;
 		} else if (type.startsWith("number") || type.equals("min") || type.equals("max") || type.equals("min-max")) {
-			triggered = checkNumeric(currentValue == null ? null : (Double) currentValue,
-					lastObject == null ? null : (Double) lastObject, refValue == null ? null : refValue);
+			triggered = checkNumeric(currentValue.value().get(0), lastObject.value().get(0), refValue, dimension);
 		} else if (type.startsWith("boolean")) {
-			triggered = checkBool((Boolean) currentValue, (Boolean) lastObject, refValue);
+			triggered = checkBool(currentValue.value().get(0), lastObject.value().get(0), refValue, dimension);
 		} else if (type.startsWith("string")) {
-			triggered = checkString((String) currentValue, (String) lastObject, refValue);
-		} else if (type.startsWith("timestamp")) {
-			// triggered = checkTimestamp((Long) currentValue, (Long) lastObject, (Long)
-			// refValue);
+			triggered = checkString(currentValue.value().get(0), lastObject.value().get(0), refValue, dimension);
+		} else if (type.startsWith("ts")) {
+			triggered = checkTimestamp(currentValue, lastObject, dimension);
+
 		}
 		return triggered;
 	}
 
-	private boolean checkNumeric(Double currentValue, Double lastValue, Object refValue) {
-		double current = currentValue == null ? Double.NaN : currentValue.doubleValue();
-		double last = lastValue == null ? Double.NaN : lastValue.doubleValue();
+	private boolean checkNumeric(OpenWareValue currentValue, OpenWareValue lastValue, Object refValue, int dim) {
+		double current = currentValue == null || currentValue.get(dim) == null ? Double.NaN
+				: (double) currentValue.get(dim).value();
+		if (Double.isNaN(current))
+			return false;
+		double last = lastValue == null || lastValue.get(dim) == null ? Double.NaN
+				: (double) lastValue.get(dim).value();
 		// double ref = refValue == null ? Double.NaN : refValue.doubleValue();
 		switch (type) {
 		case "number_change":
@@ -77,9 +86,9 @@ public class Rule {
 		case "number_decreased_by":
 			return current < (last - (double) condValue);
 		case "number_equals":
-			return currentValue == (double) condValue;
+			return current == (double) condValue;
 		case "number_equals_not":
-			return currentValue != (double) condValue;
+			return current != (double) condValue;
 		case "number_in_range":
 			return current > min && current < max;
 		case "number_out_of_range":
@@ -104,8 +113,15 @@ public class Rule {
 		}
 	}
 
-	private boolean checkString(String currentValue, String lastValue, Object refValue) {
+	private boolean checkString(OpenWareValue currentValueObj, OpenWareValue lastValueObj, Object refValue, int dim) {
 		String match = (String) condValue;
+		String currentValue = currentValueObj == null || currentValueObj.get(dim) == null ? null
+				: (String) currentValueObj.get(dim).value();
+		if (currentValue == null)
+			return false;
+		String lastValue = lastValueObj == null || lastValueObj.get(dim) == null ? null
+				: (String) lastValueObj.get(dim).value();
+
 		if (type.endsWith("_ref")) {
 			match = refValue.toString();
 			type.replace("_ref", "");
@@ -143,9 +159,13 @@ public class Rule {
 		}
 	}
 
-	private boolean checkBool(Boolean currentValue, Boolean lastValue, Object refItem) {
-		boolean current = currentValue == null ? false : currentValue.booleanValue();
-		boolean last = lastValue == null ? false : lastValue.booleanValue();
+	private boolean checkBool(OpenWareValue currentValue, OpenWareValue lastValue, Object refItem, int dim) {
+		Boolean current = currentValue == null || currentValue.get(dim) == null ? null
+				: (boolean) currentValue.get(dim).value();
+		if (current == null) {
+			return false;
+		}
+		Boolean last = lastValue == null || lastValue.get(dim) == null ? false : (boolean) lastValue.get(dim).value();
 
 		switch (type) {
 		case "boolean_true":
@@ -170,12 +190,65 @@ public class Rule {
 		}
 	}
 
-	private boolean checkTimestamp(JSONObject currentObj, OpenWareDataItem currentItem, OpenWareDataItem lastItem) {
-		Instant currTS = Instant.ofEpochMilli(currentItem.value().get(0).getDate());
-		ZonedDateTime zdt = ZonedDateTime.ofInstant(currTS, ZoneId.of(currentObj.getString("timezone")));
+	private boolean checkTimestamp(OpenWareDataItem current, OpenWareDataItem lastReceived, int dim) {
 
-		// TODO Auto-generated method stub
-		return false;
+		TimeRuleProperties tProps = (TimeRuleProperties) this.condValue;
+		if (type.startsWith("ts_last")) {
+			switch (type) {
+			case "ts_last_value_changed":
+				return System.currentTimeMillis() - DataService.getLastChangeOfItemDimension(current.getSource(),
+						current.getId(), dim) > tProps.value;
+			case "ts_last_value_received":
+				OpenWareDataItem lastKnownItem = DataService.getLiveSensorData(current.getId(), current.getSource());
+				if (lastKnownItem == null)
+					return true;
+				return System.currentTimeMillis() - lastKnownItem.value().get(0).getDate() > tProps.value;
+			default:
+				return false;
+			}
+		}
+		if (current == null || current.value().get(0) == null)
+			return false;
+		Instant currTS = Instant.ofEpochMilli(current.value().get(0).getDate());
+		ZonedDateTime zdt = ZonedDateTime.ofInstant(currTS, ZoneId.of(tProps.tz));
+
+		switch (type) {
+		case "ts_minute_of_day": {
+			int minuteOfDay = zdt.getHour() * 60 + zdt.getMinute();
+			return minuteOfDay >= tProps.minuteMin && minuteOfDay <= tProps.minuteMax;
+		}
+		case "ts_day_of_week":
+			return zdt.getDayOfWeek().getValue() >= tProps.dateMin && zdt.getDayOfWeek().getValue() <= tProps.dateMax;
+
+		case "ts_day_of_month":
+			return zdt.getDayOfMonth() >= tProps.dateMin && zdt.getDayOfMonth() <= tProps.dateMax;
+
+		case "ts_day_of_year":
+			return zdt.getDayOfYear() >= tProps.dateMin && zdt.getDayOfYear() <= tProps.dateMax;
+
+		case "ts_minute_day_of_week": {
+			int minuteOfDay = zdt.getHour() * 60 + zdt.getMinute();
+			return minuteOfDay >= tProps.minuteMin && minuteOfDay <= tProps.minuteMax
+					&& zdt.getDayOfWeek().getValue() >= tProps.dateMin
+					&& zdt.getDayOfWeek().getValue() <= tProps.dateMax;
+		}
+
+		case "ts_minute_day_of_month ": {
+			int minuteOfDay = zdt.getHour() * 60 + zdt.getMinute();
+			return minuteOfDay >= tProps.minuteMin && minuteOfDay <= tProps.minuteMax
+					&& zdt.getDayOfMonth() >= tProps.dateMin && zdt.getDayOfMonth() <= tProps.dateMax;
+		}
+
+		case "ts_minute_day_of_year": {
+			int minuteOfDay = zdt.getHour() * 60 + zdt.getMinute();
+			return minuteOfDay >= tProps.minuteMin && minuteOfDay <= tProps.minuteMax
+					&& zdt.getDayOfYear() >= tProps.dateMin && zdt.getDayOfYear() <= tProps.dateMax;
+		}
+
+		default:
+			return false;
+		}
+
 	}
 
 	public String getType() {
@@ -184,5 +257,25 @@ public class Rule {
 
 	public Object getCondValue() {
 		return condValue;
+	}
+
+	static class TimeRuleProperties {
+		public int minuteMin;
+		public int minuteMax;
+		public int dateMin;
+		public int dateMax;
+		public long value;
+		public String tz;
+
+		public static TimeRuleProperties fromJSON(JSONObject o) {
+			TimeRuleProperties t = new TimeRuleProperties();
+			t.dateMax = o.optInt("dateMax", 366);
+			t.dateMin = o.optInt("dateMin", 0);
+			t.minuteMin = o.optInt("minuteMin", 0);
+			t.minuteMax = o.optInt("dateMax", 59);
+			t.value = o.optLong("value", 0l);
+			t.tz = o.optString("tz", Config.get("timezone", "Europe/Berlin"));
+			return t;
+		}
 	}
 }

@@ -4,7 +4,7 @@ import java.util.HashMap;
 
 import de.openinc.ow.analytics.model.Dataset;
 import de.openinc.ow.analytics.model.Instance;
-import de.openinc.ow.helper.DataConversion;
+import de.openinc.ow.helper.DataTools;
 
 public class TimePatternAnalysis {
 
@@ -16,10 +16,10 @@ public class TimePatternAnalysis {
 		for(Instance i:raw) {
 			min = Math.min(min, i.getTime());
 			max = Math.max(max, i.getTime());
-			counter.put(DataConversion.floorDate(i.getTime(),timeSlotInMs), (counter.getOrDefault(DataConversion.floorDate(i.getTime(),timeSlotInMs),0))+1);
+			counter.put(DataTools.floorDate(i.getTime(),timeSlotInMs), (counter.getOrDefault(DataTools.floorDate(i.getTime(),timeSlotInMs),0))+1);
 		}
-		min = DataConversion.floorDate(min, timeSlotInMs);
-		max = DataConversion.floorDate(max,timeSlotInMs)+timeSlotInMs;
+		min = DataTools.floorDate(min, timeSlotInMs);
+		max = DataTools.floorDate(max,timeSlotInMs)+timeSlotInMs;
 		for(long i = min; i<=max; i=i+timeSlotInMs) {
 			res.add(new Instance(i, new double[] {counter.getOrDefault(i, 0)}));
 		}

@@ -29,23 +29,23 @@ public class UserService {
 	private String issuer;
 	private Algorithm algorithm;
 	private HashMap<User, List<Session>> userSessions;
-	
 
 	private UserService() {
 		me = this;
 		this.userSessions = new HashMap<User, List<Session>>();
 		try {
-			issuer = Config.get("jwt_issuer","");
+			issuer = Config.get("jwt_issuer", "");
 			String secret = Config.get("jwt_secret", "");
-			if(secret ==null || issuer == null || issuer.equals("") || secret.equals("")) {
+			if (secret == null || issuer == null || issuer.equals("") || secret.equals("")) {
 				throw new IllegalArgumentException("Missing JWT Config");
 			}
 			algorithm = Algorithm.HMAC256(secret);
 			jwtVerifier = JWT.require(algorithm)
-					//.withIssuer(issuer)
-					.build(); //Reusable verifier instance
+					// .withIssuer(issuer)
+					.build(); // Reusable verifier instance
 		} catch (Exception e) {
-			OpenWareInstance.getInstance().logError("JWT Configuration missing. Please Provide an Issuer (ENV JWT_ISSUER) and secret (ENV JWT_SECRET)");
+			OpenWareInstance.getInstance().logError(
+					"JWT Configuration missing. Please Provide an Issuer (ENV JWT_ISSUER) and secret (ENV JWT_SECRET)");
 			return;
 		}
 	}
@@ -58,9 +58,10 @@ public class UserService {
 
 		return me;
 	}
-	
+
 	/**
 	 * Removes the websocket session from the active user sessions.
+	 * 
 	 * @param session The session that should be removed
 	 * @return True if the session was removed, false if it was not found
 	 */
@@ -68,18 +69,19 @@ public class UserService {
 		HashMap<User, List<Session>> tempUserSession = new HashMap<>();
 		tempUserSession.putAll(userSessions);
 		for (User key : tempUserSession.keySet()) {
-			if(tempUserSession.getOrDefault(key, new ArrayList<Session>()).remove(session)) {
+			if (tempUserSession.getOrDefault(key, new ArrayList<Session>()).remove(session)) {
 				userSessions = tempUserSession;
 				return true;
 			}
 		}
 		return false;
 	}
-	
+
 	/**
 	 * Adds the websocket session from the active user sessions.
+	 * 
 	 * @param session The session that should be added
-	 * @param user The user who initiated the session
+	 * @param user    The user who initiated the session
 	 * 
 	 */
 	public void addUserSession(User user, Session session) {
@@ -91,19 +93,20 @@ public class UserService {
 	}
 
 	public User jwtToUser(String token) {
-		if(jwtVerifier == null) return null;
+		if (jwtVerifier == null)
+			return null;
 		try {
 			DecodedJWT userJWT = jwtVerifier.verify(token);
 			Claim userid = userJWT.getClaim("uid");
-			if (!userid.isNull())
+			if (!userid.isNull() && !userid.isMissing())
 				return getUserByUID(userid.asString());
 
 			Claim username = userJWT.getClaim("username");
-			if (!username.isNull())
+			if (!username.isNull() && !username.isMissing())
 				return getUserByUsername(username.asString());
 
 			Claim usermail = userJWT.getClaim("usermail");
-			if (!usermail.isNull())
+			if (!usermail.isNull() && !usermail.isMissing())
 				return getActiveUsers().stream().filter(new Predicate<User>() {
 					@Override
 					public boolean test(User t) {
@@ -118,15 +121,13 @@ public class UserService {
 	}
 
 	public String userToJWT(String id) {
-		if(jwtVerifier == null) return null;
+		if (jwtVerifier == null)
+			return null;
 		User user = getUserByUID(id);
 		if (user == null)
 			return null;
-		String token = JWT.create()
-				.withClaim("uid", user.getUID())
-				.withClaim("username", user.getName())
-				.withClaim("usermail", user.getEmail().toLowerCase())
-				.sign(algorithm);
+		String token = JWT.create().withClaim("uid", user.getUID()).withClaim("username", user.getName())
+				.withClaim("usermail", user.getEmail().toLowerCase()).sign(algorithm);
 		return token;
 	}
 
@@ -194,11 +195,12 @@ public class UserService {
 		}
 		return null;
 	}
-	
+
 	public boolean notifyActiveUser(User user, JSONObject payload) {
-		List<Session> sessions=	userSessions.get(user);
-		if(sessions==null || sessions.size()==0) return false;
-		for(Session cSession:sessions) {
+		List<Session> sessions = userSessions.get(user);
+		if (sessions == null || sessions.size() == 0)
+			return false;
+		for (Session cSession : sessions) {
 			JSONObject msg = new JSONObject();
 			msg.put("type", "notification");
 			msg.put("payload", payload);

@@ -52,4 +52,9 @@ public class OpenWareGeneric extends OpenWareValueDimension {
 			throw new JSONException(e);
 		}
 	}
+
+	@Override
+	public OpenWareValueDimension empty() {
+		return new OpenWareGeneric(this.getName(), this.getUnit(), new JSONObject());
+	}
 }

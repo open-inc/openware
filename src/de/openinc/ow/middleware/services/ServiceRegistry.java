@@ -30,8 +30,7 @@ public class ServiceRegistry {
 		if (me == null) {
 			try {
 				String path = "state.json";
-				state = new JSONObject(
-						new String(Files.readAllBytes(Paths.get(path))));
+				state = new JSONObject(new String(Files.readAllBytes(Paths.get(path))));
 			} catch (Exception e) {
 				state = new JSONObject();
 				state.put("inactiveServices", new JSONArray());

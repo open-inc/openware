@@ -52,4 +52,9 @@ public class OpenWareNumber extends OpenWareValueDimension {
 		return new OpenWareNumber(getName(), getUnit(), val);
 	}
 
+	@Override
+	public OpenWareValueDimension empty() {
+		return new OpenWareNumber(this.getName(), this.getUnit(), 0.0);
+	}
+
 }

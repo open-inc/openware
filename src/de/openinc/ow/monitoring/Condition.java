@@ -70,8 +70,8 @@ public class Condition {
 			currentVal = DataService.getLiveSensorData(id, source);
 		}
 		if (type.equals("rule")) {
-			return rule.check(currentVal.value().get(0).get(dim).value(), lastVal.item.value().get(0).get(dim).value(),
-					refValue.item.value().get(0).get(refValue.dimension).value());
+			return rule.check(currentVal, lastVal.item, refValue.item.value().get(0).get(refValue.dimension).value(),
+					refValue.dimension);
 		}
 		if (type.equals("and")) {
 

@@ -8,6 +8,7 @@ import org.json.JSONObject;
 import de.openinc.api.AnalyticSensorProvider;
 import de.openinc.model.data.OpenWareDataItem;
 import de.openinc.model.user.User;
+import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.helper.Config;
 
 public class AnalyticsService {
@@ -21,6 +22,12 @@ public class AnalyticsService {
 		cachedSensors = new HashMap<String, OpenWareDataItem>();
 		providers = new HashMap<String, AnalyticSensorProvider>();
 		me = this;
+	}
+
+	public void provideLive(OpenWareDataItem toSave, AnalyticSensorProvider provider) {
+		OpenWareDataItem item = toSave.cloneItem(true);
+		item.setId(Config.get("analyticPrefix", "analytic.") + provider.getType() + "." + item.getId());
+		DataService.onNewData(item);
 	}
 
 	public OpenWareDataItem handle(User user, String sensor, long start, long end) throws Exception {
@@ -43,11 +50,17 @@ public class AnalyticsService {
 			lastRefresh = System.currentTimeMillis();
 			cachedSensors.clear();
 			for (AnalyticSensorProvider provider : providers.values()) {
-				Map<String, OpenWareDataItem> cVSensors = provider.getAnalyticSensors();
-				for (String key : cVSensors.keySet()) {
-					OpenWareDataItem item = cVSensors.get(key);
-					item.setId(Config.get("analyticPrefix", "analytic.") + provider.getType() + "." + item.getId());
-					cachedSensors.put(item.getId(), item);
+				try {
+					Map<String, OpenWareDataItem> cVSensors = provider.getAnalyticSensors();
+					for (String key : cVSensors.keySet()) {
+						OpenWareDataItem item = cVSensors.get(key);
+						item.setId(Config.get("analyticPrefix", "analytic.") + provider.getType() + "." + item.getId());
+						cachedSensors.put(item.getId(), item);
+					}
+				} catch (Exception e) {
+					OpenWareInstance.getInstance().logError("Could not retrieve V-Sensors for " + provider.getType(),
+							e);
+					continue;
 				}
 
 			}

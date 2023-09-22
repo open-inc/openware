@@ -201,37 +201,47 @@ public class OpenWareInstance {
 		Configuration conf = ctx.getConfiguration();
 		LoggerConfig logconf = conf.getLoggerConfig("openware");
 		LoggerConfig mqttconf = conf.getLoggerConfig("mqttLogger");
-
+		LoggerConfig dataconf = conf.getLoggerConfig("dataLogger");
 		switch (Config.get("logLevel", "INFO")) {
 		case "TRACE":
 			logconf.setLevel(Level.TRACE);
-			mqttconf.setLevel(Level.INFO);
+			mqttconf.setLevel(Level.TRACE);
+			dataconf.setLevel(Level.TRACE);
 			break;
 		case "DEBUG":
 			logconf.setLevel(Level.DEBUG);
 			mqttconf.setLevel(Level.INFO);
+			dataconf.setLevel(Level.INFO);
 		case "OFF":
 			logconf.setLevel(Level.OFF);
 			mqttconf.setLevel(Level.OFF);
+			dataconf.setLevel(Level.OFF);
+			;
 			break;
 		case "INFO":
 			logconf.setLevel(Level.INFO);
 			mqttconf.setLevel(Level.INFO);
+			dataconf.setLevel(Level.INFO);
 			break;
 		case "ERROR":
 			logconf.setLevel(Level.ERROR);
 			mqttconf.setLevel(Level.OFF);
+			dataconf.setLevel(Level.OFF);
 			break;
 		case "WARN":
 			logconf.setLevel(Level.WARN);
 			mqttconf.setLevel(Level.INFO);
+			dataconf.setLevel(Level.INFO);
 			break;
 		case "ALL":
 			logconf.setLevel(Level.ALL);
 			mqttconf.setLevel(Level.INFO);
+			dataconf.setLevel(Level.INFO);
 			break;
 		default:
 			logconf.setLevel(Level.INFO);
+			mqttconf.setLevel(Level.INFO);
+			dataconf.setLevel(Level.INFO);
 			break;
 		}
 
@@ -424,6 +434,7 @@ public class OpenWareInstance {
 				return gson.fromJson(json, targetType);
 			}
 		};
+
 		javalinInstance = Javalin.create(config -> {
 			config.staticFiles.add(staticFiles -> {
 				staticFiles.location = Location.EXTERNAL;
@@ -433,6 +444,7 @@ public class OpenWareInstance {
 			config.spaRoot.addFile("/", Config.get("publicHTTP", "app") + "/index.html", Location.EXTERNAL);
 			config.http.defaultContentType = "application/json";
 			config.jsonMapper(gsonMapper);
+			config.compression.gzipOnly();
 			config.plugins.enableCors(cors -> {
 				cors.add(it -> {
 					it.anyHost();

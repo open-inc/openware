@@ -204,6 +204,7 @@ public class MiddlewareApi implements OpenWareAPI {
 				if (item == null) {
 					ctx.json(new JSONObject());
 				} else {
+					// ctx.json(item.toString());
 					streamResponse(ctx, item);
 					ctx.status(200);
 				}

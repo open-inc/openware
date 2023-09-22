@@ -1,5 +1,7 @@
 package de.openinc.model.data;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
@@ -136,6 +138,101 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 		valueString.append("]");
 		return "{" + DataTools.getJSONPartial("date", date, false, false)
 				+ DataTools.getJSONPartial("value", valueString.toString(), true, false) + "}";
+	}
+
+	private void streamJSONArrayPartial(JSONArray cArray, OutputStream out) throws IOException {
+		out.write("[".getBytes());
+		for (int i = 0; i < cArray.length(); i++) {
+			boolean isObject = false;
+			boolean isArray = false;
+			if (cArray.get(i) instanceof JSONObject) {
+				isObject = true;
+				streamJSONObjectPartial(cArray.getJSONObject(i), out);
+			}
+			if (cArray.get(i) instanceof JSONArray) {
+				isArray = true;
+				streamJSONArrayPartial(cArray.getJSONArray(i), out);
+			}
+
+			if (!(isArray || isObject)) {
+				Object value = cArray.get(i);
+				if (value instanceof String) {
+					value = "\"" + value + "\"";
+				}
+				out.write(StringEscapeUtils.escapeJava(value.toString()).getBytes());
+			}
+
+			if (i < cArray.length() - 1) {
+				out.write(",".getBytes());
+			}
+
+		}
+		out.write("]".getBytes());
+	}
+
+	private void streamJSONObjectPartial(JSONObject o, OutputStream out) throws IOException {
+		if (o != null) {
+			out.write("{".getBytes());
+		}
+		boolean notFirst = false;
+		for (String key : o.keySet()) {
+
+			if (notFirst) {
+				out.write(",".getBytes());
+			} else {
+				notFirst = true;
+			}
+			out.write(("\"" + key + "\":").getBytes());
+			boolean isObjectOrArray = false;
+			if (o.get(key) instanceof JSONObject) {
+				isObjectOrArray = true;
+				streamJSONObjectPartial(o.getJSONObject(key), out);
+			}
+			if (o.get(key) instanceof JSONArray) {
+				isObjectOrArray = true;
+				streamJSONArrayPartial(o.getJSONArray(key), out);
+			}
+			if (!isObjectOrArray) {
+				Object value = o.get(key);
+				if (value instanceof String) {
+					value = "\"" + ((String) value).replace("\"", "\\\"").replace("\n", "") + "\"";
+				}
+				out.write((value.toString()).getBytes());
+			}
+
+		}
+		out.write("}".getBytes());
+	}
+
+	public void streamPrint(OutputStream out) throws IOException {
+		boolean first = true;
+		out.write(("{" + DataTools.getJSONPartial("date", date, false, false) + "\"value\":[").getBytes());
+		for (OpenWareValueDimension dim : this) {
+			if (!first) {
+				out.write(",".toString().getBytes());
+			}
+			if (dim instanceof OpenWareString) {
+				out.write(("\"" + StringEscapeUtils.escapeJava((String) dim.value()) + "\"").getBytes());
+			} else if (dim instanceof OpenWareNumber) {
+				double test = ((OpenWareNumber) dim).value();
+				if (Double.isNaN(test)) {
+					out.write(JSONObject.NULL.toString().getBytes());
+
+				} else {
+					out.write(dim.value().toString().getBytes());
+
+				}
+			} else if (dim instanceof OpenWareGeo || dim instanceof OpenWareGeneric) {
+				JSONObject val = (JSONObject) dim.value();
+				streamJSONObjectPartial(val, out);
+			} else {
+				out.write(dim.value().toString().getBytes());
+			}
+
+			first = false;
+		}
+		out.write("]".getBytes());
+		out.write("}".getBytes());
 	}
 
 	public JSONObject toJSON() {

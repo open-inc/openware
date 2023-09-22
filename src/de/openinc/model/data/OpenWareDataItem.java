@@ -430,7 +430,11 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 			if (!first) {
 				out.write(",".getBytes());
 			}
-			out.write(val.toString().getBytes());
+			val.streamPrint(out);
+			/*
+			 * String s = val.toString(); System.out.println(s);
+			 * out.write(val.toString().getBytes());
+			 */
 			first = false;
 		}
 		out.write("]}".getBytes());

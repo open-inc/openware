@@ -111,7 +111,7 @@ public class OpenWareInstance {
 	private static OpenWareInstance me;
 	private ArrayList<OpenWareAPI> services;
 	private boolean running = false;
-	private JSONObject state;
+
 	private CompletableFuture<Boolean> started;
 	private Javalin javalinInstance;
 	private Gson gson;
@@ -445,6 +445,10 @@ public class OpenWareInstance {
 			config.http.defaultContentType = "application/json";
 			config.jsonMapper(gsonMapper);
 			config.compression.gzipOnly();
+			config.jetty.httpConfigurationConfig((jettyConfig) -> {
+				jettyConfig.setIdleTimeout(60 * 10 * 1000);
+
+			});
 			config.plugins.enableCors(cors -> {
 				cors.add(it -> {
 					it.anyHost();

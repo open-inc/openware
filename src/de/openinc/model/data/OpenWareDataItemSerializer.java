@@ -3,6 +3,7 @@ package de.openinc.model.data;
 import java.lang.reflect.Type;
 import java.util.List;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import com.google.gson.JsonArray;
@@ -42,8 +43,16 @@ public class OpenWareDataItemSerializer implements JsonSerializer<OpenWareDataIt
 				if (dimen.type().equals(OpenWareBoolValue.TYPE)) {
 					value.add((boolean) dimen.value());
 				}
-				if (dimen.type().equals(OpenWareGeneric.TYPE) || dimen.type().equals(OpenWareGeo.TYPE)) {
+				if (dimen.type().equals(OpenWareGeo.TYPE)) {
 					value.add(JsonParser.parseString(((JSONObject) dimen.value()).toString()));
+				}
+				if (dimen.type().equals(OpenWareGeneric.TYPE)) {
+					if (dimen.value() instanceof JSONObject) {
+						value.add(JsonParser.parseString(((JSONObject) dimen.value()).toString()));
+					} else {
+						value.add(JsonParser.parseString(((JSONArray) dimen.value()).toString()));
+					}
+
 				}
 
 			}

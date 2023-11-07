@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import de.openinc.model.data.OpenWareDataItem;
 import de.openinc.model.data.OpenWareValue;
@@ -24,8 +25,7 @@ public class DataSplitter {
 
 		for (OpenWareValue val : data.value()) {
 			long bucketIndex = (val.getDate() - start) / bucketInterval;
-			List<OpenWareValue> cBucket = bucketData.getOrDefault(bucketIndex,
-					new ArrayList<OpenWareValue>());
+			List<OpenWareValue> cBucket = bucketData.getOrDefault(bucketIndex, new ArrayList<OpenWareValue>());
 			bucketData.put(bucketIndex, cBucket);
 			cBucket.add(val);
 		}
@@ -59,6 +59,25 @@ public class DataSplitter {
 		return sets;
 	}
 
+	public static Map<Long, OpenWareDataItem> split(OpenWareDataItem data, List<Long> buckets) {
+
+		TreeMap<Long, OpenWareDataItem> bucketedData = new TreeMap<Long, OpenWareDataItem>();
+		for (long ts : buckets) {
+			bucketedData.put(ts, null);
+		}
+		for (OpenWareValue val : data.value()) {
+			long bucketKey = bucketedData.floorKey(val.getDate());
+			OpenWareDataItem cItem = bucketedData.get(bucketKey);
+			if (cItem == null) {
+				cItem = data.cloneItem(false);
+				bucketedData.put(bucketKey, cItem);
+			}
+			cItem.value().add(val);
+		}
+		return bucketedData;
+
+	}
+
 	public static Map<Long, OpenWareDataItem> splitHourly(OpenWareDataItem data, double hours) {
 		return split(data, (long) (1000l * 3600l * hours));
 	}
@@ -71,33 +90,16 @@ public class DataSplitter {
 		return split(data, (long) (1000l * 3600l * 24l * 7l * weeks));
 	}
 	/*
-		public static Dataset convertToEpochInstances(Dataset data, long interval, int index) {
-			Dataset res = new Dataset();
-			ArrayList<Double> temp = new ArrayList<Double>();
-			long lastIndex = -1;
-			for (int i = 0; i < data.size(); i++) {
-				if (lastIndex == -1) {
-					lastIndex = data.get(i).getTime() / interval;
-					temp.add(data.get(i).value(index));
-					continue;
-				}
-				Instance current = data.get(i);
-				long newIndex = current.getTime() / interval;
-				if (lastIndex == newIndex) {
-					temp.add(current.value(index));
-					continue;
-				}
-				lastIndex = newIndex;
-				double[] resArray = new double[temp.size()];
-				for (int j = 0; j < temp.size(); j++) {
-					resArray[j] = temp.get(j);
-				}
-				Instance instance = new Instance(resArray);
-				res.add(instance);
-				temp = new ArrayList<Double>();
-				temp.add(current.value(index));
-			}
-			return res;
-		}
-	*/
+	 * public static Dataset convertToEpochInstances(Dataset data, long interval,
+	 * int index) { Dataset res = new Dataset(); ArrayList<Double> temp = new
+	 * ArrayList<Double>(); long lastIndex = -1; for (int i = 0; i < data.size();
+	 * i++) { if (lastIndex == -1) { lastIndex = data.get(i).getTime() / interval;
+	 * temp.add(data.get(i).value(index)); continue; } Instance current =
+	 * data.get(i); long newIndex = current.getTime() / interval; if (lastIndex ==
+	 * newIndex) { temp.add(current.value(index)); continue; } lastIndex = newIndex;
+	 * double[] resArray = new double[temp.size()]; for (int j = 0; j < temp.size();
+	 * j++) { resArray[j] = temp.get(j); } Instance instance = new
+	 * Instance(resArray); res.add(instance); temp = new ArrayList<Double>();
+	 * temp.add(current.value(index)); } return res; }
+	 */
 }

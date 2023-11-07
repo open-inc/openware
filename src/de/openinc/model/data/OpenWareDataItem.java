@@ -102,6 +102,12 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		}
 	}
 
+	public void valueUnsafe(List<OpenWareValue> value) {
+		if (value != null) {
+			this.values = value;
+		}
+	}
+
 	public boolean persist() {
 		return persist;
 	}

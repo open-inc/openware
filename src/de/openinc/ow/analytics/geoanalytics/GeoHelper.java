@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Stack;
+import java.util.stream.Collectors;
 
 import org.apache.commons.math3.ml.clustering.Cluster;
 import org.apache.commons.math3.ml.clustering.Clusterer;
@@ -15,6 +16,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.data.OpenWareGeneric;
 import de.openinc.model.data.OpenWareGeo;
 import de.openinc.model.data.OpenWareNumber;
 import de.openinc.model.data.OpenWareValue;
@@ -28,11 +30,90 @@ public class GeoHelper {
 	public static OpenWareDataItem fromGeoJSON(OpenWareDataItem data) throws IllegalArgumentException {
 		Dataset res = geoToDataset(data);
 		List<OpenWareValueDimension> vTypes = new ArrayList<>();
-		vTypes.add(OpenWareValueDimension.createNewDimension("Latitude", "", OpenWareNumber.TYPE));
 		vTypes.add(OpenWareValueDimension.createNewDimension("Longitude", "", OpenWareNumber.TYPE));
-		OpenWareDataItem toReturn = data.cloneItem();
+		vTypes.add(OpenWareValueDimension.createNewDimension("Latitude", "", OpenWareNumber.TYPE));
+
+		OpenWareDataItem toReturn = data.cloneItem(false);
 		toReturn.setValueTypes(vTypes);
 		toReturn.value(res.toValueList());
+		return toReturn;
+	}
+
+	private static OpenWareValue extractCoords(long ts, JSONObject geo, OpenWareValue prevs) {
+		OpenWareValue coords;
+		if (prevs == null) {
+			coords = new OpenWareValue(ts);
+			coords.add(new OpenWareGeneric("LonLat", "", new JSONArray()));
+		} else {
+			coords = prevs;
+		}
+		JSONArray toUse = (JSONArray) coords.get(0).value();
+
+		switch (geo.optString("type").toLowerCase()) {
+		case "feature": {
+			extractCoords(ts, geo.getJSONObject("geometry"), coords);
+			// toUse.putAll(val.get(0).value());
+			break;
+		}
+		case "featurecollection": {
+			JSONArray features = geo.getJSONArray("features");
+			for (int i = 0; i < features.length(); i++) {
+				OpenWareValue val = extractCoords(ts, features.getJSONObject(i), coords);
+				// toUse.putAll(val.get(0).value());
+			}
+			break;
+		}
+		case "point": {
+			OpenWareValue val = extractPointsFromPointOW(ts, geo);
+			toUse.putAll(val.get(0).value());
+			break;
+		}
+
+		case "multipoint":
+		case "linestring": {
+			OpenWareValue val = extractPointsFromLineOrMultiPointOW(ts, geo);
+			toUse.putAll(val.get(0).value());
+			break;
+		}
+
+		case "multilinestring":
+		case "polygon": {
+			OpenWareValue val = extractPointsFromPolygonOrMultiLineOW(ts, geo);
+			toUse.putAll(val.get(0).value());
+			break;
+		}
+		case "multipolygon": {
+			OpenWareValue val = extractPointsFromMultipolygonOW(ts, geo);
+			toUse.putAll(val.get(0).value());
+			break;
+		}
+		case "geometrycollection": {
+			OpenWareValue val = extractPointsFromGeometryCollectionOW(ts, geo, coords);
+			toUse.putAll(val.get(0).value());
+			break;
+		}
+
+		default:
+			throw new IllegalArgumentException("GeoJSON Type not recognized\n" + geo.toString());
+		}
+		return coords;
+	}
+
+	public static OpenWareDataItem fromGeoJSON(OpenWareDataItem data, JSONObject params)
+			throws IllegalArgumentException {
+
+		if (!params.has("dimension"))
+			throw new IllegalArgumentException("Dimension parameter is missing");
+		int dim = params.getInt("dimension");
+		List<OpenWareValueDimension> vTypes = new ArrayList<>();
+		vTypes.add(OpenWareValueDimension.createNewDimension("LonLat", "", OpenWareGeneric.TYPE));
+		OpenWareDataItem toReturn = data.cloneItem(false);
+		toReturn.setValueTypes(vTypes);
+
+		toReturn.valueUnsafe(data.value().stream().map((OpenWareValue value) -> {
+			JSONObject geo = (JSONObject) value.get(dim).value();
+			return extractCoords(value.getDate(), geo, null);
+		}).collect(Collectors.toList()));
 		return toReturn;
 	}
 
@@ -60,7 +141,7 @@ public class GeoHelper {
 				throw new IllegalArgumentException("Data must contain OpenWareGeoValue at dimension " + dimension);
 			}
 
-			//FEATURE Collection
+			// FEATURE Collection
 			JSONObject current = (JSONObject) val.get(dimension).value();
 			if (current.optString("type").toLowerCase().equals("featurecollection")) {
 				List<JSONObject> temp = geojsons.getOrDefault(val.getDate(), new ArrayList<JSONObject>());
@@ -68,7 +149,7 @@ public class GeoHelper {
 				geojsons.put(val.getDate(), temp);
 				continue;
 			}
-			//FEATURE
+			// FEATURE
 			if (current.has("geometry")) {
 				List<JSONObject> temp = geojsons.getOrDefault(val.getDate(), new ArrayList<JSONObject>());
 				JSONObject toAdd = current.getJSONObject("geometry");
@@ -77,7 +158,7 @@ public class GeoHelper {
 				geojsons.put(val.getDate(), temp);
 				continue;
 			}
-			//GEOMETRY
+			// GEOMETRY
 			if (current.has("type") && current.has("coordinates")) {
 				List<JSONObject> temp = geojsons.getOrDefault(val.getDate(), new ArrayList<JSONObject>());
 				temp.add(current);
@@ -87,7 +168,7 @@ public class GeoHelper {
 		}
 
 		for (long ts : geojsons.keySet()) {
-			//System.out.println(ts);
+			// System.out.println(ts);
 			for (JSONObject obj : geojsons.get(ts)) {
 
 				switch (obj.optString("type").toLowerCase()) {
@@ -125,7 +206,7 @@ public class GeoHelper {
 		List<OpenWareValueDimension> vTypes = new ArrayList<OpenWareValueDimension>();
 		vTypes.add(OpenWareGeo.createNewDimension("cluster", "", OpenWareGeo.TYPE));
 		res.setValueTypes(vTypes);
-		
+
 		try {
 			List<Cluster<Instance>> clusters = (List<Cluster<Instance>>) clusterer.cluster(geoToDataset(data));
 			List<JSONObject> geoClusters = new ArrayList<JSONObject>();
@@ -185,17 +266,16 @@ public class GeoHelper {
 			OpenWareValue resVal = new OpenWareValue(data.value().get(0).getDate());
 			resVal.addValueDimension(res.getValueTypes().get(0).createValueForDimension(featureCollection));
 			res.value().add(resVal);
-		}catch(Exception e) {
+		} catch (Exception e) {
 			OpenWareInstance.getInstance().logError("GEOHELPER - Invalid GeoJSON", e);
 		}
-		
+
 		return res;
 
 	}
 
 	public static OpenWareDataItem clusterKMeans(OpenWareDataItem data, JSONObject params) {
-		KMeansPlusPlusClusterer<Instance> clusterer = new KMeansPlusPlusClusterer<Instance>(
-				params.getInt("clusters"));
+		KMeansPlusPlusClusterer<Instance> clusterer = new KMeansPlusPlusClusterer<Instance>(params.getInt("clusters"));
 		return cluster(data, clusterer);
 	}
 
@@ -223,7 +303,7 @@ public class GeoHelper {
 	private static List<Instance> extractPointsFromPoint(long ts, JSONObject point) {
 		ArrayList<Instance> data = new ArrayList<>();
 		JSONArray points = point.getJSONArray("coordinates");
-		Instance inst = new Instance(ts, new double[] { points.getDouble(1), points.getDouble(0) });
+		Instance inst = new Instance(ts, new double[] { points.getDouble(0), points.getDouble(1) });
 		data.add(inst);
 		return data;
 	}
@@ -233,7 +313,7 @@ public class GeoHelper {
 		JSONArray points2 = lineOrMultiP.getJSONArray("coordinates");
 		for (int i = 0; i < points2.length(); i++) {
 			JSONArray points = points2.getJSONArray(i);
-			Instance inst = new Instance(ts, new double[] { points.getDouble(1), points.getDouble(0) });
+			Instance inst = new Instance(ts, new double[] { points.getDouble(0), points.getDouble(1) });
 			data.add(inst);
 		}
 		return data;
@@ -243,12 +323,12 @@ public class GeoHelper {
 		ArrayList<Instance> data = new ArrayList<>();
 		JSONArray points2 = Polygon.getJSONArray("coordinates");
 		for (int i = 0; i < points2.length(); i++) {
-			//OUTER RING AND HOLES OF POLYGON
+			// OUTER RING AND HOLES OF POLYGON
 			JSONArray points3 = points2.getJSONArray(i);
 			for (int j = 0; j < points3.length(); j++) {
-				//POINTS OF EACH RING/HOLE
+				// POINTS OF EACH RING/HOLE
 				JSONArray points = points3.getJSONArray(j);
-				Instance inst = new Instance(ts, new double[] { points.getDouble(1), points.getDouble(0) });
+				Instance inst = new Instance(ts, new double[] { points.getDouble(0), points.getDouble(1) });
 				data.add(inst);
 			}
 
@@ -260,14 +340,14 @@ public class GeoHelper {
 		ArrayList<Instance> data = new ArrayList<>();
 		JSONArray points2 = mPolygon.getJSONArray("coordinates");
 		for (int i = 0; i < points2.length(); i++) {
-			//EACH POLYGON
+			// EACH POLYGON
 			JSONArray points3 = points2.getJSONArray(i);
 			for (int j = 0; j < points3.length(); j++) {
-				//EACH RING/HOLE
+				// EACH RING/HOLE
 				JSONArray points4 = points3.getJSONArray(j);
 				for (int k = 0; k < points4.length(); k++) {
 					JSONArray points = points4.getJSONArray(j);
-					Instance inst = new Instance(ts, new double[] { points.getDouble(1), points.getDouble(0) });
+					Instance inst = new Instance(ts, new double[] { points.getDouble(0), points.getDouble(1) });
 					data.add(inst);
 				}
 
@@ -277,8 +357,7 @@ public class GeoHelper {
 		return data;
 	}
 
-	private static List<Instance> extractPointsFromGeometry(long ts, JSONObject collection,
-			List<Instance> instances) {
+	private static List<Instance> extractPointsFromGeometry(long ts, JSONObject collection, List<Instance> instances) {
 		List<Instance> data;
 		if (instances == null) {
 			data = new ArrayList<>();
@@ -309,8 +388,7 @@ public class GeoHelper {
 			data.addAll(extractPointsFromGeometryCollection(ts, geometry, data));
 			break;
 		default:
-			throw new IllegalArgumentException(
-					"GeoJSON Type not recognized\n" + geometry.toString());
+			throw new IllegalArgumentException("GeoJSON Type not recognized\n" + geometry.toString());
 		}
 
 		return data;
@@ -348,6 +426,166 @@ public class GeoHelper {
 			case "geometrycollection":
 				data.addAll(extractPointsFromGeometryCollection(ts, geometries.getJSONObject(i), data));
 				break;
+			default:
+				throw new IllegalArgumentException(
+						"GeoJSON Type not recognized\n" + geometries.getJSONObject(i).toString());
+			}
+		}
+
+		return data;
+	}
+
+	private static List<JSONObject> extractGeometriesFromFeatureCollectionOW(JSONObject feature) {
+		List<JSONObject> extracted = new ArrayList<>();
+		JSONArray features = feature.getJSONArray("features");
+		for (int i = 0; i < features.length(); i++) {
+			extracted.add(features.getJSONObject(i).getJSONObject("geometry"));
+		}
+		return extracted;
+	}
+
+	private static OpenWareValue extractPointsFromPointOW(long ts, JSONObject point) {
+
+		JSONArray points = point.getJSONArray("coordinates");
+		OpenWareValue inst = new OpenWareValue(ts);
+
+		inst.add(new OpenWareGeneric("LonLat", "", new JSONArray().put(points)));
+		return inst;
+	}
+
+	private static OpenWareValue extractPointsFromLineOrMultiPointOW(long ts, JSONObject lineOrMultiP) {
+		JSONArray data = new JSONArray();
+		JSONArray points2 = lineOrMultiP.getJSONArray("coordinates");
+		for (int i = 0; i < points2.length(); i++) {
+			data.put(points2.getJSONArray(i));
+		}
+		OpenWareValue inst = new OpenWareValue(ts);
+		inst.add(new OpenWareGeneric("LonLat", "", data));
+
+		return inst;
+	}
+
+	private static OpenWareValue extractPointsFromPolygonOrMultiLineOW(long ts, JSONObject Polygon) {
+		JSONArray data = new JSONArray();
+		JSONArray points2 = Polygon.getJSONArray("coordinates");
+		for (int i = 0; i < points2.length(); i++) {
+			// OUTER RING AND HOLES OF POLYGON
+			JSONArray points3 = points2.getJSONArray(i);
+			for (int j = 0; j < points3.length(); j++) {
+				// POINTS OF EACH RING/HOLE
+				JSONArray points = points3.getJSONArray(j);
+				data.put(points);
+			}
+
+		}
+		OpenWareValue inst = new OpenWareValue(ts);
+		inst.add(new OpenWareGeneric("LonLat", "", data));
+
+		return inst;
+	}
+
+	private static OpenWareValue extractPointsFromMultipolygonOW(long ts, JSONObject mPolygon) {
+		JSONArray data = new JSONArray();
+		JSONArray points2 = mPolygon.getJSONArray("coordinates");
+		for (int i = 0; i < points2.length(); i++) {
+			// EACH POLYGON
+			JSONArray points3 = points2.getJSONArray(i);
+			for (int j = 0; j < points3.length(); j++) {
+				// EACH RING/HOLE
+				JSONArray points4 = points3.getJSONArray(j);
+				for (int k = 0; k < points4.length(); k++) {
+					JSONArray points = points4.getJSONArray(j);
+					data.put(points);
+				}
+
+			}
+
+		}
+		OpenWareValue inst = new OpenWareValue(ts);
+		inst.add(new OpenWareGeneric("LonLat", "", data));
+
+		return inst;
+	}
+
+	private static OpenWareValue extractPointsFromGeometryOW(long ts, JSONObject collection, OpenWareValue instances) {
+		OpenWareValue data;
+		if (instances == null) {
+			data = new OpenWareValue(ts);
+			data.add(new OpenWareGeneric("LonLat", "", new JSONArray()));
+		} else {
+			data = instances;
+		}
+		JSONObject geometry = collection.getJSONObject("geometry");
+		switch (geometry.getString("type").toLowerCase()) {
+		case "point": {
+			((JSONArray) data.get(0).value()).putAll(extractPointsFromPointOW(ts, geometry).get(0).value());
+			break;
+		}
+
+		case "multipoint":
+		case "linestring":
+			((JSONArray) data.get(0).value()).putAll(extractPointsFromLineOrMultiPointOW(ts, geometry).get(0).value());
+			break;
+		case "multilinestring":
+		case "polygon":
+			((JSONArray) data.get(0).value())
+					.putAll(extractPointsFromPolygonOrMultiLineOW(ts, geometry).get(0).value());
+		case "multipolygon":
+			((JSONArray) data.get(0).value()).putAll(extractPointsFromMultipolygonOW(ts, geometry).get(0).value());
+			break;
+		case "geometrycollection":
+			((JSONArray) data.get(0).value())
+					.putAll(extractPointsFromGeometryCollectionOW(ts, geometry, data).get(0).value());
+
+			break;
+		default:
+			throw new IllegalArgumentException("GeoJSON Type not recognized\n" + geometry.toString());
+		}
+
+		return data;
+	}
+
+	private static OpenWareValue extractPointsFromGeometryCollectionOW(long ts, JSONObject collection,
+			OpenWareValue instance) {
+		OpenWareValue data;
+		if (instance == null) {
+			data = new OpenWareValue(ts);
+			data.add(new OpenWareGeneric("LonLat", "", new JSONArray()));
+		} else {
+			data = instance;
+		}
+		JSONArray geometries = collection.getJSONArray("geometries");
+		for (int i = 0; i < geometries.length(); i++) {
+			switch (geometries.getJSONObject(i).getString("type").toLowerCase()) {
+			case "point": {
+				OpenWareValue val = extractPointsFromPointOW(ts, geometries.getJSONObject(i));
+				((JSONArray) data.get(0).value()).putAll(val.get(0).value());
+				break;
+			}
+			case "linestring":
+			case "multipoint": {
+				OpenWareValue val = extractPointsFromLineOrMultiPointOW(ts, geometries.getJSONObject(i));
+				((JSONArray) data.get(0).value()).putAll(val.get(0).value());
+				break;
+			}
+			case "multilinestring":
+			case "polygon": {
+				OpenWareValue val = extractPointsFromPolygonOrMultiLineOW(ts, geometries.getJSONObject(i));
+				((JSONArray) data.get(0).value()).putAll(val.get(0).value());
+				break;
+			}
+
+			case "multipolygon": {
+				OpenWareValue val = extractPointsFromMultipolygonOW(ts, geometries.getJSONObject(i));
+				((JSONArray) data.get(0).value()).putAll(val.get(0).value());
+				break;
+			}
+			case "geometrycollection": {
+				OpenWareValue val = extractPointsFromGeometryCollectionOW(ts, geometries.getJSONObject(i), data);
+				((JSONArray) data.get(0).value()).putAll(val.get(0).value());
+				break;
+			}
+
 			default:
 				throw new IllegalArgumentException(
 						"GeoJSON Type not recognized\n" + geometries.getJSONObject(i).toString());
@@ -410,18 +648,12 @@ public class GeoHelper {
 			cos2SM = (cosSqAlpha == 0) ? 0.0 : cosSigma - 2.0 * sinU1sinU2 / cosSqAlpha;
 
 			final double uSquared = cosSqAlpha * aSqMinusBSqOverBSq;
-			A = 1 + (uSquared / 16384.0) *
-					(4096.0 + uSquared * (-768 + uSquared * (320.0 - 175.0 * uSquared)));
-			final double B = (uSquared / 1024.0) *
-					(256.0 + uSquared * (-128.0 + uSquared * (74.0 - 47.0 * uSquared)));
+			A = 1 + (uSquared / 16384.0) * (4096.0 + uSquared * (-768 + uSquared * (320.0 - 175.0 * uSquared)));
+			final double B = (uSquared / 1024.0) * (256.0 + uSquared * (-128.0 + uSquared * (74.0 - 47.0 * uSquared)));
 			final double C = (f / 16.0) * cosSqAlpha * (4.0 + f * (4.0 - 3.0 * cosSqAlpha));
 			final double cos2SMSq = cos2SM * cos2SM;
-			deltaSigma = B
-					* sinSigma
-					*
-					(cos2SM + (B / 4.0)
-							* (cosSigma * (-1.0 + 2.0 * cos2SMSq) - (B / 6.0) * cos2SM
-									* (-3.0 + 4.0 * sinSigma * sinSigma) * (-3.0 + 4.0 * cos2SMSq)));
+			deltaSigma = B * sinSigma * (cos2SM + (B / 4.0) * (cosSigma * (-1.0 + 2.0 * cos2SMSq)
+					- (B / 6.0) * cos2SM * (-3.0 + 4.0 * sinSigma * sinSigma) * (-3.0 + 4.0 * cos2SMSq)));
 
 			lambda = L + (1.0 - C) * f * sinAlpha
 					* (sigma + C * sinSigma * (cos2SM + C * cosSigma * (-1.0 + 2.0 * cos2SM * cos2SM)));
@@ -446,7 +678,7 @@ class GeoDistanceMeasure implements org.apache.commons.math3.ml.distance.Distanc
 
 	@Override
 	public double compute(double[] a, double[] b) {
-		return GeoHelper.computeDistance(a[0], a[1], b[0], b[1]);
+		return GeoHelper.computeDistance(a[1], a[0], b[1], b[0]);
 	}
 
 }
@@ -462,7 +694,8 @@ class GrahamScan {
 		for (int i = 0; i < N; i++)
 			points[i] = pts[i];
 
-		// preprocess so that points[0] has lowest y-coordinate; break ties by x-coordinate
+		// preprocess so that points[0] has lowest y-coordinate; break ties by
+		// x-coordinate
 		// points[0] is an extreme point of the convex hull
 		// (alternatively, could do easily in linear time)
 		Arrays.sort(points);
@@ -584,7 +817,8 @@ class Point2D implements Comparable<Point2D> {
 		return Math.atan2(y, x);
 	}
 
-	// return the polar angle between this point and that point (between -pi and pi);
+	// return the polar angle between this point and that point (between -pi and
+	// pi);
 	// (0 if two points are equal)
 	private double angleTo(Point2D that) {
 		double dx = that.x - this.x;
@@ -624,6 +858,7 @@ class Point2D implements Comparable<Point2D> {
 	}
 
 	// compare by y-coordinate, breaking ties by x-coordinate
+	@Override
 	public int compareTo(Point2D that) {
 		if (this.y < that.y)
 			return -1;
@@ -638,6 +873,7 @@ class Point2D implements Comparable<Point2D> {
 
 	// compare points according to their x-coordinate
 	private static class XOrder implements Comparator<Point2D> {
+		@Override
 		public int compare(Point2D p, Point2D q) {
 			if (p.x < q.x)
 				return -1;
@@ -649,6 +885,7 @@ class Point2D implements Comparable<Point2D> {
 
 	// compare points according to their y-coordinate
 	private static class YOrder implements Comparator<Point2D> {
+		@Override
 		public int compare(Point2D p, Point2D q) {
 			if (p.y < q.y)
 				return -1;
@@ -660,6 +897,7 @@ class Point2D implements Comparable<Point2D> {
 
 	// compare points according to their polar radius
 	private static class ROrder implements Comparator<Point2D> {
+		@Override
 		public int compare(Point2D p, Point2D q) {
 			double delta = (p.x * p.x + p.y * p.y) - (q.x * q.x + q.y * q.y);
 			if (delta < 0)
@@ -670,8 +908,10 @@ class Point2D implements Comparable<Point2D> {
 		}
 	}
 
-	// compare other points relative to atan2 angle (bewteen -pi/2 and pi/2) they make with this Point
+	// compare other points relative to atan2 angle (bewteen -pi/2 and pi/2) they
+	// make with this Point
 	private class Atan2Order implements Comparator<Point2D> {
+		@Override
 		public int compare(Point2D q1, Point2D q2) {
 			double angle1 = angleTo(q1);
 			double angle2 = angleTo(q2);
@@ -684,8 +924,10 @@ class Point2D implements Comparable<Point2D> {
 		}
 	}
 
-	// compare other points relative to polar angle (between 0 and 2pi) they make with this Point
+	// compare other points relative to polar angle (between 0 and 2pi) they make
+	// with this Point
 	private class PolarOrder implements Comparator<Point2D> {
+		@Override
 		public int compare(Point2D q1, Point2D q2) {
 			double dx1 = q1.x - x;
 			double dy1 = q1.y - y;
@@ -712,6 +954,7 @@ class Point2D implements Comparable<Point2D> {
 
 	// compare points according to their distance to this point
 	private class DistanceToOrder implements Comparator<Point2D> {
+		@Override
 		public int compare(Point2D p, Point2D q) {
 			double dist1 = distanceSquaredTo(p);
 			double dist2 = distanceSquaredTo(q);
@@ -725,6 +968,7 @@ class Point2D implements Comparable<Point2D> {
 	}
 
 	// does this point equal y?
+	@Override
 	public boolean equals(Object other) {
 		if (other == this)
 			return true;
@@ -744,24 +988,15 @@ class Point2D implements Comparable<Point2D> {
 	// must override hashcode if you override equals
 	// See Item 9 of Effective Java (2e) by Joshua Block
 	/*
-	private volatile int hashCode;
-	public int hashCode() {
-		int result = hashCode;
-		if (result == 0) {
-			result = 17;
-			result = 31*result + Double.hashCode(x);
-			result = 31*result + Double.hashCode(y);
-			hashCode = result;
-		}
-		return result;
-	}
-	*/
+	 * private volatile int hashCode; public int hashCode() { int result = hashCode;
+	 * if (result == 0) { result = 17; result = 31*result + Double.hashCode(x);
+	 * result = 31*result + Double.hashCode(y); hashCode = result; } return result;
+	 * }
+	 */
 	// convert to string
+	@Override
 	public String toString() {
-		return "(" + x +
-				"," +
-				y +
-				")";
+		return "(" + x + "," + y + ")";
 	}
 
 }

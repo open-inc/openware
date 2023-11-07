@@ -74,6 +74,7 @@ public class ServiceRegistry {
 
 	protected OWService removeService(String id) {
 		OWService removed = this.activeServices.remove(id);
+
 		if (removed != null) {
 			this.inActiveServices.put(id, removed);
 			updateInactiveServiceState();

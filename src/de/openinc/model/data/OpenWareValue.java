@@ -251,6 +251,17 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 		return (int) (this.getDate() - o.getDate());
 	}
 
+	public boolean equalsValue(OpenWareValue other) {
+		if (other.size() != this.size())
+			return false;
+		for (int i = 0; i < this.size(); i++) {
+			if (!this.get(i).value().equals(other.get(i).value())) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	@Override
 	public boolean equals(Object o) {
 		if (o instanceof OpenWareValue) {

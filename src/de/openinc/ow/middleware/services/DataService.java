@@ -1,6 +1,7 @@
 package de.openinc.ow.middleware.services;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.ConcurrentModificationException;
 import java.util.Date;
@@ -726,8 +727,15 @@ public class DataService {
 	}
 
 	private static List<OpenWareValue> getMinMax(OpenWareDataItem data, int maxAmount, int dim) {
-		if (!data.getValueTypes().get(dim).type().toLowerCase().equals(OpenWareNumber.TYPE.toLowerCase()))
-			return data.value();
+		if (!data.getValueTypes().get(dim).type().toLowerCase().equals(OpenWareNumber.TYPE.toLowerCase())) {
+			// No Number field, so return first and last.
+			if (data.value().size() <= 1) {
+				return data.value();
+			}
+
+			return Arrays.asList(data.value().get(0), data.value().get(data.value().size() - 1));
+		}
+
 		int bucketSize = (int) (data.value().size() / (double) (maxAmount / 2));
 		ArrayList<OpenWareValue> res = new ArrayList<OpenWareValue>();
 		List<OpenWareValue> resNew = Collections.synchronizedList(res);

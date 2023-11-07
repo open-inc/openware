@@ -1,14 +1,20 @@
 package de.openinc.model.data;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 public class OpenWareGeneric extends OpenWareValueDimension {
 
 	public static final String TYPE = "Object";
-	JSONObject value;
+	Object value;
 
 	public OpenWareGeneric(String name, String unit, JSONObject value) {
+		super(name, unit, TYPE);
+		this.value = value;
+	}
+
+	public OpenWareGeneric(String name, String unit, JSONArray value) {
 		super(name, unit, TYPE);
 		this.value = value;
 	}
@@ -26,7 +32,12 @@ public class OpenWareGeneric extends OpenWareValueDimension {
 
 	@Override
 	public OpenWareValueDimension cloneDimension() {
-		return new OpenWareGeneric(this.getName(), this.getUnit(), this.value);
+		if (this.value instanceof JSONObject) {
+			return new OpenWareGeneric(this.getName(), this.getUnit(), (JSONObject) this.value);
+		} else {
+			return new OpenWareGeneric(this.getName(), this.getUnit(), (JSONArray) this.value);
+		}
+
 	}
 
 	@Override

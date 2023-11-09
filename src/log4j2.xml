@@ -5,45 +5,69 @@
             <PatternLayout
                 pattern="%style{%d{ISO8601}}{black} %highlight{%-5level } %style{%C{1.}}{bright,yellow}: %msg%n%throwable" />
         </Console>
-	    <RollingFile name="csvFile" 
-                     fileName="./logs/data.csv"
-                     filePattern="./logs/data-%i.csv" >
-            <CsvParameterLayout delimiter=";" header="time,topic,message\n"/>
+       
+       <!-- MQTT DATA-->
+         <RollingFile name="csvFile" fileName="./logs/data.csv" filePattern="./logs/data_%d{dd.MM.yyyy}.gz">
+      		 <CsvParameterLayout delimiter=";" escape="|" quoteMode="NONE" header="datetime,timestamp,topic,message\n"/>
+      		<Policies>
+        		<TimeBasedTriggeringPolicy interval="1"/>
+      		</Policies>   
+      		<DefaultRolloverStrategy>
+		        <Delete basePath="./logs/" maxDepth="1">
+		          <IfFileName glob="data*" />
+		          <IfLastModified age="365d" />
+		        </Delete>
+		      </DefaultRolloverStrategy>                            
+		</RollingFile>
+        
+        
+        <RollingFile name="RollingError" fileName="./logs/error.log" filePattern="./logs/error_%d{dd.MM.yyyy-HH:mm:ss}.gz">
+            <PatternLayout>
+                <pattern>%d %p %C{1.} [%t] %m%n</pattern>
+            </PatternLayout>
             <Policies>
+                <OnStartupTriggeringPolicy />
                 <SizeBasedTriggeringPolicy size="10 MB" />
             </Policies>
-            <DefaultRolloverStrategy max="500" />
+              <DefaultRolloverStrategy>
+		        <Delete basePath="./logs/" maxDepth="1">
+		          <IfFileName glob="error*" />
+		          <IfLastModified age="7d" />
+		        </Delete>
+		      </DefaultRolloverStrategy>
         </RollingFile>
-        <RollingFile name="RollingFile"
-            fileName="./logs/console.log"
-            filePattern="./logs/console-%i.log">
+        
+        <RollingFile name="RollingMail" fileName="./logs/mail.log" filePattern="./logs/mail_%d{dd.MM.yyyy}.gz">
+            <PatternLayout>
+                <pattern>%d %p %m%n</pattern>
+            </PatternLayout>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+             </Policies>
+             <DefaultRolloverStrategy>
+		        <Delete basePath="./logs/" maxDepth="1">
+		          <IfFileName glob="mail*" />
+		          <IfLastModified age="7d" />
+		        </Delete>
+		      </DefaultRolloverStrategy>
+        </RollingFile>
+        
+        <RollingFile name="RollingFile" fileName="./logs/console.log" filePattern="./logs/console_%d{dd.MM.yyyy-HH:mm:ss}.gz">
             <PatternLayout>
                 <pattern>%d %p %C{1.} [%t] %m%n</pattern>
             </PatternLayout>
             <Policies>
-                <!-- rollover on startup, daily and when the file reaches 
-                    10 MegaBytes -->
                 <OnStartupTriggeringPolicy />
-                <SizeBasedTriggeringPolicy
-                    size="10 MB" />
-                           </Policies>
-             <DefaultRolloverStrategy max="100"/>
+                <SizeBasedTriggeringPolicy size="10 MB" />
+             </Policies>
+             <DefaultRolloverStrategy>
+		        <Delete basePath="./logs/" maxDepth="1">
+		          <IfFileName glob="console*" />
+		          <IfLastModified age="3d" />
+		        </Delete>
+		      </DefaultRolloverStrategy>
         </RollingFile>
-           <RollingFile name="RollingError"
-            fileName="./logs/error.log"
-            filePattern="./logs/error-%i.log">
-            <PatternLayout>
-                <pattern>%d %p %C{1.} [%t] %m%n</pattern>
-            </PatternLayout>
-            <Policies>
-                <!-- rollover on startup, daily and when the file reaches 
-                    10 MegaBytes -->
-                <OnStartupTriggeringPolicy />
-                <SizeBasedTriggeringPolicy
-                    size="10 MB" />
-            </Policies>
-             <DefaultRolloverStrategy max="100"/>
-        </RollingFile>
+        
          <RollingFile name="LibLogs"
             fileName="./logs/libs.log"
             filePattern="./logs/libs-%i.log">
@@ -57,8 +81,11 @@
                 <SizeBasedTriggeringPolicy
                     size="10 MB" />
             </Policies>
-             <DefaultRolloverStrategy max="10"/>
+             <DefaultRolloverStrategy max="5"/>
         </RollingFile>
+        
+        
+        
          <RollingFile name="accessLogs"
             fileName="./logs/access.log"
             filePattern="./logs/access-%i.log">
@@ -72,8 +99,10 @@
                 <SizeBasedTriggeringPolicy
                     size="10 MB" />
             </Policies>
-             <DefaultRolloverStrategy max="10"/>
+             <DefaultRolloverStrategy max="5"/>
         </RollingFile>
+        
+        
         <RollingFile name="persistence"
             fileName="./logs/persistence.log"
             filePattern="./logs/persistence-%i.log">
@@ -108,6 +137,9 @@
         <Logger name="errorLogger" level="warn" additivity="false">
         	    <AppenderRef ref="Console" />
         	    <AppenderRef ref="RollingError" />
+        </Logger>
+        <Logger name="mailLogger" level="info" additivity="false">
+        	    <AppenderRef ref="RollingMail" />
         </Logger>
         <Logger name="org.apache.http" level="trace" additivity="false">
         	    <AppenderRef ref="LibLogs" />

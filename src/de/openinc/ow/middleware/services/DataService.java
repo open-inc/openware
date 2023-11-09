@@ -1,5 +1,8 @@
 package de.openinc.ow.middleware.services;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -519,7 +522,17 @@ public class DataService {
 
 	public static CompletableFuture<CompletableFuture<Boolean>> onNewData(String id, String data) {
 		if (Config.getBool("verbose", false)) {
-			OpenWareInstance.getInstance().logData(System.currentTimeMillis(), id, data);
+			
+			try {
+				DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss");
+				LocalDateTime localDate = LocalDateTime.now();
+				OpenWareInstance.getInstance().logData(dtf.format(localDate).toString(),System.currentTimeMillis(), id, data.toString());
+			}catch(Exception e) {
+				System.out.println(e);
+				e.printStackTrace();
+				OpenWareInstance.getInstance().logData("Date Error",System.currentTimeMillis(), id, data.toString());
+			}
+			
 		}
 
 		// MQTT-Seperator to AMQP seperator
@@ -1209,7 +1222,7 @@ class DataProcessTask implements Supplier<CompletableFuture<Boolean>> {
 	}
 
 	private List<CompletableFuture<Boolean>> processItems(List<OpenWareDataItem> items) throws Exception {
-		// ([a-zA-Z\d]+\.)+: ID und source prüfen
+		// ([a-zA-Z\d]+\.)+: ID und source prï¿½fen
 		if (items == null) {
 			ArrayList<CompletableFuture<Boolean>> res = new ArrayList<CompletableFuture<Boolean>>();
 			res.add(CompletableFuture.completedFuture(false));
@@ -1219,7 +1232,7 @@ class DataProcessTask implements Supplier<CompletableFuture<Boolean>> {
 	}
 
 	private CompletableFuture<Boolean> processItem(OpenWareDataItem item) throws Exception {
-		// ([a-zA-Z\d]+\.)+: ID und source prüfen
+		// ([a-zA-Z\d]+\.)+: ID und source prï¿½fen
 		if (item == null) {
 			return CompletableFuture.completedFuture(false);
 		}

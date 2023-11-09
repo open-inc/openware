@@ -97,6 +97,9 @@ public class OpenWareInstance {
 	Logger mqttLogger;
 	Logger accessLogger;
 	Logger persistenceLogger;
+	Logger mailLogger;
+	Logger apiLogger;
+	Logger dataLogger;
 
 	LoggerConfig apacheLogger;
 	LoggerConfig sparkLogger;
@@ -104,8 +107,6 @@ public class OpenWareInstance {
 	LoggerConfig mongoLogger;
 	LoggerConfig xdocLogger;
 	LoggerConfig dataJSONLogger;
-	Logger apiLogger;
-	Logger dataLogger;
 	private LoggerContext ctx;
 	private ScheduledExecutorService commonExecuteService;
 	private static OpenWareInstance me;
@@ -116,8 +117,9 @@ public class OpenWareInstance {
 	private Javalin javalinInstance;
 	private Gson gson;
 
-	public void logData(long ts, String topic, String msg) {
-		this.dataLogger.info("", "" + ts, topic, msg);
+	public void logData(String current, long ts, String topic, String msg) {
+		
+		this.dataLogger.info("", current, "" + ts, topic, msg);
 	}
 
 	public void logInfo(Object info) {
@@ -155,6 +157,12 @@ public class OpenWareInstance {
 		errorLogger.warn(warn);
 
 	}
+	
+	public void logMail(Object info) {
+
+		mailLogger.info(info);
+
+	}
 
 	public void logError(Object error) {
 
@@ -179,10 +187,6 @@ public class OpenWareInstance {
 	}
 
 	private OpenWareInstance() {
-		// this.logger = LogManager.getLogger("main");
-		// this.errorlogger = LogManager.getLogger("errorLogger");
-
-		// this.infoLogger = LogManager.getRootLogger();
 		this.started = new CompletableFuture<Boolean>();
 		ctx = (LoggerContext) LogManager.getContext();
 		ThreadFactory factory = new ThreadFactoryBuilder().setDaemon(false).setNameFormat("openware-commonpool-%d")
@@ -311,6 +315,7 @@ public class OpenWareInstance {
 		this.apiLogger = ctx.getLogger("apiLogger");
 		this.dataLogger = ctx.getLogger("dataLogger");
 		this.accessLogger = ctx.getLogger("accessLogger");
+		this.mailLogger = ctx.getLogger("mailLogger");
 		this.persistenceLogger = ctx.getLogger("persistenceLogger");
 
 		OpenWareInstance.getInstance().logError("--------------------------------------------------------------");

@@ -29,6 +29,7 @@ import de.openinc.ow.middleware.services.DataService;
 import io.javalin.http.BadRequestResponse;
 import io.javalin.http.ForbiddenResponse;
 import io.javalin.http.InternalServerErrorResponse;
+import io.javalin.http.MethodNotAllowedResponse;
 
 public class AdminAPI implements OpenWareAPI {
 	/**
@@ -109,20 +110,17 @@ public class AdminAPI implements OpenWareAPI {
 						HTTPResponseHelper.forbidden("You need to log in to configure items");
 				}
 				try {
-					if (DataService.storeItemConfiguration(user, ctx.body())) {
 
-						HTTPResponseHelper.ok(ctx, "Stored configuration");
-					} else {
-						HTTPResponseHelper.internalError("Could not store configuration");
-					}
+					String res = DataService.storeItemConfiguration(user, ctx.body());
+					HTTPResponseHelper.ok(ctx, res);
 
-				} catch (org.json.JSONException e) {
+				} catch (SecurityException | MethodNotAllowedResponse e2) {
+					HTTPResponseHelper.forbidden("Not allowed to configure sensor\n" + e2.getMessage());
+
+				} catch (Exception e) {
 					OpenWareInstance.getInstance().logError("Malformed data posted to Sensor Config API\n" + ctx.body(),
 							e);
 					HTTPResponseHelper.badRequest("Malformed data posted to Sensor Config API\n" + e.getMessage());
-
-				} catch (SecurityException e2) {
-					HTTPResponseHelper.forbidden("Not allowed to configure sensor\n" + e2.getMessage());
 
 				}
 			});
@@ -156,6 +154,9 @@ public class AdminAPI implements OpenWareAPI {
 									return user.canAccessWrite(source, id);
 								}
 
+							}).map((item) -> {
+								item.value(DataService.getLiveSensorData(item.getId(), item.getSource()).value());
+								return item;
 							}).collect(Collectors.toList()));
 				} catch (Exception e) {
 					HTTPResponseHelper.internalError(e.getMessage());

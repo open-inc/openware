@@ -7,8 +7,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
@@ -110,9 +108,6 @@ public class JavalinWebsocketProvider {
 					}
 					if (errors.size() > 0) {
 						for (WsContext ctx : errors) {
-							OpenWareInstance.getInstance().logInfo("Calling onClose on unavailable client:"
-									+ ctx.getUpgradeReq$javalin().getRemoteSocketAddress());
-							System.out.println(ctx.toString());
 							onClose(ctx, 0, "Connection lost");
 						}
 					}
@@ -158,8 +153,8 @@ public class JavalinWebsocketProvider {
 
 		}
 		// uService.removeUserSession(wsSession);
-		OpenWareInstance.getInstance()
-				.logInfo("User " + wsSession.getUpgradeReq$javalin().getRemoteSocketAddress() + " disconnected");
+		OpenWareInstance.getInstance().logInfo(
+				"User " + wsSession.getSessionId() + " disconnected [" + wsSession.getUpgradeCtx$javalin().ip() + "]");
 
 	}
 
@@ -225,8 +220,7 @@ public class JavalinWebsocketProvider {
 
 	public void registerWSforJavalin(WsConfig ws) {
 		ws.onConnect(ctx -> {
-			OpenWareInstance.getInstance()
-					.logDebug("User connected " + ctx.getUpgradeReq$javalin().getRemoteSocketAddress());
+			OpenWareInstance.getInstance().logDebug("User connected " + ctx.getUpgradeCtx$javalin().ip());
 		});
 		ws.onMessage(ctx -> {
 			onMessage(ctx, ctx.message());
@@ -235,28 +229,28 @@ public class JavalinWebsocketProvider {
 			this.onClose(ctx, ctx.status(), ctx.reason());
 		});
 	};
-	
+
 	private void loadPingService() {
 		Runnable pingRunnable = new Runnable() {
 			@Override
 			public void run() {
-				 
+
 				List<WsContext> contextList = new ArrayList<WsContext>();
-				for (Map.Entry<String, List<WsContext>> entry : sessions.entrySet()) { 
-					List<WsContext> value = entry.getValue(); 
-					for(WsContext contextValue: value) {
-						if(!contextList.contains(contextValue)) {
+				for (Map.Entry<String, List<WsContext>> entry : sessions.entrySet()) {
+					List<WsContext> value = entry.getValue();
+					for (WsContext contextValue : value) {
+						if (!contextList.contains(contextValue)) {
 							contextList.add(contextValue);
 						}
 					}
-					 
+
 				}
-				for(WsContext selectedContext: contextList) {
+				for (WsContext selectedContext : contextList) {
 					selectedContext.send("{'action': 'ping'}");
 				}
 			}
 		};
-		
+
 		ScheduledExecutorService pingService = OpenWareInstance.getInstance().getCommonExecuteService();
 		pingService.scheduleAtFixedRate(pingRunnable, 5, 15, TimeUnit.SECONDS);
 	}

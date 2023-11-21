@@ -1,6 +1,5 @@
 package de.openinc.ow.middleware.services;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -43,6 +42,7 @@ import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.helper.Config;
 import de.openinc.ow.transformation.FilterTransformer;
+import io.javalin.http.MethodNotAllowedResponse;
 
 /**
  * The DataService provides the central interface all data related actions of
@@ -212,68 +212,52 @@ public class DataService {
 	 *                   This template will be applied to the respective
 	 *                   OpenWareDataItems before they get persisted.
 	 * @return True, if the configuration is valid and could be stored
-	 * @throws JSONException If invalid JSON was provided
+	 * @throws Exception
 	 */
-	public static boolean storeItemConfiguration(User user, String dataString) throws JSONException {
+	public static String storeItemConfiguration(User user, String dataString) throws Exception {
 		ArrayList<OpenWareDataItem> res = new ArrayList<>();
 		if (dataString.startsWith("[")) {
 			JSONArray array = new JSONArray(dataString);
 			for (int i = 0; i < array.length(); i++) {
-				try {
-					res.add(checkObject(user, array.getJSONObject(i)));
-				} catch (SecurityException e) {
-					OpenWareInstance.getInstance().logError("User not allowed to configure item", e);
-					return false;
-				} catch (Exception e) {
-					OpenWareInstance.getInstance().logError("Item configuration not valid", e);
-					return false;
-				}
+
+				res.add(checkObject(user, array.getJSONObject(i)));
 
 			}
 		} else {
-			try {
-				OpenWareDataItem item = checkObject(user, new JSONObject(dataString));
+			OpenWareDataItem item = checkObject(user, new JSONObject(dataString));
 
-				if (item == null)
-					return false;
-				if (!user.canAccessWrite(item.getSource(), item.getId()))
-					return false;
-
-				res.add(item);
-			} catch (Exception e) {
-				OpenWareInstance.getInstance().logError("Item configuration not valid", e);
-				return false;
+			if (!user.canAccessWrite(item.getSource(), item.getId())) {
+				throw new MethodNotAllowedResponse("You are not allowed to configure this item");
 			}
+
+			res.add(item);
 		}
 
 		for (OpenWareDataItem item : res) {
-			try {
-				String saved_id;
-				OpenWareDataItem previous = itemConfigs.get(item.getMeta().getString("source_source")
-						+ Config.get("idSeperator", "---") + item.getMeta().getString("id_source"));
+			String saved_id;
+			OpenWareDataItem previous = itemConfigs.get(item.getMeta().getString("source_source")
+					+ Config.get("idSeperator", "---") + item.getMeta().getString("id_source"));
 
-				String id = null;
-				if (previous != null) {
-					id = previous.getMeta().getString("configuration_id");
-				}
-				saved_id = DataService.storeGenericData(CONFIG_STORE_TYPE, id, item.toJSON());
-
-				item.getMeta().put("configuration_id", saved_id);
-				itemConfigs.put(item.getMeta().getString("source_source") + Config.get("idSeperator", "---")
-						+ item.getMeta().getString("id_source"), item);
-				// Get current Item to upadte the configuration immediately
-				refreshConfigurationOfItem(item);
-			} catch (JSONException e) {
-				e.printStackTrace();
-				return false;
-			} catch (Exception e) {
-				e.printStackTrace();
-				return false;
+			String id = null;
+			if (previous != null) {
+				id = previous.getMeta().getString("configuration_id");
 			}
+			saved_id = DataService.storeGenericData(CONFIG_STORE_TYPE, id, item.toJSON());
+			item.getMeta().put("configuration_id", saved_id);
+			if (previous == null) {
+				// Store again to have configuration_id persisted in object
+				DataService.storeGenericData(CONFIG_STORE_TYPE, saved_id, item.toJSON());
+			}
+
+			itemConfigs.put(item.getMeta().getString("source_source") + Config.get("idSeperator", "---")
+					+ item.getMeta().getString("id_source"), item);
+			// Get current Item to upadte the configuration immediately
+			refreshConfigurationOfItem(item);
 
 		}
 
-		return true;
+		return "Successfully stored configurations for "
+				+ res.stream().map(item -> item.getSource() + "---" + item.getId()).collect(Collectors.joining(","));
 	}
 
 	private static void refreshConfigurationOfItem(OpenWareDataItem item) {
@@ -383,12 +367,12 @@ public class DataService {
 	 * @return A map of configurations that the user can see.
 	 */
 	public static HashMap<String, OpenWareDataItem> getItemConfiguration(User user) {
-		List<OpenWareDataItem> items = DataService.getItems(user);
 		HashMap<String, OpenWareDataItem> res = new HashMap<>();
+		/*--
+		List<OpenWareDataItem> items = DataService.getItems(user);
+		
 		for (OpenWareDataItem item : items) {
-			if (item.getId().equals("shelly_shelly1_e098069580da_device_wifiSignal")) {
-				System.out.println("here");
-			}
+		
 			String id = item.getId();
 			String source = item.getSource();
 			if (item.getMeta().has("id_source")) {
@@ -403,7 +387,7 @@ public class DataService {
 			List<JSONObject> temp;
 			try {
 				temp = DataService.getGenericData(CONFIG_STORE_TYPE, item.getMeta().getString("configuration_id"));
-
+		
 				if (temp != null && temp.size() > 0) {
 					OpenWareDataItem custom = OpenWareDataItem.fromJSON(temp.get(0));
 					if (!custom.getMeta().has("source_source")) {
@@ -417,6 +401,31 @@ public class DataService {
 			} catch (Exception e) {
 				continue;
 			}
+		}*/
+		try {
+			List<JSONObject> confs = DataService.getGenericData(CONFIG_STORE_TYPE, null);
+			for (JSONObject o : confs) {
+				try {
+					OpenWareDataItem cItem = OpenWareDataItem.fromJSON(o);
+					cItem.value().clear();
+					OpenWareDataItem currentValues = DataService.getLiveSensorData(cItem.getId(), cItem.getSource());
+					if (currentValues == null) {
+						OpenWareInstance.getInstance().logWarn("Item Configuration for non existing item:"
+								+ cItem.getSource() + "---" + cItem.getId());
+						continue;
+					}
+					cItem.value(currentValues.value());
+					res.put(cItem.getMeta().getString("source_source") + Config.get("idSeperator", "---")
+							+ cItem.getMeta().getString("id_source"), cItem);
+				} catch (Exception e) {
+					continue;
+				}
+
+			}
+
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 		return res;
 	}
@@ -493,6 +502,7 @@ public class DataService {
 			List<OpenWareDataItem> newItems = adapter.getItems();
 			for (OpenWareDataItem item : newItems) {
 				items.put(item.getSource() + item.getId(), item);
+
 			}
 
 			initItemConfiguration();
@@ -522,17 +532,18 @@ public class DataService {
 
 	public static CompletableFuture<CompletableFuture<Boolean>> onNewData(String id, String data) {
 		if (Config.getBool("verbose", false)) {
-			
+
 			try {
 				DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss");
 				LocalDateTime localDate = LocalDateTime.now();
-				OpenWareInstance.getInstance().logData(dtf.format(localDate).toString(),System.currentTimeMillis(), id, data.toString());
-			}catch(Exception e) {
+				OpenWareInstance.getInstance().logData(dtf.format(localDate).toString(), System.currentTimeMillis(), id,
+						data.toString());
+			} catch (Exception e) {
 				System.out.println(e);
 				e.printStackTrace();
-				OpenWareInstance.getInstance().logData("Date Error",System.currentTimeMillis(), id, data.toString());
+				OpenWareInstance.getInstance().logData("Date Error", System.currentTimeMillis(), id, data.toString());
 			}
-			
+
 		}
 
 		// MQTT-Seperator to AMQP seperator
@@ -590,6 +601,7 @@ public class DataService {
 
 		ArrayList<OpenWareDataItem> cItems = new ArrayList<OpenWareDataItem>();
 		cItems.addAll(items.values());
+
 		Map<String, OpenWareDataItem> analytics = AnalyticsService.getInstance().getAnalyticSensors();
 		if (analytics != null && analytics.size() > 0) {
 			cItems.addAll(analytics.values().stream().filter(new Predicate<OpenWareDataItem>() {
@@ -605,6 +617,7 @@ public class DataService {
 		while (it.hasNext()) {
 			OpenWareDataItem cItem = it.next();
 			boolean include = sourceFilter == null || sourceFilter.contains(cItem.getSource());
+
 			if (cUser.canAccessRead(cItem.getSource(), cItem.getId()) && include) {
 				items2return.add(cItem);
 			}

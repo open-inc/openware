@@ -1,4 +1,4 @@
-package de.openinc.ow.middleware.services;
+package de.openinc.api;
 
 import java.util.Iterator;
 
@@ -6,8 +6,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import de.openinc.api.OWServiceActivator;
 import de.openinc.ow.helper.Config;
+import de.openinc.ow.middleware.services.ServiceRegistry;
 
 public class OWService {
 	public String id;

@@ -194,7 +194,13 @@ public class JavalinWebsocketProvider {
 				for (int i = 0; i < sourceFilter.length(); i++) {
 					sources.add(sourceFilter.optString(i));
 				}
-				User reqUser = UserService.getInstance().checkAuth(session);
+				User reqUser;
+				if (session.startsWith("Bearer")) {
+					reqUser = UserService.getInstance().jwtToUser(session.replace("Bearer ", ""));
+				} else {
+					reqUser = UserService.getInstance().checkAuth(session);
+				}
+
 				OpenWareInstance.getInstance().logInfo("New Subscriber:" + reqUser.getName());
 				List<OpenWareDataItem> items = DataService.getItems(reqUser);
 				int count = 0;

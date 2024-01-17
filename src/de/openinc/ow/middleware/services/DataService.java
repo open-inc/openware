@@ -159,6 +159,41 @@ public class DataService {
 	}
 
 	/**
+	 * Schedules deletes for a specified source and id with a given time-to-live.
+	 *
+	 * @param source        the data source.
+	 * @param id            the identifier for the data to be deleted.
+	 * @param secondsToLive the time-to-live for the scheduled delete in seconds.
+	 * @throws Exception if scheduling fails.
+	 */
+	public static void scheduleDelete(String source, String id, long secondsToLive) throws Exception {
+		adapter.scheduleDeletes(source, id, secondsToLive);
+	}
+
+	/**
+	 * Retrieves a list of scheduled deletes for a specified source and id.
+	 *
+	 * @param source the data source.
+	 * @param id     the identifier for the data.
+	 * @return a list of JSONObjects representing the scheduled deletes.
+	 * @throws Exception if retrieval fails.
+	 */
+	public static List<JSONObject> getScheduledDeletes(String source, String id) throws Exception {
+		return adapter.getScheduledDeletes(source, id);
+	}
+
+	/**
+	 * Retrieves a list of scheduled deletes for a specified source and id.
+	 *
+	 * @param source the data source.
+	 * @param id     the identifier for the data.
+	 * @throws Exception if unscheduling fails.
+	 */
+	public static void unscheduleDeletes(String source, String id) throws Exception {
+		adapter.unScheduleDeletes(source, id);
+	}
+
+	/**
 	 * Can be used to access the current PersistenceAdpater
 	 * 
 	 * @return The current {@link de.openinc.ow.core.api.PersistenceAdapter}

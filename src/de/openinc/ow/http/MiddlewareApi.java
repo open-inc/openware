@@ -31,14 +31,18 @@ import jakarta.servlet.ServletOutputStream;
 
 public class MiddlewareApi implements OpenWareAPI {
 	/**
-	 * API constant to get live data for specific user and sensor
+	 * API constant to get live data for specific source and sensor
 	 */
 	public static final String LIVE_DATA_API = "/live/{source}/{sensorid}";
 
 	/**
-	 * API constant to get all the registered sensor items for the user
+	 * API constant to get sensor data for the source and sensor
 	 */
 	public static final String HISTORICAL_DATA_API = "/historical/{source}/{sensorid}/{timestampStart}/{timestampEnd}";
+	/**
+	 * API constant to get all scheduled deletes
+	 */
+	public static final String AUTODELETE_DATA_API = "/deletes/{source}/{sensorid}";
 	/**
 	 * API constant to delete device data
 	 */
@@ -251,6 +255,64 @@ public class MiddlewareApi implements OpenWareAPI {
 
 				} catch (Exception e) {
 					HTTPResponseHelper.internalError(e.getMessage());
+				}
+
+			});
+
+			get(AUTODELETE_DATA_API, (ctx) -> {
+				String source = ctx.pathParam("source");
+				String sensorid = ctx.pathParam("sensorid");
+				User user = ctx.sessionAttribute("user");
+				if (user == null || !user.canAccessRead(source, sensorid)) {
+					HTTPResponseHelper.forbidden("Not allowed to view scheduled deletes for sensor");
+				}
+
+				try {
+					HTTPResponseHelper.ok(ctx, DataService.getScheduledDeletes(source, sensorid));
+				} catch (Exception e) {
+					HTTPResponseHelper.internalError("Could not get schedule deletes.\n" + e.getMessage());
+				}
+
+			});
+			delete(AUTODELETE_DATA_API, (ctx) -> {
+				String source = ctx.pathParam("source");
+				String sensorid = ctx.pathParam("sensorid");
+				User user = ctx.sessionAttribute("user");
+				if (user == null || !user.canAccessRead(source, sensorid)) {
+					HTTPResponseHelper.forbidden("Not allowed to change scheduled deletes for sensor");
+				}
+
+				try {
+					DataService.unscheduleDeletes(source, sensorid);
+					HTTPResponseHelper.ok(ctx, "Unscheduling successful");
+				} catch (Exception e) {
+					HTTPResponseHelper.internalError("Could not get schedule deletes.\n" + e.getMessage());
+				}
+
+			});
+
+			post(AUTODELETE_DATA_API, (ctx) -> {
+				String source = ctx.pathParam("source");
+				String sensorid = ctx.pathParam("sensorid");
+				User user = ctx.sessionAttribute("user");
+				if (user == null || !user.canAccessWrite(source, sensorid)) {
+					HTTPResponseHelper.forbidden("Not allowed to schedule delete for sensor");
+				}
+
+				try {
+					JSONObject body = new JSONObject(ctx.body());
+					long seconds = body.getLong("secondsToLive");
+
+					try {
+						DataService.scheduleDelete(source, sensorid, seconds);
+						HTTPResponseHelper.ok(ctx, "Deletion successfully scheduled");
+					} catch (Exception e) {
+						HTTPResponseHelper.internalError("Could not get schedule deletes.\n" + e.getMessage());
+					}
+
+				} catch (JSONException e) {
+					HTTPResponseHelper.badRequest(
+							"Malformed data posted to Schedule Delete API. Please provide body as JSON object containing key 'secondsToLive'");
 				}
 
 			});

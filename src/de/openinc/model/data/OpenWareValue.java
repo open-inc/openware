@@ -39,52 +39,14 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 		return this.addValueDimension(element);
 	}
 
-	/*
-	 * public void addValueDimension(String value) { try { if (value.startsWith("0")
-	 * && !value.equals("0") && !value.startsWith("0.")) { throw new
-	 * NumberFormatException(); } OpenWareNumber own = new
-	 * OpenWareNumber(Double.parseDouble(value)); this.value.add(own); return; }
-	 * catch (NumberFormatException e) {
-	 * 
-	 * } if (value.toLowerCase().equals("true") ||
-	 * value.toLowerCase().equals("false")) { OpenWareBoolValue owb = new
-	 * OpenWareBoolValue(Boolean.parseBoolean(value)); this.value.add(owb); return;
-	 * } try { OpenWareValueDimension owg; JSONObject obj = new JSONObject(value);
-	 * if (obj.has("type")) {
-	 * 
-	 * boolean first = obj.has("coordinates"); // Geometry without Feature Frame
-	 * boolean second = obj.has("features"); // Feature Collection boolean third =
-	 * obj.has("geometries"); // GeometryCollection boolean forth =
-	 * obj.has("geometry"); // Feature // Validate Geometry if (first || third) { if
-	 * (checkGeometry(obj)) { JSONObject frame = new JSONObject(); frame.put("type",
-	 * "Feature"); frame.put("geometry", obj); frame.put("properties", new
-	 * JSONObject()); owg = new OpenWareGeo(frame); this.value.add(owg); return; } }
-	 * ;
-	 * 
-	 * // Validate Feature if (forth) { if (checkFeature(obj)) { owg = new
-	 * OpenWareGeo(obj); this.value.add(owg); return; } } ;
-	 * 
-	 * // Validate FeatureCollection if (second) { if
-	 * (obj.getString("type").toLowerCase().equals("featurecollection")) {
-	 * obj.put("type", "FeatureCollection"); JSONArray features =
-	 * obj.getJSONArray("features"); boolean validated = true; for (int i = 0; i <
-	 * features.length(); i++) { if (!checkFeature(features.getJSONObject(i))) {
-	 * validated = false; break; } } if (validated) { owg = new OpenWareGeo(obj);
-	 * this.value.add(owg); return; } } } ;
-	 * 
-	 * if (first || second || third || forth) { // No valid GeoJSON even though
-	 * format looked like geojson: Emitting Warning; OpenWareInstance.getInstance()
-	 * .logError("Tried parsing JSONObject as GeoJSON but was not valid\n" +
-	 * obj.toString(2)); } owg = new OpenWareGeneric(obj); this.value.add(owg);
-	 * return; } else { owg = new OpenWareGeneric(obj); this.value.add(owg); return;
-	 * }
-	 * 
-	 * } catch (JSONException e) {
-	 * 
-	 * } OpenWareString ows = new OpenWareString(value); this.value.add(ows); }
-	 */
-	public void removeValueDimension(int index) {
-		this.value.remove(index);
+	public OpenWareValueDimension removeValueDimension(int index) {
+		return this.value.remove(index);
+	}
+
+	@Override
+	public OpenWareValueDimension remove(int index) {
+		// TODO Auto-generated method stub
+		return this.removeValueDimension(index);
 	}
 
 	@Override

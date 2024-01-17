@@ -12,6 +12,7 @@ import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import de.openinc.api.OWService;
 import de.openinc.ow.OpenWareInstance;
 
 public class ServiceRegistry {
@@ -66,13 +67,13 @@ public class ServiceRegistry {
 		return candidate;
 	}
 
-	protected OWService addService(OWService service) {
+	public OWService addService(OWService service) {
 		this.inActiveServices.remove(service.id);
 		updateInactiveServiceState();
 		return this.activeServices.put(service.id, service);
 	}
 
-	protected OWService removeService(String id) {
+	public OWService removeService(String id) {
 		OWService removed = this.activeServices.remove(id);
 
 		if (removed != null) {

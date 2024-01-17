@@ -16,7 +16,7 @@ import de.openinc.ow.OpenWareInstance;
 
 public class Dataset extends AbstractList<Instance> {
 	private List<Instance> data;
-	DescriptiveStatistics stats;
+	public DescriptiveStatistics stats;
 
 	public Dataset() {
 		this.data = new ArrayList<>();
@@ -40,6 +40,7 @@ public class Dataset extends AbstractList<Instance> {
 		}
 	}
 
+	@Override
 	public int size() {
 		return this.data.size();
 	}
@@ -54,6 +55,7 @@ public class Dataset extends AbstractList<Instance> {
 		return data.add(e);
 	}
 
+	@Override
 	public Instance set(int index, Instance value) {
 		return this.data.set(index, value);
 	}
@@ -81,10 +83,11 @@ public class Dataset extends AbstractList<Instance> {
 			int y = 0;
 			for (double dVal : i.values) {
 				try {
-					val.addValueDimension(OpenWareValueDimension.createNewDimension("val" + (y++), "", OpenWareNumber.TYPE)
-							.createValueForDimension(dVal));
+					val.addValueDimension(OpenWareValueDimension
+							.createNewDimension("val" + (y++), "", OpenWareNumber.TYPE).createValueForDimension(dVal));
 				} catch (Exception e) {
-					OpenWareInstance.getInstance().logWarn(this.getClass().getCanonicalName()+": could not create Number Dimension");
+					OpenWareInstance.getInstance()
+							.logWarn(this.getClass().getCanonicalName() + ": could not create Number Dimension");
 				}
 			}
 			vals.add(val);

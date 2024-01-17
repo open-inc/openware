@@ -45,6 +45,7 @@ import com.google.gson.JsonSyntaxException;
 import de.openinc.api.ActuatorAdapter;
 import de.openinc.api.AnalyticSensorProvider;
 import de.openinc.api.DataHandler;
+import de.openinc.api.OWService;
 import de.openinc.api.OWServiceActivator;
 import de.openinc.api.OpenWareAPI;
 import de.openinc.api.OpenWarePlugin;
@@ -72,7 +73,6 @@ import de.openinc.ow.http.TransformationAPI;
 import de.openinc.ow.http.UserAPI;
 import de.openinc.ow.middleware.services.AnalyticsService;
 import de.openinc.ow.middleware.services.DataService;
-import de.openinc.ow.middleware.services.OWService;
 import de.openinc.ow.middleware.services.ReportsService;
 import de.openinc.ow.middleware.services.ServiceRegistry;
 import de.openinc.ow.middleware.services.TransformationService;
@@ -118,7 +118,7 @@ public class OpenWareInstance {
 	private Gson gson;
 
 	public void logData(String current, long ts, String topic, String msg) {
-		
+
 		this.dataLogger.info("", current, "" + ts, topic, msg);
 	}
 
@@ -157,7 +157,7 @@ public class OpenWareInstance {
 		errorLogger.warn(warn);
 
 	}
-	
+
 	public void logMail(Object info) {
 
 		mailLogger.info(info);

@@ -1,18 +1,24 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>de.openinc.openware</groupId>
 	<artifactId>ow-core</artifactId>
 	<version>2.0.0</version>
+	<packaging>jar</packaging>
+
+	<name>open.WARE IoT-Middleware</name>
+	<url>https://www.openinc.de</url>
+
 	<properties>
-		<maven.compiler.target>1.8</maven.compiler.target>
-		<maven.compiler.source>1.8</maven.compiler.source>
+		<maven.compiler.target>17</maven.compiler.target>
+		<maven.compiler.source>17</maven.compiler.source>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 	</properties>
 	<build>
 		<plugins>
-			<plugin>
+			<!-- <plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-source-plugin</artifactId>
 				<executions>
@@ -23,14 +29,14 @@
 						</goals>
 					</execution>
 				</executions>
-			</plugin>
+			</plugin> -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-shade-plugin</artifactId>
 				<version>1.6</version>
 				<configuration>
-					<source>1.8</source>
-					<target>1.8</target>
+					<source>1.21</source>
+					<target>1.21</target>
 				</configuration>
 				<executions>
 					<execution>
@@ -64,16 +70,14 @@
 			<artifactId>commons-text</artifactId>
 			<version>1.10.0</version>
 		</dependency>
-		
-		<!-- https://mvnrepository.com/artifact/org.json/json -->
+
 		<dependency>
-		    <groupId>org.json</groupId>
-		    <artifactId>json</artifactId>
-		    <version>[20231013,)</version>
+			<groupId>org.json</groupId>
+			<artifactId>json</artifactId>
+			<version>[20231013,)</version>
 		</dependency>
 
 
-		<!-- https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-core -->
 		<dependency>
 			<groupId>org.apache.logging.log4j</groupId>
 			<artifactId>log4j-core</artifactId>
@@ -143,7 +147,8 @@
 			<groupId>io.github.cdimascio</groupId>
 			<artifactId>java-dotenv</artifactId>
 			<version>5.2.2</version>
-		</dependency> <!-- https://mvnrepository.com/artifact/commons-io/commons-io -->
+		</dependency> <!--
+		https://mvnrepository.com/artifact/commons-io/commons-io -->
 		<dependency>
 			<groupId>commons-io</groupId>
 			<artifactId>commons-io</artifactId>

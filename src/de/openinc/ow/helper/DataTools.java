@@ -41,6 +41,10 @@ public class DataTools {
 
 	public static List<long[]> generateTimeIntervals(long startTS, long endTS, String unitString) {
 		List<long[]> intervals = new ArrayList<>();
+		if (unitString.equals("interval")) {
+			intervals.add(new long[] { startTS, endTS });
+			return intervals;
+		}
 		Integer unit = null;
 
 		if (unitString.equals("second")) {

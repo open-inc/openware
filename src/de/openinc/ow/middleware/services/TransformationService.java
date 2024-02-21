@@ -21,7 +21,8 @@ public class TransformationService {
 	private TransformationService() {
 		me = this;
 		ops = new HashMap<>();
-		config = Config.readConfig(this.getClass().getCanonicalName());
+		config = Config.readConfig(this	.getClass()
+										.getCanonicalName());
 		if (!config.has("services")) {
 			config.put("services", new JSONObject());
 		}
@@ -67,8 +68,10 @@ public class TransformationService {
 	 * @throws IllegalAccessException
 	 */
 	public TransformationOperation getOperation(String id) throws Exception {
-		if (config.getJSONObject("services").has(id)) {
-			id = config.getJSONObject("services").getString(id);
+		if (config	.getJSONObject("services")
+					.has(id)) {
+			id = config	.getJSONObject("services")
+						.getString(id);
 		}
 		Class<TransformationOperation> op = ops.get(id);
 		if (op == null)
@@ -115,10 +118,12 @@ public class TransformationService {
 		}
 
 		for (int i = 0; i < stages.length(); i++) {
-			TransformationOperation op = TransformationService.getInstance()
-					.getOperation(stages.getJSONObject(i).getString("action"));
+			TransformationOperation op = TransformationService	.getInstance()
+																.getOperation(stages.getJSONObject(i)
+																					.getString("action"));
 			if (op == null) {
-				throw new IllegalArgumentException("Unkown operation " + stages.getJSONObject(i).getString("action"));
+				throw new IllegalArgumentException("Unkown operation " + stages	.getJSONObject(i)
+																				.getString("action"));
 			}
 			if (start != null) {
 				op.setStart(start);
@@ -130,19 +135,24 @@ public class TransformationService {
 				op.setReference(ref);
 			}
 
-			tempItem = op.process(user, tempItem, stages.getJSONObject(i).getJSONObject("params"));
+			tempItem = op.process(user, tempItem, stages.getJSONObject(i)
+														.getJSONObject("params"));
 			if (tempItem == null) {
-				throw new IllegalStateException(
-						"Could not perform stage " + i + ":\n" + stages.getJSONObject(i).getJSONObject("params"));
+				throw new IllegalStateException("Could not perform stage " + i + ":\n" + stages	.getJSONObject(i)
+																								.getJSONObject(
+																										"params"));
 			}
 			if (Config.getBool("accessControl", true) && tempItem != null) {
 				if (user == null || !user.canAccessRead(tempItem.getSource(), tempItem.getId()))
 					throw new IllegalAccessError("Not allowed to access data produced by stage " + i + ":\n"
-							+ stages.getJSONObject(i).getJSONObject("params"));
+							+ stages.getJSONObject(i)
+									.getJSONObject("params"));
 			}
 			op = null;
 			OpenWareInstance.getInstance()
-					.logTrace("Performed stage :\n" + stages.getJSONObject(i).getJSONObject("params").toString(2));
+							.logTrace("Performed stage :\n" + stages.getJSONObject(i)
+																	.getJSONObject("params")
+																	.toString(2));
 		}
 
 		return tempItem;

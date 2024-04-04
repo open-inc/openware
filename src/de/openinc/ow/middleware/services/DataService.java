@@ -913,14 +913,15 @@ public class DataService {
 						OpenWareValue currMax = null;
 						OpenWareValue currMin = null;
 						for (OpenWareValue t : list) {
-							if (currMax == null) {
-								currMax = t;
+							if (currMax == null || currMin == null) {
+								if (currMax == null)
+									currMax = t;
+								if (currMin == null)
+									currMin = t;
 								continue;
+
 							}
-							if (currMin == null) {
-								currMin = t;
-								continue;
-							}
+
 							currMax = (double) currMax	.get(dim)
 														.value() < (double) t	.get(dim)
 																				.value() ? t : currMax;
@@ -929,8 +930,10 @@ public class DataService {
 																				.value() ? t : currMin;
 
 						}
-						resNew.add(currMax);
-						resNew.add(currMin);
+						if (currMax != null)
+							resNew.add(currMax);
+						if (currMin != null && !currMin.equals(currMax))
+							resNew.add(currMin);
 
 					}
 
@@ -1113,6 +1116,12 @@ public class DataService {
 	 * @return {@link CompletableFuture} containing a boolean if item was stored
 	 */
 	public static CompletableFuture<Boolean> processNewData(OpenWareDataItem item) throws Exception {
+		if (item.value()
+				.size() == 0) {
+			OpenWareInstance.getInstance()
+							.logWarn("Received empty data item:\n" + item.toString());
+			return CompletableFuture.completedFuture(true);
+		}
 		item = item.cloneItem();
 		item = applyItemConfiguration(item);
 		if (item == null) {
@@ -1195,39 +1204,42 @@ public class DataService {
 							.get(0)
 							.getDate());
 			}
-			// check equality of dimension value and update if necessary
+
 		} else {
 			for (int i = 0; i < item.getValueTypes()
 									.size(); i++) {
 				boolean equal = true;
-				if (lastItem.getValueTypes()
-							.get(i) instanceof OpenWareNumber
-						|| lastItem	.getValueTypes()
-									.get(i) instanceof OpenWareBoolValue) {
-					equal = lastItem.value()
-									.get(0)
-									.get(i)
-									.value() == item.value()
+				if (lastItem == null || lastItem.value() == null || lastItem.value()
+																			.size() == 0) {
+					equal = false;
+				} else {
+					// check equality of dimension value and update if necessary
+					if (lastItem.getValueTypes()
+								.get(i) instanceof OpenWareNumber
+							|| lastItem	.getValueTypes()
+										.get(i) instanceof OpenWareBoolValue) {
+						equal = lastItem.value()
+										.get(0)
+										.get(i)
+										.value() == item.value()
+														.get(0)
+														.get(i)
+														.value();
+					} else {
+						equal = lastItem.value()
+										.get(0)
+										.get(i)
+										.value()
+										.toString()
+										.equals(item.value()
 													.get(0)
 													.get(i)
-													.value();
-				} else {
-					equal = lastItem.value()
-									.get(0)
-									.get(i)
-									.value()
-									.toString()
-									.equals(item.value()
-												.get(0)
-												.get(i)
-												.value()
-												.toString());
-				}
-				if (!equal) {
-					if (item.getId()
-							.contains("berech")) {
-						System.out.println("test");
+													.value()
+													.toString());
 					}
+				}
+
+				if (!equal) {
 					itemsLastChangedValues.put(
 							item.getSource() + Config.get("idSeperator", "---") + item.getId()
 									+ Config.get("idSeperator", "---") + i,
@@ -1276,8 +1288,11 @@ public class DataService {
 	}
 
 	public static OpenWareDataItem getLiveSensorData(String sensorID, String source) {
-		return items.get(source + sensorID)
-					.cloneItem(true);
+		OpenWareDataItem live = items.get(source + sensorID);
+		if (live != null) {
+			return live.cloneItem(true);
+		}
+		return null;
 	}
 
 	public static OpenWareDataItem getLiveSensorData(String sensorID, String source, String reference) {

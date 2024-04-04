@@ -7,12 +7,14 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.apache.commons.text.StringEscapeUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.helper.DataTools;;
 
 /**
@@ -67,10 +69,12 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		int count = 0;
 		for (OpenWareValueDimension dim : this.valueTypes) {
 			OpenWareValueDimension otherDim = other.valueTypes.get(count++);
-			if (!dim.type().equals(otherDim.type()))
+			if (!dim.type()
+					.equals(otherDim.type()))
 				return false;
 			if (includeUnits) {
-				if (!dim.getUnit().equals(otherDim.getUnit()))
+				if (!dim.getUnit()
+						.equals(otherDim.getUnit()))
 					return false;
 			}
 		}
@@ -79,17 +83,41 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 
 	public void value(List<OpenWareValue> value) {
 		Iterator<OpenWareValue> it = value.iterator();
+
 		while (it.hasNext()) {
 			OpenWareValue val = it.next();
 			try {
-				if (val != null && val.size() == this.getValueTypes().size()) {
+				if (val != null && val.size() == this	.getValueTypes()
+														.size()) {
 					for (int i = 0; i < this.valueTypes.size(); i++) {
-						if (!(val.get(i).type().equals(this.getValueTypes().get(i).type()))) {
+						if (!(val	.get(i)
+									.type()
+									.equals(this.getValueTypes()
+												.get(i)
+												.type()))) {
+							OpenWareInstance.getInstance()
+											.logWarn(this	.getClass()
+															.getCanonicalName()
+													+ ": Removing value because of wrong valuetype\nExpected:"
+													+ this.valueTypes	.get(i)
+																		.toString()
+													+ "\nReceived:" + val	.toJSON()
+																			.toString());
 							it.remove();
 							break;
 						}
 					}
 				} else {
+					OpenWareInstance.getInstance()
+									.logWarn(this	.getClass()
+													.getCanonicalName()
+											+ ": Removing value because of wrong valuetypes\nExpected:"
+											+ this.valueTypes	.stream()
+																.map(type -> type.toString())
+																.collect(Collectors.joining(","))
+																.toString()
+											+ "\nReceived:" + val	.toJSON()
+																	.toString());
 					it.remove();
 				}
 			} catch (Exception e) {
@@ -97,9 +125,8 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 			}
 
 		}
-		if (value != null) {
-			this.values = value;
-		}
+		this.values = value;
+
 	}
 
 	public void valueUnsafe(List<OpenWareValue> value) {
@@ -121,7 +148,10 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		ArrayList<Integer> res = new ArrayList<>();
 
 		for (int i = 0; i < valueTypes.size(); i++) {
-			if (valueTypes.get(i).getUnit().toLowerCase().equals(unit.toLowerCase()))
+			if (valueTypes	.get(i)
+							.getUnit()
+							.toLowerCase()
+							.equals(unit.toLowerCase()))
 				res.add(i);
 		}
 		return res;
@@ -141,11 +171,14 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 			valueTypesNew.add(dim.cloneDimension());
 		}
 		OpenWareDataItem item = new OpenWareDataItem(this.getId(), this.getSource(), this.getName(),
-				new JSONObject(this.getMeta().toString()), valueTypesNew);
+				new JSONObject(this	.getMeta()
+									.toString()),
+				valueTypesNew);
 
 		item.setReference(this.reference);
 		if (includeValues)
-			item.value().addAll(this.value());
+			item.value()
+				.addAll(this.value());
 		item.setPersist(this.persist);
 
 		return item;
@@ -213,15 +246,18 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		ArrayList<OpenWareValueDimension> valueTypes = new ArrayList<>();
 		JSONArray vTypes = jobj.getJSONArray("valueTypes");
 		for (int i = 0; i < vTypes.length(); i++) {
-			valueTypes.add(OpenWareValueDimension.createNewDimension(
-					cleanAndValidate(vTypes.getJSONObject(i).getString("name")),
-					cleanAndValidate(vTypes.getJSONObject(i).optString("unit")),
-					cleanAndValidate(vTypes.getJSONObject(i).getString("type"))));
+			valueTypes.add(OpenWareValueDimension.createNewDimension(cleanAndValidate(vTypes.getJSONObject(i)
+																							.getString("name")),
+					cleanAndValidate(vTypes	.getJSONObject(i)
+											.optString("unit")),
+					cleanAndValidate(vTypes	.getJSONObject(i)
+											.getString("type"))));
 
 		}
 
 		if (jobj.has("annotations")) {
-			jobj.getJSONObject("meta").put("annotations", jobj.get("annotations"));
+			jobj.getJSONObject("meta")
+				.put("annotations", jobj.get("annotations"));
 		}
 		String source;
 		if (jobj.has("source")) {
@@ -251,19 +287,23 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		JSONArray values = jobj.optJSONArray("values");
 		if (values != null) {
 			for (int i = 0; i < values.length(); i++) {
-				JSONObject date = values.getJSONObject(i).optJSONObject("date");
+				JSONObject date = values.getJSONObject(i)
+										.optJSONObject("date");
 				long dateVal;
 				if (date != null) {
 					dateVal = date.getLong("$numberLong");
 				} else {
-					dateVal = values.getJSONObject(i).getLong("date");
+					dateVal = values.getJSONObject(i)
+									.getLong("date");
 				}
 				OpenWareValue currentV = new OpenWareValue(dateVal);
 
-				JSONArray currentVValues = values.getJSONObject(i).getJSONArray("value");
+				JSONArray currentVValues = values	.getJSONObject(i)
+													.getJSONArray("value");
 				for (int j = 0; j < currentVValues.length(); j++) {
-					currentV.addValueDimension(
-							item.getValueTypes().get(j).createValueForDimension(currentVValues.get(j)));
+					currentV.addValueDimension(item	.getValueTypes()
+													.get(j)
+													.createValueForDimension(currentVValues.get(j)));
 				}
 				owvalues.add(currentV);
 			}
@@ -338,11 +378,13 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		}
 		List<OpenWareValueDimension> dim2keep = new ArrayList<OpenWareValueDimension>();
 		dim2keep.add(this.valueTypes.get(dim));
-		this.values = this.values.stream().map(cVal -> {
-			OpenWareValue newVal = new OpenWareValue(cVal.getDate());
-			newVal.add(cVal.get(dim));
-			return newVal;
-		}).toList();
+		this.values = this.values	.stream()
+									.map(cVal -> {
+										OpenWareValue newVal = new OpenWareValue(cVal.getDate());
+										newVal.add(cVal.get(dim));
+										return newVal;
+									})
+									.toList();
 
 		this.setValueTypes(dim2keep);
 		return this;
@@ -428,13 +470,17 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		}
 		res.append("],");
 		res.append("\"values\": [");
-		out.write(res.toString().getBytes());
+		out.write(res	.toString()
+						.getBytes());
 
 		first = true;
 		for (OpenWareValue val : this.values) {
 
 			if (!first) {
 				out.write(",".getBytes());
+			}
+			if (val == null) {
+				System.out.println("whaaat?");
 			}
 			val.streamPrint(out);
 			/*
@@ -475,18 +521,21 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 			JSONObject dimen = new JSONObject();
 			dimen.put("type", "Object");
 			if (valueTypes.get(i) != null) {
-				dimen.put("type", valueTypes.get(i).type());
+				dimen.put("type", valueTypes.get(i)
+											.type());
 			}
 
 			dimen.put("name", this.getName() + "Value " + i);
 			if (valueTypes.get(i) != null) {
-				dimen.put("name", valueTypes.get(i).getName());
+				dimen.put("name", valueTypes.get(i)
+											.getName());
 
 			}
 
 			dimen.put("unit", "");
 			if (valueTypes.get(i) != null) {
-				dimen.put("unit", valueTypes.get(i).getUnit());
+				dimen.put("unit", valueTypes.get(i)
+											.getUnit());
 			}
 
 			vtypes.put(dimen);
@@ -511,9 +560,23 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	 */
 	public boolean equalsLastValue(OpenWareDataItem newValue, long threshold) {
 		if (this.valueTypes.size() == newValue.valueTypes.size()) {
-			for (int i = 0; i < this.value().get(0).size(); i++) {
-				boolean equal = this.value().get(0).get(i).value().equals(newValue.value().get(0).get(i).value());
-				boolean toOld = (newValue.value().get(0).getDate() - this.value().get(0).getDate()) > threshold;
+			for (int i = 0; i < this.value()
+									.get(0)
+									.size(); i++) {
+				boolean equal = this.value()
+									.get(0)
+									.get(i)
+									.value()
+									.equals(newValue.value()
+													.get(0)
+													.get(i)
+													.value());
+				boolean toOld = (newValue	.value()
+											.get(0)
+											.getDate()
+						- this	.value()
+								.get(0)
+								.getDate()) > threshold;
 				if (!equal || toOld) {
 					return false;
 				}
@@ -536,7 +599,9 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	}
 
 	public OpenWareValueDimension newValueForDimension(int dim, Object value) throws Exception {
-		return this.getValueTypes().get(dim).createValueForDimension(value);
+		return this	.getValueTypes()
+					.get(dim)
+					.createValueForDimension(value);
 
 	}
 

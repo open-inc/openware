@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import de.openinc.model.data.OpenWareDataItem;
 import de.openinc.model.data.OpenWareValue;
@@ -19,7 +20,8 @@ public class DataSplitter {
 		HashMap<Long, OpenWareDataItem> sets = new HashMap<Long, OpenWareDataItem>();
 		HashMap<Long, List<OpenWareValue>> bucketData = new HashMap<Long, List<OpenWareValue>>();
 		OpenWareDataItem tempItem = data.cloneItem();
-		tempItem.value().clear();
+		tempItem.value()
+				.clear();
 		long interval = end - start;
 		long bucketInterval = interval / buckets;
 
@@ -39,14 +41,21 @@ public class DataSplitter {
 
 	public static Map<Long, OpenWareDataItem> split(OpenWareDataItem data, long interval) {
 		OpenWareDataItem templateItem = data.cloneItem();
-		templateItem.value().clear();
+		templateItem.value()
+					.clear();
 		HashMap<Long, OpenWareDataItem> sets = new HashMap<Long, OpenWareDataItem>();
 		long min = Long.MAX_VALUE;
 		long max = Long.MIN_VALUE;
-		for (int i = 0; i < data.value().size(); i++) {
-			long floor = DataTools.floorDate(data.value().get(i).getDate(), interval);
+		for (int i = 0; i < data.value()
+								.size(); i++) {
+			long floor = DataTools.floorDate(data	.value()
+													.get(i)
+													.getDate(),
+					interval);
 			OpenWareDataItem temp = sets.getOrDefault(floor, templateItem.cloneItem());
-			temp.value().add(data.value().get(i));
+			temp.value()
+				.add(data	.value()
+							.get(i));
 			sets.put(floor, temp);
 			min = Math.min(floor, min);
 			max = Math.max(floor, max);
@@ -60,19 +69,41 @@ public class DataSplitter {
 	}
 
 	public static Map<Long, OpenWareDataItem> split(OpenWareDataItem data, List<Long> buckets) {
+		return split(data, buckets, false);
+	}
+
+	public static TreeMap<Long, OpenWareDataItem> split(OpenWareDataItem data, List<Long> buckets,
+			boolean includeAtLeastOneValuePerBucket) {
 
 		TreeMap<Long, OpenWareDataItem> bucketedData = new TreeMap<Long, OpenWareDataItem>();
 		for (long ts : buckets) {
 			bucketedData.put(ts, null);
 		}
 		for (OpenWareValue val : data.value()) {
-			long bucketKey = bucketedData.floorKey(val.getDate());
+			long dateToFind = val.getDate();
+			long bucketKey = bucketedData.floorKey(dateToFind);
 			OpenWareDataItem cItem = bucketedData.get(bucketKey);
 			if (cItem == null) {
 				cItem = data.cloneItem(false);
 				bucketedData.put(bucketKey, cItem);
 			}
-			cItem.value().add(val);
+			cItem	.value()
+					.add(val);
+		}
+		if (includeAtLeastOneValuePerBucket) {
+			TreeMap<Long, OpenWareValue> sortedValues = new TreeMap<Long, OpenWareValue>();
+			sortedValues.putAll(data.value()
+									.stream()
+									.collect(Collectors.toMap(OpenWareValue::getDate, value -> value)));
+			for (long key : bucketedData.keySet()) {
+				if (bucketedData.get(key) == null) {
+					OpenWareDataItem cItem = data.cloneItem(false);
+					cItem	.value()
+							.add(sortedValues	.floorEntry(key)
+												.getValue());
+					bucketedData.put(key, cItem);
+				}
+			}
 		}
 		return bucketedData;
 

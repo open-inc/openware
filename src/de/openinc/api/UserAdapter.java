@@ -23,6 +23,8 @@ public interface UserAdapter {
 
 	public void refreshUsers();
 
+	public void refreshPermissions(User user);
+
 	public List<User> getAllUsers();
 
 	public void sendPush(User user, JSONObject payload);

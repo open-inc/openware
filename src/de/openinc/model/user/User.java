@@ -15,6 +15,8 @@ public class User {
 	private boolean selfPermission;
 	private boolean allAccess;
 	private AccessPermission permissions;
+	private FeaturePermission featurePermissions;
+
 	private String uid;
 
 	public User(String name, String email, String session, JSONObject data, boolean selfPermission, boolean allAccess) {
@@ -25,6 +27,8 @@ public class User {
 		this.roles = new HashSet<>();
 		this.selfPermission = selfPermission;
 		this.permissions = new AccessPermission();
+		this.featurePermissions = new FeaturePermission();
+
 		initPermissions();
 	}
 
@@ -76,30 +80,29 @@ public class User {
 	}
 
 	public boolean canAccessRead(String owner, String sensor) {
-		if (sensor == null) {
-			permissions.serviceAccess(owner, "read");
-		}
 		return permissions.evaluateRead(owner, sensor);
 	}
 
 	public boolean canAccessWrite(String owner, String sensor) {
-		if (sensor == null) {
-			permissions.serviceAccess(owner, "write");
-		}
 		return permissions.evaluateWrite(owner, sensor);
 	}
 
 	public boolean canAccessDelete(String owner, String sensor) {
-		if (sensor == null) {
-			permissions.serviceAccess(owner, "delete");
-		}
 		return permissions.evaluateDelete(owner, sensor);
+	}
+
+	public boolean canAccessFeature(String method, String feature) {
+		return featurePermissions.evaluateAccess(method, feature);
 	}
 
 	public void clearPermissions() {
 		permissions = new AccessPermission();
 		initPermissions();
 
+	}
+
+	public void clearFeaturePermissions() {
+		featurePermissions = new FeaturePermission();
 	}
 
 	private void initPermissions() {
@@ -112,7 +115,8 @@ public class User {
 
 	@Override
 	public String toString() {
-		return this.toJSON().toString(2);
+		return this	.toJSON()
+					.toString(2);
 	}
 
 	public JSONObject toJSON() {
@@ -128,6 +132,7 @@ public class User {
 		res.put("email", this.email);
 		res.put("roles", roles2add);
 		res.put("permissions", permissions.toJSONArray());
+		res.put("featurePermissions", featurePermissions.toJSON());
 		return res;
 	}
 
@@ -175,6 +180,15 @@ public class User {
 	public boolean equals(Object obj) {
 		if (obj == null || !(obj instanceof User))
 			return false;
-		return ((User) obj).getUID().equals(this.getUID());
+		return ((User) obj)	.getUID()
+							.equals(this.getUID());
+	}
+
+	public FeaturePermission getFeaturePermissions() {
+		return featurePermissions;
+	}
+
+	public void setFeaturePermissions(FeaturePermission featurePermissions) {
+		this.featurePermissions = featurePermissions;
 	}
 }

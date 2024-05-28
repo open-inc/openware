@@ -40,12 +40,13 @@ public class UserService {
 				throw new IllegalArgumentException("Missing JWT Config");
 			}
 			algorithm = Algorithm.HMAC256(secret);
-			jwtVerifier = JWT.require(algorithm)
-					// .withIssuer(issuer)
-					.build(); // Reusable verifier instance
+			jwtVerifier = JWT	.require(algorithm)
+								// .withIssuer(issuer)
+								.build(); // Reusable verifier instance
 		} catch (Exception e) {
-			OpenWareInstance.getInstance().logError(
-					"JWT Configuration missing. Please Provide an Issuer (ENV JWT_ISSUER) and secret (ENV JWT_SECRET)");
+			OpenWareInstance.getInstance()
+							.logError(
+									"JWT Configuration missing. Please Provide an Issuer (ENV JWT_ISSUER) and secret (ENV JWT_SECRET)");
 			return;
 		}
 	}
@@ -69,7 +70,8 @@ public class UserService {
 		HashMap<User, List<Session>> tempUserSession = new HashMap<>();
 		tempUserSession.putAll(userSessions);
 		for (User key : tempUserSession.keySet()) {
-			if (tempUserSession.getOrDefault(key, new ArrayList<Session>()).remove(session)) {
+			if (tempUserSession	.getOrDefault(key, new ArrayList<Session>())
+								.remove(session)) {
 				userSessions = tempUserSession;
 				return true;
 			}
@@ -98,22 +100,31 @@ public class UserService {
 		try {
 			DecodedJWT userJWT = jwtVerifier.verify(token);
 			Claim userid = userJWT.getClaim("uid");
-			if (!userid.isNull() && !userid.isMissing())
-				return getUserByUID(userid.asString());
+			User usr = null;
 
 			Claim username = userJWT.getClaim("username");
 			if (!username.isNull() && !username.isMissing())
-				return getUserByUsername(username.asString());
-
+				usr = getUserByUsername(username.asString());
 			Claim usermail = userJWT.getClaim("usermail");
 			if (!usermail.isNull() && !usermail.isMissing())
-				return getActiveUsers().stream().filter(new Predicate<User>() {
-					@Override
-					public boolean test(User t) {
-						return t.getEmail().toLowerCase().equals(usermail.asString().toLowerCase());
-					}
-				}).findFirst().get();
-			return null;
+				usr = getActiveUsers()	.stream()
+										.filter(new Predicate<User>() {
+											@Override
+											public boolean test(User t) {
+												return t.getEmail()
+														.toLowerCase()
+														.equals(usermail.asString()
+																		.toLowerCase());
+											}
+										})
+										.findFirst()
+										.get();
+			if (!userid.isNull() && !userid.isMissing())
+				usr = getUserByUID(userid.asString());
+			if (usr != null) {
+				adapter.refreshPermissions(usr);
+			}
+			return usr;
 		} catch (JWTVerificationException e) {
 			return null;
 		}
@@ -126,8 +137,12 @@ public class UserService {
 		User user = getUserByUID(id);
 		if (user == null)
 			return null;
-		String token = JWT.create().withClaim("uid", user.getUID()).withClaim("username", user.getName())
-				.withClaim("usermail", user.getEmail().toLowerCase()).sign(algorithm);
+		String token = JWT	.create()
+							.withClaim("uid", user.getUID())
+							.withClaim("username", user.getName())
+							.withClaim("usermail", user	.getEmail()
+														.toLowerCase())
+							.sign(algorithm);
 		return token;
 	}
 
@@ -182,7 +197,8 @@ public class UserService {
 
 	public User getUserByUsername(String name) {
 		for (User user : getActiveUsers()) {
-			if (user.getName().equals(name))
+			if (user.getName()
+					.equals(name))
 				return user;
 		}
 		return null;
@@ -190,7 +206,8 @@ public class UserService {
 
 	public User getUserByUID(String uid) {
 		for (User user : getActiveUsers()) {
-			if (user.getUID().equals(uid))
+			if (user.getUID()
+					.equals(uid))
 				return user;
 		}
 		return null;
@@ -205,9 +222,11 @@ public class UserService {
 			msg.put("type", "notification");
 			msg.put("payload", payload);
 			try {
-				cSession.getRemote().sendString(msg.toString());
+				cSession.getRemote()
+						.sendString(msg.toString());
 			} catch (IOException e) {
-				OpenWareInstance.getInstance().logError("Could not notify user via websocket", e);
+				OpenWareInstance.getInstance()
+								.logError("Could not notify user via websocket", e);
 				return false;
 			}
 		}

@@ -31,7 +31,7 @@ public class AnalyticsService {
 	}
 
 	public OpenWareDataItem handle(User user, String sensor, long start, long end) throws Exception {
-		String[] idParts = sensor.split(".");
+		String[] idParts = sensor.split("\\.");
 		if (idParts.length < 3) {
 			throw new IllegalArgumentException("Malformed V-Sensor Id: " + sensor);
 		}
@@ -58,8 +58,8 @@ public class AnalyticsService {
 						cachedSensors.put(item.getId(), item);
 					}
 				} catch (Exception e) {
-					OpenWareInstance.getInstance().logError("Could not retrieve V-Sensors for " + provider.getType(),
-							e);
+					OpenWareInstance.getInstance()
+									.logError("Could not retrieve V-Sensors for " + provider.getType(), e);
 					continue;
 				}
 

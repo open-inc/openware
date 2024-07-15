@@ -123,7 +123,10 @@ public class MiddlewareApi implements OpenWareAPI {
 					String body = ctx.body();
 					try {
 						JSONArray tags = new JSONArray(body);
-						List<String> taglist = tags.toList().stream().map(o -> (String) o).collect(Collectors.toList());
+						List<String> taglist = tags	.toList()
+													.stream()
+													.map(o -> (String) o)
+													.collect(Collectors.toList());
 						getItems(ctx, Set.copyOf(taglist));
 					} catch (JSONException e) {
 						HTTPResponseHelper.badRequest("Body must contain source-tag array");
@@ -143,8 +146,10 @@ public class MiddlewareApi implements OpenWareAPI {
 				OpenWareDataItem result;
 				try {
 
-					long at = ctx.queryParamAsClass("at", Long.class).get();
-					int elements = ctx.queryParamAsClass("values", Integer.class).get();
+					long at = ctx	.queryParamAsClass("at", Long.class)
+									.get();
+					int elements = ctx	.queryParamAsClass("values", Integer.class)
+										.get();
 					result = DataService.getLiveSensorData(strID, source, at, elements);
 				} catch (Exception e) {
 					result = DataService.getLiveSensorData(strID, source);
@@ -193,14 +198,17 @@ public class MiddlewareApi implements OpenWareAPI {
 						HTTPResponseHelper.forbidden("Not allowed to read data");
 				}
 
-				Long timestampStart = ctx.pathParamAsClass("timestampStart", Long.class).get();
-				Long timestampEnd = ctx.pathParamAsClass("timestampEnd", Long.class).get();
+				Long timestampStart = ctx	.pathParamAsClass("timestampStart", Long.class)
+											.get();
+				Long timestampEnd = ctx	.pathParamAsClass("timestampEnd", Long.class)
+										.get();
 				OpenWareDataItem item;
 
-				if (ctx.queryParamMap().size() > 0) {
+				if (ctx	.queryParamMap()
+						.size() > 0) {
 
 					item = DataService.getHistoricalSensorData(sensorid, source, timestampStart, timestampEnd,
-							ctx.queryParamMap());
+							ctx.queryParamMap(), user);
 				} else {
 					item = DataService.getHistoricalSensorData(sensorid, source, timestampStart, timestampEnd);
 				}
@@ -229,10 +237,13 @@ public class MiddlewareApi implements OpenWareAPI {
 				}
 
 				try {
-					long timestampStart = ctx.pathParamAsClass("timestampStart", Long.class).get();
-					long timestampEnd = ctx.pathParamAsClass("timestampEnd", Long.class).get();
-					OpenWareInstance.getInstance().logDebug(
-							"Received delete device data request for device: " + sensorid + " of source: " + source);
+					long timestampStart = ctx	.pathParamAsClass("timestampStart", Long.class)
+												.get();
+					long timestampEnd = ctx	.pathParamAsClass("timestampEnd", Long.class)
+											.get();
+					OpenWareInstance.getInstance()
+									.logDebug("Received delete device data request for device: " + sensorid
+											+ " of source: " + source);
 
 					if (Config.getBool("allowDeleteData", false)) {
 						boolean success = DataService.deleteDeviceData(sensorid, source, timestampStart, timestampEnd,
@@ -244,8 +255,9 @@ public class MiddlewareApi implements OpenWareAPI {
 						}
 
 					} else {
-						OpenWareInstance.getInstance().logError(
-								"Delete data requests have to be explicitly allowed in the server settings; setting is false or missing, so nothing will be deleted.");
+						OpenWareInstance.getInstance()
+										.logError(
+												"Delete data requests have to be explicitly allowed in the server settings; setting is false or missing, so nothing will be deleted.");
 						HTTPResponseHelper.forbidden(
 								"Delete data requests have to be explicitly allowed in the server settings; setting is false or missing, so nothing will be deleted.");
 
@@ -332,7 +344,8 @@ public class MiddlewareApi implements OpenWareAPI {
 		}
 
 		OpenWareInstance.getInstance()
-				.logDebug("Received getItems request for " + (filter == null ? "all" : filter.size()) + " source(s)");
+						.logDebug("Received getItems request for " + (filter == null ? "all" : filter.size())
+								+ " source(s)");
 
 		Collection<OpenWareDataItem> items = DataService.getItems(user, filter);
 

@@ -87,7 +87,8 @@ public class JavalinWebsocketProvider {
 			@Override
 			public void receive(OpenWareDataItem old, OpenWareDataItem item) throws Exception {
 				if (sessions.containsKey(item.getSource() + item.getId())
-						&& sessions.get(item.getSource() + item.getId()).size() > 0) {
+						&& sessions	.get(item.getSource() + item.getId())
+									.size() > 0) {
 					// HashMap<String, List<Session>> tempSession = new HashMap<>();
 					// tempSession.putAll(sessions);
 
@@ -100,8 +101,9 @@ public class JavalinWebsocketProvider {
 						try {
 							session.send(item.toString());
 						} catch (Exception e) {
-							OpenWareInstance.getInstance().logError("Error while sending via Websocket:\nUser: "
-									+ item.getSource() + "\nID: " + item.getId(), e);
+							OpenWareInstance.getInstance()
+											.logError("Error while sending via Websocket:\nUser: " + item.getSource()
+													+ "\nID: " + item.getId(), e);
 							errors.add(session);
 
 						}
@@ -120,7 +122,8 @@ public class JavalinWebsocketProvider {
 	}
 
 	public void onConnect(Session user) throws Exception {
-		OpenWareInstance.getInstance().logDebug("User connected " + user.getRemoteAddress());
+		OpenWareInstance.getInstance()
+						.logDebug("User connected " + user.getRemoteAddress());
 		user.setIdleTimeout(Duration.ofMinutes(15));
 	}
 
@@ -153,20 +156,25 @@ public class JavalinWebsocketProvider {
 
 		}
 		// uService.removeUserSession(wsSession);
-		OpenWareInstance.getInstance().logInfo(
-				"User " + wsSession.getSessionId() + " disconnected [" + wsSession.getUpgradeCtx$javalin().ip() + "]");
+		OpenWareInstance.getInstance()
+						.logInfo("User " + wsSession.getSessionId() + " disconnected ["
+								+ wsSession	.getUpgradeCtx$javalin()
+											.ip()
+								+ "]");
 
 	}
 
 	private synchronized void resetConnections() {
-		OpenWareInstance.getInstance().logError("[WEBSOCKET] Resetting connections...");
+		OpenWareInstance.getInstance()
+						.logError("[WEBSOCKET] Resetting connections...");
 		HashMap<String, List<WsContext>> holder = new HashMap();
 		holder.putAll(sessions);
 		sessions.clear();
 		HashSet<WsContext> closed = new HashSet<WsContext>();
 		for (String key : holder.keySet()) {
 			List<WsContext> toClose = holder.getOrDefault(key, new ArrayList());
-			OpenWareInstance.getInstance().logError("[WEBSOCKET]" + key + ": " + toClose.size());
+			OpenWareInstance.getInstance()
+							.logError("[WEBSOCKET]" + key + ": " + toClose.size());
 			for (WsContext ctx : toClose) {
 				if (closed.contains(ctx))
 					continue;
@@ -182,11 +190,13 @@ public class JavalinWebsocketProvider {
 
 		JSONObject msg = new JSONObject(message);
 
-		OpenWareInstance.getInstance().logDebug("Received message via websocket: " + msg.toString());
+		OpenWareInstance.getInstance()
+						.logDebug("Received message via websocket: " + msg.toString());
 
 		// Messages for subscription need fields action, sensor, user
 
-		if (msg.getString("action").equals("subscribe")) {
+		if (msg	.getString("action")
+				.equals("subscribe")) {
 			synchronized (sessions) {
 				String session = msg.getString("session");
 				JSONArray sourceFilter = msg.optJSONArray("sources");
@@ -196,12 +206,15 @@ public class JavalinWebsocketProvider {
 				}
 				User reqUser;
 				if (session.startsWith("Bearer")) {
-					reqUser = UserService.getInstance().jwtToUser(session.replace("Bearer ", ""));
+					reqUser = UserService	.getInstance()
+											.jwtToUser(session.replace("Bearer ", ""));
 				} else {
-					reqUser = UserService.getInstance().checkAuth(session);
+					reqUser = UserService	.getInstance()
+											.checkAuth(session);
 				}
 
-				OpenWareInstance.getInstance().logInfo("New Subscriber:" + reqUser.getName());
+				OpenWareInstance.getInstance()
+								.logInfo("New Subscriber:" + reqUser.getName());
 				List<OpenWareDataItem> items = DataService.getItems(reqUser);
 				int count = 0;
 				for (OpenWareDataItem item : items) {
@@ -218,7 +231,44 @@ public class JavalinWebsocketProvider {
 					}
 
 				}
-				OpenWareInstance.getInstance().logInfo(reqUser.getName() + " subscribed to " + count + " items");
+				OpenWareInstance.getInstance()
+								.logInfo(reqUser.getName() + " subscribed to " + count + " items");
+			}
+		}
+
+		if (msg	.getString("action")
+				.equals("push")
+				|| msg	.getString("action")
+						.equals("update")) {
+			String session = msg.getString("session");
+			User reqUser = null;
+			if (session.startsWith("Bearer")) {
+				reqUser = UserService	.getInstance()
+										.jwtToUser(session.replace("Bearer ", ""));
+			} else {
+				reqUser = UserService	.getInstance()
+										.checkAuth(session);
+			}
+			if (reqUser == null)
+				return;
+			JSONArray items = msg.optJSONArray("items");
+			if (items == null)
+				return;
+			for (int i = 0; i < items.length(); i++) {
+				OpenWareDataItem item = OpenWareDataItem.fromJSON(items.getJSONObject(i));
+				if (!reqUser.canAccessWrite(item.getSource(), item.getId()))
+					continue;
+				if (msg	.get("action")
+						.equals("udpate")) {
+					try {
+						DataService.updateData(item);
+					} catch (Exception e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				} else {
+					DataService.onNewData(item);
+				}
 			}
 		}
 
@@ -226,7 +276,9 @@ public class JavalinWebsocketProvider {
 
 	public void registerWSforJavalin(WsConfig ws) {
 		ws.onConnect(ctx -> {
-			OpenWareInstance.getInstance().logDebug("User connected " + ctx.getUpgradeCtx$javalin().ip());
+			OpenWareInstance.getInstance()
+							.logDebug("User connected " + ctx	.getUpgradeCtx$javalin()
+																.ip());
 		});
 		ws.onMessage(ctx -> {
 			onMessage(ctx, ctx.message());
@@ -257,7 +309,8 @@ public class JavalinWebsocketProvider {
 			}
 		};
 
-		ScheduledExecutorService pingService = OpenWareInstance.getInstance().getCommonExecuteService();
+		ScheduledExecutorService pingService = OpenWareInstance	.getInstance()
+																.getCommonExecuteService();
 		pingService.scheduleAtFixedRate(pingRunnable, 5, 15, TimeUnit.SECONDS);
 	}
 

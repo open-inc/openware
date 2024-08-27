@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
@@ -139,7 +140,7 @@ public class JavalinWebsocketProvider {
 		}
 		// uService.removeUserSession(wsSession);
 		OpenWareInstance.getInstance()
-						.logInfo("User " + wsSession.getSessionId() + " disconnected due to " + reason + " ["
+						.logInfo("User " + wsSession.sessionId() + " disconnected due to " + reason + " ["
 								+ wsSession	.getUpgradeCtx$javalin()
 											.ip()
 								+ "]");
@@ -244,26 +245,53 @@ public class JavalinWebsocketProvider {
 						.equals("udpate")) {
 					try {
 						DataService.updateData(item);
+						wsSession.send(wsUpdateDataMessageOKResponse(message));
 					} catch (Exception e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
+						OpenWareInstance.getInstance()
+										.logError("[WS] Could not update item", e);
+						wsSession.send(wsUpdateDataMessageErrorResponse(e, message));
 					}
 				} else {
-					DataService.onNewData(item);
+					CompletableFuture cf = DataService.onNewData(item);
+					try {
+						cf.get(3, TimeUnit.SECONDS);
+						wsSession.send(wsUpdateDataMessageOKResponse(message));
+					} catch (Exception e) {
+						OpenWareInstance.getInstance()
+										.logError("[WS] Could not push item", e);
+						wsSession.send(wsUpdateDataMessageErrorResponse(e, message));
+					}
+
 				}
 			}
 		}
 
 	}
 
+	private String wsUpdateDataMessageOKResponse(String msg) {
+		JSONObject o = new JSONObject();
+		o.put("status", "success");
+		o.put("message", msg);
+		return o.toString();
+	}
+
+	private String wsUpdateDataMessageErrorResponse(Exception e, String msg) {
+		JSONObject o = new JSONObject();
+		o.put("status", "error");
+		o.put("message", msg);
+		o.put("error", e.getMessage());
+		return o.toString();
+	}
+
 	public void registerWSforJavalin(WsConfig ws) {
 		ws.onConnect(ctx -> {
 			OpenWareInstance.getInstance()
-							.logDebug("User connected " + ctx	.getUpgradeCtx$javalin()
-																.ip());
+							.logInfo("User connected " + ctx.getUpgradeCtx$javalin()
+															.ip());
+			ctx.enableAutomaticPings();
 		});
 		ws.onMessage(ctx -> {
-			onMessage(ctx, ctx.message());
+			this.onMessage(ctx, ctx.message());
 		});
 		ws.onClose(ctx -> {
 			this.onClose(ctx, ctx.status(), ctx.reason());

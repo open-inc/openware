@@ -51,7 +51,8 @@ public class AdminAPI implements OpenWareAPI {
 			get(GET_LOGS, ctx -> {
 				int files = 1;
 				String type = "console";
-				if (ctx.queryParamMap().size() > 0) {
+				if (ctx	.queryParamMap()
+						.size() > 0) {
 					files = Integer.parseInt(ctx.queryParam("files"));
 					type = ctx.queryParam("type");
 					if (type == null || type.equals("")) {
@@ -63,28 +64,31 @@ public class AdminAPI implements OpenWareAPI {
 				if (!logDir.isDirectory()) {
 					throw new InternalServerErrorResponse("Can't open log dir");
 				}
-				List<String> filteredFiles = Arrays.stream(logDir.list(new FilenameFilter() {
+				List<String> filteredFiles = Arrays	.stream(logDir.list(new FilenameFilter() {
 
-					@Override
-					public boolean accept(File dir, String name) {
-						// TODO Auto-generated method stub
-						return name.toLowerCase().contains(filterType);
-					}
-				})).sorted(new Comparator<String>() {
+														@Override
+														public boolean accept(File dir, String name) {
+															return name	.toLowerCase()
+																		.contains(filterType);
+														}
+													}))
+													.sorted(new Comparator<String>() {
 
-					@Override
-					public int compare(String o1, String o2) {
-						File f1 = new File("logs" + File.separatorChar + o1);
-						File f2 = new File("logs" + File.separatorChar + o2);
-						long mf1 = f1.lastModified();
-						long mf2 = f2.lastModified();
-						if (mf1 > mf2)
-							return -1;
-						if (mf1 < mf2)
-							return 1;
-						return 0;
-					}
-				}).limit(files).collect(Collectors.toList());
+														@Override
+														public int compare(String o1, String o2) {
+															File f1 = new File("logs" + File.separatorChar + o1);
+															File f2 = new File("logs" + File.separatorChar + o2);
+															long mf1 = f1.lastModified();
+															long mf2 = f2.lastModified();
+															if (mf1 > mf2)
+																return -1;
+															if (mf1 < mf2)
+																return 1;
+															return 0;
+														}
+													})
+													.limit(files)
+													.collect(Collectors.toList());
 				ctx.status(200);
 				OutputStream out = ctx.outputStream();
 				BufferedOutputStream bout = new BufferedOutputStream(out);
@@ -118,8 +122,8 @@ public class AdminAPI implements OpenWareAPI {
 					HTTPResponseHelper.forbidden("Not allowed to configure sensor\n" + e2.getMessage());
 
 				} catch (Exception e) {
-					OpenWareInstance.getInstance().logError("Malformed data posted to Sensor Config API\n" + ctx.body(),
-							e);
+					OpenWareInstance.getInstance()
+									.logError("Malformed data posted to Sensor Config API\n" + ctx.body(), e);
 					HTTPResponseHelper.badRequest("Malformed data posted to Sensor Config API\n" + e.getMessage());
 
 				}
@@ -133,31 +137,40 @@ public class AdminAPI implements OpenWareAPI {
 				}
 				try {
 
-					ctx.json(DataService.getItemConfiguration(user).values().stream()
-							.filter(new Predicate<OpenWareDataItem>() {
+					ctx.json(DataService.getItemConfiguration(user)
+										.values()
+										.stream()
+										.filter(new Predicate<OpenWareDataItem>() {
 
-								@Override
-								public boolean test(OpenWareDataItem t) {
-									return source == null || t.getSource().equals(source);
-								}
-							}).filter(new Predicate<OpenWareDataItem>() {
+											@Override
+											public boolean test(OpenWareDataItem t) {
+												return source == null || t	.getSource()
+																			.equals(source);
+											}
+										})
+										.filter(new Predicate<OpenWareDataItem>() {
 
-								@SuppressWarnings("null")
-								@Override
-								public boolean test(OpenWareDataItem t) {
-									String source = t.getMeta().optString("source_source");
-									String id = t.getMeta().optString("id_source");
-									if (source.equals(""))
-										source = t.getSource();
-									if (id.equals(""))
-										id = t.getId();
-									return user.canAccessWrite(source, id);
-								}
+											@SuppressWarnings("null")
+											@Override
+											public boolean test(OpenWareDataItem t) {
+												String source = t	.getMeta()
+																	.optString("source_source");
+												String id = t	.getMeta()
+																.optString("id_source");
+												if (source.equals(""))
+													source = t.getSource();
+												if (id.equals(""))
+													id = t.getId();
+												return user.canAccessWrite(source, id);
+											}
 
-							}).map((item) -> {
-								item.value(DataService.getLiveSensorData(item.getId(), item.getSource()).value());
-								return item;
-							}).collect(Collectors.toList()));
+										})
+										.map((item) -> {
+											item.value(DataService	.getLiveSensorData(item.getId(), item.getSource())
+																	.value());
+											return item;
+										})
+										.collect(Collectors.toList()));
 				} catch (Exception e) {
 					HTTPResponseHelper.internalError(e.getMessage());
 				}
@@ -169,22 +182,27 @@ public class AdminAPI implements OpenWareAPI {
 				if (Config.getBool("accessControl", true) && user == null) {
 					HTTPResponseHelper.forbidden("You need to log in to configure items");
 				}
-				ctx.json(DataService.getItemConfiguration(user).values().stream()
-						.filter(new Predicate<OpenWareDataItem>() {
+				ctx.json(DataService.getItemConfiguration(user)
+									.values()
+									.stream()
+									.filter(new Predicate<OpenWareDataItem>() {
 
-							@SuppressWarnings("null")
-							@Override
-							public boolean test(OpenWareDataItem t) {
-								String source = t.getMeta().optString("source_source");
-								String id = t.getMeta().optString("id_source");
-								if (source.equals(""))
-									source = t.getSource();
-								if (id.equals(""))
-									id = t.getId();
-								return user.canAccessWrite(source, id);
-							}
+										@SuppressWarnings("null")
+										@Override
+										public boolean test(OpenWareDataItem t) {
+											String source = t	.getMeta()
+																.optString("source_source");
+											String id = t	.getMeta()
+															.optString("id_source");
+											if (source.equals(""))
+												source = t.getSource();
+											if (id.equals(""))
+												id = t.getId();
+											return user.canAccessWrite(source, id);
+										}
 
-						}).collect(Collectors.toList()));
+									})
+									.collect(Collectors.toList()));
 
 			});
 
@@ -206,7 +224,8 @@ public class AdminAPI implements OpenWareAPI {
 
 			get(GET_STATS, ctx -> {
 
-				HTTPResponseHelper.ok(ctx, OpenWareInstance.getInstance().getState());
+				HTTPResponseHelper.ok(ctx, OpenWareInstance	.getInstance()
+															.getState());
 
 			});
 

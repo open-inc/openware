@@ -1,6 +1,9 @@
 package de.openinc.ow;
 
+import static io.javalin.apibuilder.ApiBuilder.after;
+import static io.javalin.apibuilder.ApiBuilder.before;
 import static io.javalin.apibuilder.ApiBuilder.path;
+import static io.javalin.apibuilder.ApiBuilder.ws;
 
 import java.lang.reflect.Type;
 import java.time.Instant;
@@ -476,163 +479,140 @@ public class OpenWareInstance {
 			}
 		};
 
-		javalinInstance = Javalin	.create(config -> {
-										config.staticFiles.add(staticFiles -> {
-											staticFiles.location = Location.EXTERNAL;
-											staticFiles.directory = Config.get("publicHTTP", "app");
-										});
+		javalinInstance = Javalin.create(config -> {
 
-										config.spaRoot.addFile("/", Config.get("publicHTTP", "app") + "/index.html",
-												Location.EXTERNAL);
-										config.http.defaultContentType = "application/json";
-										config.jsonMapper(gsonMapper);
-										config.compression.gzipOnly();
-										config.jetty.httpConfigurationConfig((jettyConfig) -> {
-											jettyConfig.setIdleTimeout(60 * 10 * 1000);
+			config.staticFiles.add(staticFiles -> {
+				staticFiles.location = Location.EXTERNAL;
+				staticFiles.directory = Config.get("publicHTTP", "app");
+			});
 
-										});
-										config.plugins.enableCors(cors -> {
-											cors.add(it -> {
-												it.anyHost();
-											});
-										});
-									})
-									.routes(() -> {
-										OpenWareInstance.getInstance()
-														.logTrace("[PlUGINS] "
-																+ "------------------Plugins loading...-------------------------");
-										// Plugins
-										loadPlugins();
-										OpenWareInstance.getInstance()
-														.logTrace("[PLUGINS] "
-																+ "------------------Plugins loaded...-------------------------");
+			config.spaRoot.addFile("/", Config.get("publicHTTP", "app") + "/index.html", Location.EXTERNAL);
+			config.http.defaultContentType = "application/json";
+			config.jsonMapper(gsonMapper);
+			config.http.gzipOnlyCompression();
 
-										path("api", () -> {
-											for (OpenWareAPI os : services) {
-												os.registerRoutes();
-											}
-										});
+			config.jetty.modifyHttpConfiguration(jettyconf -> {
+				jettyconf.setIdleTimeout(60 * 10 * 1000);
+			});
 
-									})
-									.ws(LIVE_API, ws -> {
-										JavalinWebsocketProvider jwp = new JavalinWebsocketProvider();
-										jwp.registerWSforJavalin(ws);
-									})
-									.after(ctx -> {
-										Long started = ctx.sessionAttribute("request_started");
-										if (started != null) {
-											long ended = System.currentTimeMillis();
-											long duration = ended - started;
-											accessLogger.debug("[API-ACCESS][SOURCE:" + ctx.host() + "][" + ctx.method()
-													+ "]" + ctx.path() + "handled in " + duration + " ms");
-										}
+			config.bundledPlugins.enableCors(cors -> {
 
-									})
-									.before("/api/*", ctx -> {
-										accessLogger.debug("[API-ACCESS][SOURCE:" + ctx.host() + "][" + ctx.method()
-												+ "]" + ctx.path());
+				cors.addRule(it -> {
+					it.anyHost();
+				});
+			});
+			config.router.apiBuilder(() -> {
+				OpenWareInstance.getInstance()
+								.logTrace(
+										"[PlUGINS] " + "------------------Plugins loading...-------------------------");
+				// Plugins
+				loadPlugins();
+				OpenWareInstance.getInstance()
+								.logTrace(
+										"[PLUGINS] " + "------------------Plugins loaded...-------------------------");
 
-										// request.session(true);
-										if (Config.getBool("accessControl", true)) {
-											String method = ctx	.method()
-																.toString()
-																.toLowerCase();
-											if (!method.equals("options")) {
-												boolean authorized = false;
-												User user; //
-												// User+Password Check
-												if (ctx	.queryParamMap()
-														.keySet()
-														.contains("username")
-														&& ctx	.queryParamMap()
-																.keySet()
-																.contains("password")) {
-													user = UserService	.getInstance()
-																		.login(ctx.queryParam("username"),
-																				ctx.queryParam("password"));
-													// Session Token Check
-												} else {
-													Map<String, String> header = ctx.headerMap();
-													user = UserService	.getInstance()
-																		.checkAuth(ctx.header(UserAPI.OD_SESSION));
+				path("api", () -> {
+					for (OpenWareAPI os : services) {
+						os.registerRoutes();
+					}
+				});
+				ws(LIVE_API, ws -> {
+					JavalinWebsocketProvider jwp = new JavalinWebsocketProvider();
+					jwp.registerWSforJavalin(ws);
+				});
+				after(ctx -> {
+					Long started = ctx.sessionAttribute("request_started");
+					if (started != null) {
+						long ended = System.currentTimeMillis();
+						long duration = ended - started;
+						accessLogger.debug("[API-ACCESS][SOURCE:" + ctx.host() + "][" + ctx.method() + "]" + ctx.path()
+								+ "handled in " + duration + "ms");
+					}
 
-												}
+				});
+				before("/api/*", ctx -> {
+					accessLogger.debug("[API-ACCESS][SOURCE:" + ctx.host() + "][" + ctx.method() + "]" + ctx.path());
 
-												// JWT Check
-												if (ctx	.headerMap()
-														.keySet()
-														.contains("Authorization")
-														&& ctx	.header("Authorization")
-																.startsWith("Bearer ")) {
-													user = UserService	.getInstance()
-																		.jwtToUser(ctx	.header("Authorization")
-																						.substring(7));
-													ctx.sessionAttribute("apiaccess", true);
-												}
-												// Public User Check
-												if (user == null && Config.getBool("PUBLIC_USER_ENABLED", false)) {
-													String session = Config.get("PUBLIC_USER_SESSION", "");
-													user = UserService	.getInstance()
-																		.checkAuth(session);
-												}
+					// request.session(true);
+					if (Config.getBool("accessControl", true)) {
+						String method = ctx	.method()
+											.toString()
+											.toLowerCase();
+						if (!method.equals("options")) {
+							boolean authorized = false;
+							User user;
+							if (ctx	.queryParamMap()
+									.keySet()
+									.contains("username")
+									&& ctx	.queryParamMap()
+											.keySet()
+											.contains("password")) {
+								user = UserService	.getInstance()
+													.login(ctx.queryParam("username"), ctx.queryParam("password"));
+							} else {
+								Map<String, String> header = ctx.headerMap();
 
-												authorized = user != null;
+								user = UserService	.getInstance()
+													.checkAuth(ctx.header(UserAPI.OD_SESSION));
+							}
 
-												if (!authorized) {
-													throw new ForbiddenResponse("Not authorized");
-												}
+							if (ctx	.headerMap()
+									.keySet()
+									.contains("Authorization")
+									&& ctx	.header("Authorization")
+											.startsWith("Bearer ")) {
+								user = UserService	.getInstance()
+													.jwtToUser(ctx	.header("Authorization")
+																	.substring(7));
+								ctx.sessionAttribute("apiaccess", true);
+							}
+							authorized = user != null;
 
-												if (Config.getBool("accessControl_per_features", false)) {
-													boolean canAccess = user.canAccessFeature(ctx	.method()
-																									.name(),
-															ctx.path());
-													if (!canAccess) {
-														throw new ForbiddenResponse(String.format(
-																"Not authorized to access %s:%s", ctx	.method()
-																										.name(),
-																ctx.path()));
-													}
-												}
+							if (!authorized) {
+								throw new ForbiddenResponse("Not authorized");
+							}
+							ctx.sessionAttribute("user", user);
+							ctx.sessionAttribute("request_started", System.currentTimeMillis());
 
-												ctx.sessionAttribute("user", user);
-												ctx.sessionAttribute("request_started", System.currentTimeMillis());
+						}
 
-											}
+					}
+				});
 
-										}
-									})
-									.exception(Exception.class, (e, ctx) -> {
-										JSONObject details = new JSONObject();
+			});
 
-										JSONObject params = new JSONObject();
-										for (String key : ctx	.pathParamMap()
-																.keySet()) {
-											params.put(key, ctx.pathParam(key));
-										}
-										details.put("pathParams", params);
+		});
+		javalinInstance.exception(Exception.class, (e, ctx) -> {
+			JSONObject details = new JSONObject();
 
-										JSONObject queryP = new JSONObject();
-										for (String key : ctx	.queryParamMap()
-																.keySet()) {
-											queryP.put(key, ctx.queryParam(key));
-										}
-										User user = (User) ctx.sessionAttribute("user");
-										JSONObject uInfo = new JSONObject();
-										if (user != null) {
-											uInfo = user.toJSON();
-										}
-										details.put("queryParams", queryP);
-										details.put("url", ctx.fullUrl());
-										details.put("user", uInfo);
+			JSONObject params = new JSONObject();
+			for (String key : ctx	.pathParamMap()
+									.keySet()) {
+				params.put(key, ctx.pathParam(key));
+			}
+			details.put("pathParams", params);
 
-										OpenWareInstance.getInstance()
-														.logError("Error on " + ctx.fullUrl() + ": "
-																+ e.getLocalizedMessage() + "\n" + details.toString(2),
-																e);
-										// HTTPResponseHelper.generateResponse(ctx, 400, null, e.getMessage());
-									});
+			JSONObject queryP = new JSONObject();
+			for (String key : ctx	.queryParamMap()
+									.keySet()) {
+				queryP.put(key, ctx.queryParam(key));
+			}
+			User user = (User) ctx.sessionAttribute("user");
+			JSONObject uInfo = new JSONObject();
+			if (user != null) {
+				uInfo = user.toJSON();
+			}
+			details.put("queryParams", queryP);
+			details.put("url", ctx.fullUrl());
+			details.put("user", uInfo);
 
-		System.out.println("INSTANCE CREATED");
+			OpenWareInstance.getInstance()
+							.logError("Error on " + ctx.fullUrl() + ": " + e.getLocalizedMessage() + "\n"
+									+ details.toString(2), e);
+			// HTTPResponseHelper.generateResponse(ctx, 400, null, e.getMessage());
+		});
+
+		logInfo("INSTANCE CREATED");
 
 	}
 
@@ -808,7 +788,7 @@ public class OpenWareInstance {
 
 	public void stopInstance() {
 		if (isRunning()) {
-			javalinInstance.close();
+			javalinInstance.stop();
 		}
 		setRunning(false);
 	}

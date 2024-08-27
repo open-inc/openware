@@ -66,10 +66,11 @@ public abstract class OpenWareValueDimension {
 					value);
 		}
 
-		if (value instanceof Number) {
+		if (value instanceof Number || (unit != null && !unit.equals(""))) {
 			return createNewDimension(name == null ? "" : name, unit == null ? "" : unit, OpenWareNumber.TYPE,
 					((Number) value).doubleValue());
 		}
+
 		if (value instanceof JSONObject) {
 			try {
 				OpenWareGeo cGeo = new OpenWareGeo(name == null ? "" : name, unit == null ? "" : unit,
@@ -85,9 +86,13 @@ public abstract class OpenWareValueDimension {
 
 		String toTest = value.toString();
 
-		if (toTest.toLowerCase().equals("true") || toTest.toLowerCase().equals("false")) {
+		if (toTest	.toLowerCase()
+					.equals("true")
+				|| toTest	.toLowerCase()
+							.equals("false")) {
 			return createNewDimension(name == null ? "" : name, unit == null ? "" : unit, OpenWareBoolValue.TYPE,
-					Boolean.valueOf(value.toString().toLowerCase()));
+					Boolean.valueOf(value	.toString()
+											.toLowerCase()));
 		}
 
 		try {

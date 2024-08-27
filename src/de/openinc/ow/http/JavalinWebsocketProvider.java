@@ -123,30 +123,12 @@ public class JavalinWebsocketProvider {
 
 	public void onConnect(Session user) throws Exception {
 		OpenWareInstance.getInstance()
-						.logDebug("User connected " + user.getRemoteAddress());
+						.logInfo("User connected " + user.getRemoteAddress());
 		user.setIdleTimeout(Duration.ofMinutes(15));
 	}
 
 	public void onClose(WsContext wsSession, int statusCode, String reason) {
-//		ConcurrentHashMap<String, List<WsContext>> tempSession = new ConcurrentHashMap();
-//		tempSession.putAll(sessions);
-		/*-
-		int count = closedCount.incrementAndGet();
-		long now = System.currentTimeMillis();
-		long diff = now - lastCloseCountReset;
-		
-		if (diff > 1000) {
-			System.out.println("WS Close Count: " + count);
-			closedCount = new AtomicInteger(0);
-			if (count > 100) {
-				OpenWareInstance.getInstance()
-						.logWarn("To many onClose calls. WS cache seems to be in error state. Resetting cache.");
-				resetConnections();
-				return;
-			}
-			lastCloseCountReset = System.currentTimeMillis();
-		}
-		*/
+
 		for (String key : sessions.keySet()) {
 			List cSessions = sessions.get(key);
 			synchronized (cSessions) {
@@ -157,7 +139,7 @@ public class JavalinWebsocketProvider {
 		}
 		// uService.removeUserSession(wsSession);
 		OpenWareInstance.getInstance()
-						.logInfo("User " + wsSession.getSessionId() + " disconnected ["
+						.logInfo("User " + wsSession.getSessionId() + " disconnected due to " + reason + " ["
 								+ wsSession	.getUpgradeCtx$javalin()
 											.ip()
 								+ "]");

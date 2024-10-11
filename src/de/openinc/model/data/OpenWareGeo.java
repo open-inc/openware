@@ -95,7 +95,9 @@ public class OpenWareGeo extends OpenWareValueDimension {
 
 				// Validate FeatureCollection
 				if (second) {
-					if (obj.getString("type").toLowerCase().equals("featurecollection")) {
+					if (obj	.getString("type")
+							.toLowerCase()
+							.equals("featurecollection")) {
 						obj.put("type", "FeatureCollection");
 						JSONArray features = obj.getJSONArray("features");
 						boolean validated = true;
@@ -115,14 +117,16 @@ public class OpenWareGeo extends OpenWareValueDimension {
 				if (first || second || third || forth) {
 					// No valid GeoJSON even though format looked like geojson: Emitting Warning;
 					OpenWareInstance.getInstance()
-							.logError("Tried parsing JSONObject as GeoJSON but was not valid\n" + obj.toString(2));
+									.logError("Tried parsing JSONObject as GeoJSON but was not valid\n"
+											+ obj.toString(2));
 				}
 				return null;
 			}
 			// NON GeoJSON Json Data
 			return null;
 		} catch (Exception e) {
-			OpenWareInstance.getInstance().logError("Tried parsing GeoJSON but was not valid\n" + value.toString(), e);
+			OpenWareInstance.getInstance()
+							.logError("Tried parsing GeoJSON but was not valid\n" + value.toString(), e);
 			throw new JSONException("The provided value needs to be a a GeoJSON Object but is " + value.toString());
 		}
 	}
@@ -134,7 +138,9 @@ public class OpenWareGeo extends OpenWareValueDimension {
 	}
 
 	private boolean checkGeometry(JSONObject obj) {
-		if (obj.getString("type").toLowerCase().equals("geometrycollection")) {
+		if (obj	.getString("type")
+				.toLowerCase()
+				.equals("geometrycollection")) {
 			obj.put("type", "GeometryCollection");
 			JSONArray geometries = obj.getJSONArray("geometries");
 			boolean validated = true;
@@ -157,7 +163,9 @@ public class OpenWareGeo extends OpenWareValueDimension {
 	}
 
 	private boolean checkFeature(JSONObject obj) {
-		if (obj.getString("type").toLowerCase().equals("feature")) {
+		if (obj	.getString("type")
+				.toLowerCase()
+				.equals("feature")) {
 			obj.put("type", "Feature");
 			if (!obj.has("properties")) {
 				obj.put("properties", new JSONObject());

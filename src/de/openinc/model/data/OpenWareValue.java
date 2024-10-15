@@ -23,6 +23,10 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 
 	}
 
+	public static OpenWareValueBuilder build() {
+		return new OpenWareValueBuilder();
+	}
+
 	// public OpenWareValue(long date, int initialDimensions) {
 	// this.date = date;
 	// this.value = new ArrayList<OpenWareValueDimension>(initialDimensions);
@@ -73,6 +77,10 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 		return date;
 	}
 
+	protected void setDate(long date) {
+		this.date = date;
+	}
+
 	@Override
 	public String toString() {
 		StringBuffer valueString = new StringBuffer("[");
@@ -119,9 +127,12 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 			if (!(isArray || isObject)) {
 				Object value = cArray.get(i);
 				if (value instanceof String) {
-					value = "\"" + value + "\"";
+					value = "\"" + StringEscapeUtils.escapeJava(value.toString()) + "\"";
 				}
-				out.write(StringEscapeUtils.escapeJava(value.toString()).getBytes());
+//				out.write(StringEscapeUtils	.escapeJava(value.toString())
+//											.getBytes());
+				out.write(value	.toString()
+								.getBytes());
 			}
 
 			if (i < cArray.length() - 1) {
@@ -157,7 +168,7 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 			if (!isObjectOrArray) {
 				Object value = o.get(key);
 				if (value instanceof String) {
-					value = "\"" + ((String) value).replace("\"", "\\\"").replace("\n", "") + "\"";
+					value = "\"" + StringEscapeUtils.escapeJava(value.toString()) + "\"";
 				}
 				out.write((value.toString()).getBytes());
 			}
@@ -171,24 +182,30 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 		out.write(("{" + DataTools.getJSONPartial("date", date, false, false) + "\"value\":[").getBytes());
 		for (OpenWareValueDimension dim : this) {
 			if (!first) {
-				out.write(",".toString().getBytes());
+				out.write(","	.toString()
+								.getBytes());
 			}
 			if (dim instanceof OpenWareString) {
 				out.write(("\"" + StringEscapeUtils.escapeJava((String) dim.value()) + "\"").getBytes());
 			} else if (dim instanceof OpenWareNumber) {
 				double test = ((OpenWareNumber) dim).value();
 				if (Double.isNaN(test)) {
-					out.write(JSONObject.NULL.toString().getBytes());
+					out.write(JSONObject.NULL	.toString()
+												.getBytes());
 
 				} else {
-					out.write(dim.value().toString().getBytes());
+					out.write(dim	.value()
+									.toString()
+									.getBytes());
 
 				}
 			} else if (dim instanceof OpenWareGeo || dim instanceof OpenWareGeneric) {
 				JSONObject val = (JSONObject) dim.value();
 				streamJSONObjectPartial(val, out);
 			} else {
-				out.write(dim.value().toString().getBytes());
+				out.write(dim	.value()
+								.toString()
+								.getBytes());
 			}
 
 			first = false;
@@ -217,7 +234,10 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 		if (other.size() != this.size())
 			return false;
 		for (int i = 0; i < this.size(); i++) {
-			if (!this.get(i).value().equals(other.get(i).value())) {
+			if (!this	.get(i)
+						.value()
+						.equals(other	.get(i)
+										.value())) {
 				return false;
 			}
 		}
@@ -232,4 +252,51 @@ public class OpenWareValue extends AbstractList<OpenWareValueDimension> implemen
 		return false;
 	}
 
+	class Builder {
+		private OpenWareValue value;
+
+		private Builder() {
+			value = new OpenWareValue(System.currentTimeMillis());
+		}
+
+		public Builder date(long ts) {
+			value.setDate(ts);
+			return this;
+		}
+
+		public Builder dim(OpenWareValueDimension dim) {
+			value.add(dim);
+			return this;
+		}
+
+		public Builder number(double number, String name, String unit) {
+			value.add(new OpenWareNumber(name, unit, number));
+			return this;
+		}
+
+		public Builder bool(boolean boolVal, String name) {
+			value.add(new OpenWareBoolValue(name, "", boolVal));
+			return this;
+		}
+
+		public Builder string(String string, String name) {
+			value.add(new OpenWareString(name, "", string));
+			return this;
+		}
+
+		public Builder geo(JSONObject geo, String name) {
+			value.add(new OpenWareGeo(name, "", geo));
+			return this;
+		}
+
+		public Builder generic(JSONObject generic, String name) {
+			value.add(new OpenWareGeo(name, "", generic));
+			return this;
+		}
+
+		public OpenWareValue build() {
+			return value;
+		}
+
+	}
 }

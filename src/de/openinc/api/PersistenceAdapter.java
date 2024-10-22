@@ -46,27 +46,44 @@ public interface PersistenceAdapter {
 	/**
 	 * Retrieves live data for a specified sensor.
 	 *
-	 * @param sensorName   the name of the sensor.
+	 * @param id           the id of the sensor.
 	 * @param source       the data source.
 	 * @param at           the timestamp for the data.
 	 * @param lastElements the number of last elements to retrieve.
 	 * @param reference    a reference identifier that was used when storing data.
 	 * @return an OpenWareDataItem representing live data.
 	 */
-	OpenWareDataItem liveData(String sensorName, String source, long at, int lastElements, String reference);
+	OpenWareDataItem liveData(String id, String source, long at, int lastElements, String reference);
 
 	/**
 	 * Retrieves historical data for a specified sensor within a time range.
 	 *
-	 * @param sensorName the name of the sensor.
-	 * @param source     the data source.
-	 * @param timestamp  the start timestamp for the data.
-	 * @param until      the end timestamp for the data.
-	 * @param reference  a reference identifier that was used when storing data.
-	 * @param optionals  {@link RetrievalOptions} retrieval options.
+	 * @param id        the id of the sensor.
+	 * @param source    the data source.
+	 * @param timestamp the start timestamp for the data.
+	 * @param until     the end timestamp for the data.
+	 * @param reference a reference identifier that was used when storing data.
+	 * @param optionals {@link RetrievalOptions} retrieval options.
 	 * @return an OpenWareDataItem representing historical data.
 	 */
-	OpenWareDataItem historicalData(String sensorName, String source, Long timestamp, Long until, String reference,
+	OpenWareDataItem historicalData(String id, String source, Long timestamp, Long until, String reference,
+			RetrievalOptions optionals);
+
+	/**
+	 * Retrieves the count of data entries for a specified sensor within a time
+	 * range.
+	 * 
+	 * @param id        the id of the sensor whose data count is to be retrieved.
+	 * @param source    the data source from which to retrieve the count.
+	 * @param timestamp the start timestamp for the time range.
+	 * @param until     the end timestamp for the time range.
+	 * @param reference a reference identifier that was used when storing the data.
+	 * @param optionals {@link RetrievalOptions} retrieval options that can specify
+	 *                  additional parameters for data retrieval.
+	 * @return an OpenWareDataItem representing the count of data entries in the
+	 *         specified range.
+	 */
+	OpenWareDataItem countData(String id, String source, Long timestamp, Long until, String reference,
 			RetrievalOptions optionals);
 
 	/**

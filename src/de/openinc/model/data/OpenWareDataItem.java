@@ -446,34 +446,40 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	}
 
 	public void streamPrint(OutputStream out) throws IOException {
-		StringBuffer res = new StringBuffer("{");
-		res.append(DataTools.getJSONPartial("id", StringEscapeUtils.escapeJava(this.id), false, true));
-		res.append(DataTools.getJSONPartial("name", StringEscapeUtils.escapeJava(this.name), false, true));
-		res.append(DataTools.getJSONPartial("meta", this.meta.toString(), false, false));
-		res.append(DataTools.getJSONPartial("user", StringEscapeUtils.escapeJava(this.source), false, true));
-		res.append(DataTools.getJSONPartial("source", StringEscapeUtils.escapeJava(this.source), false, true));
-		if (reference != null) {
-			res.append(DataTools.getJSONPartial("reference", StringEscapeUtils.escapeJava(this.getReference()), false,
-					true));
-		}
-		res.append("\"valueTypes\":");
+		streamPrint(out, false, true);
+	}
+
+	public void streamPrint(OutputStream out, boolean valuesOnly, boolean last) throws IOException {
 		boolean first = true;
-		res.append("[");
-		for (OpenWareValueDimension val : this.valueTypes) {
-
-			if (!first) {
-				res.append(",");
+		if (!valuesOnly) {
+			StringBuffer res = new StringBuffer("{");
+			res.append(DataTools.getJSONPartial("id", StringEscapeUtils.escapeJava(this.id), false, true));
+			res.append(DataTools.getJSONPartial("name", StringEscapeUtils.escapeJava(this.name), false, true));
+			res.append(DataTools.getJSONPartial("meta", this.meta.toString(), false, false));
+			res.append(DataTools.getJSONPartial("user", StringEscapeUtils.escapeJava(this.source), false, true));
+			res.append(DataTools.getJSONPartial("source", StringEscapeUtils.escapeJava(this.source), false, true));
+			if (reference != null) {
+				res.append(DataTools.getJSONPartial("reference", StringEscapeUtils.escapeJava(this.getReference()),
+						false, true));
 			}
-			res.append(val.toString());
+			res.append("\"valueTypes\":");
 
-			first = false;
+			res.append("[");
+			for (OpenWareValueDimension val : this.valueTypes) {
+
+				if (!first) {
+					res.append(",");
+				}
+				res.append(val.toString());
+
+				first = false;
+			}
+			res.append("],");
+			res.append("\"values\": [");
+			out.write(res	.toString()
+							.getBytes());
 		}
-		res.append("],");
-		res.append("\"values\": [");
-		out.write(res	.toString()
-						.getBytes());
-
-		first = true;
+		first = !valuesOnly;
 		for (OpenWareValue val : this.values) {
 
 			if (!first) {
@@ -489,9 +495,13 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 			 */
 			first = false;
 		}
-		out.write("]}".getBytes());
-		out.flush();
-		out.close();
+
+		if (last) {
+			out.write("]}".getBytes());
+			out.flush();
+			out.close();
+
+		}
 
 	}
 

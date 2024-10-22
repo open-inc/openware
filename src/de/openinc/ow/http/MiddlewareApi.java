@@ -209,17 +209,42 @@ public class MiddlewareApi implements OpenWareAPI {
 
 					item = DataService.getHistoricalSensorData(sensorid, source, timestampStart, timestampEnd,
 							ctx.queryParamMap(), user);
+					if (item == null) {
+						HTTPResponseHelper.internalError(
+								String.format("Could not get historical data for [%s]%s", source, sensorid));
+					}
 				} else {
-					item = DataService.getHistoricalSensorData(sensorid, source, timestampStart, timestampEnd);
+					OpenWareDataItem count = DataService.countSensorData(sensorid, source, timestampStart, timestampEnd,
+							null, null);
+					if (count == null) {
+						HTTPResponseHelper.badRequest("No Data for request");
+					}
+					double countOfValues = (double) count	.value()
+															.get(0)
+															.get(0)
+															.value();
+					if (countOfValues < 1_00_000) {
+						item = DataService.getHistoricalSensorData(sensorid, source, timestampStart, timestampEnd);
+						streamResponse(ctx, item);
+						ctx.status(200);
+					} else {
+						long interval = timestampEnd - timestampStart;
+						int steps = (int) countOfValues / 1_00_000;
+						int stepSize = (int) interval / steps;
+						for (int i = 0; i < steps; i++) {
+							long start = timestampStart + (stepSize * i);
+							long end = i == steps - 1 ? timestampEnd : (timestampStart + (stepSize * (i + 1))) - 1;
+							item = DataService.getHistoricalSensorData(sensorid, source, start, end);
+							boolean last = i == (steps - 1);
+							boolean valuesOnly = i != 0;
+							streamResponse(ctx, item, valuesOnly, last);
+
+						}
+						ctx.status(200);
+					}
+
 				}
 
-				if (item == null) {
-					ctx.json(new JSONObject());
-				} else {
-					// ctx.json(item.toString());
-					streamResponse(ctx, item);
-					ctx.status(200);
-				}
 			});
 
 			// TODO: Add References
@@ -358,10 +383,15 @@ public class MiddlewareApi implements OpenWareAPI {
 	}
 
 	private void streamResponse(Context ctx, OpenWareDataItem item) throws IOException {
+		streamResponse(ctx, item, false, true);
+	};
+
+	private void streamResponse(Context ctx, OpenWareDataItem item, boolean valuesOnly, boolean last)
+			throws IOException {
 
 		ServletOutputStream writer = ctx.outputStream();
 		BufferedOutputStream bout = new BufferedOutputStream(writer);
-		item.streamPrint(bout);
+		item.streamPrint(bout, valuesOnly, last);
 		bout.flush();
 
 	}

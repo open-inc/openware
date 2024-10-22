@@ -15,6 +15,10 @@ import org.apache.commons.math3.ml.clustering.KMeansPlusPlusClusterer;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import com.esri.core.geometry.Geometry;
+import com.esri.core.geometry.GeometryEngine;
+import com.esri.core.geometry.SpatialReference;
+
 import de.openinc.model.data.OpenWareDataItem;
 import de.openinc.model.data.OpenWareGeneric;
 import de.openinc.model.data.OpenWareGeo;
@@ -26,6 +30,48 @@ import de.openinc.ow.analytics.model.Dataset;
 import de.openinc.ow.analytics.model.Instance;
 
 public class GeoHelper {
+
+	public static boolean contains(Geometry geo1, Geometry geo2) {
+
+		return GeometryEngine.contains(geo1, geo2, SpatialReference.create(4326));
+
+	}
+
+	public static boolean crosses(Geometry geo1, Geometry geo2) {
+
+		return GeometryEngine.crosses(geo1, geo2, SpatialReference.create(4326));
+
+	}
+
+	public static boolean disjoint(Geometry geo1, Geometry geo2) {
+
+		return GeometryEngine.disjoint(geo1, geo2, SpatialReference.create(4326));
+
+	}
+
+	public static boolean equals(Geometry geo1, Geometry geo2) {
+
+		return GeometryEngine.equals(geo1, geo2, SpatialReference.create(4326));
+
+	}
+
+	public static boolean overlaps(Geometry geo1, Geometry geo2) {
+
+		return GeometryEngine.overlaps(geo1, geo2, SpatialReference.create(4326));
+
+	}
+
+	public static boolean touches(Geometry geo1, Geometry geo2) {
+
+		return GeometryEngine.touches(geo1, geo2, SpatialReference.create(4326));
+
+	}
+
+	public static boolean isWithin(Geometry geo1, Geometry geo2) {
+
+		return GeometryEngine.within(geo1, geo2, SpatialReference.create(4326));
+
+	}
 
 	public static OpenWareDataItem fromGeoJSON(OpenWareDataItem data) throws IllegalArgumentException {
 		Dataset res = geoToDataset(data);
@@ -39,6 +85,77 @@ public class GeoHelper {
 		return toReturn;
 	}
 
+	public static Geometry mergeGeometries(List<Geometry> geometries) {
+		return GeometryEngine.union((Geometry[]) geometries.toArray(), SpatialReference.create(4326));
+
+	}
+
+	public static Geometry collectionToGeometry(JSONObject jsonObject) {
+		String geometryType = jsonObject.getString("type");
+		List<Geometry> geos = new ArrayList<Geometry>();
+		switch (geometryType.toLowerCase()) {
+		case "featurecollection": {
+			JSONArray features = jsonObject.getJSONArray("features");
+			for (int i = 0; i < features.length(); i++) {
+				geos.add(jsonToGeometry(features.getJSONObject(i)
+												.getJSONObject("geometry")));
+			}
+			break;
+		}
+		case "GeometryCollection": {
+			JSONArray collection = jsonObject.getJSONArray("geometries");
+			for (int i = 0; i < collection.length(); i++) {
+				geos.add(jsonToGeometry(collection.getJSONObject(i)));
+			}
+			break;
+		}
+		default:
+			throw new IllegalArgumentException("Nicht unterstützter Collection Typ: " + geometryType);
+
+		}
+		return mergeGeometries(geos);
+	}
+
+	public static Geometry jsonToGeometry(JSONObject jsonObject) {
+		String geometryType = jsonObject.getString("type");
+
+		switch (geometryType) {
+		case "Polygon":
+			return GeometryEngine	.jsonToGeometry(jsonObject.toString())
+									.getGeometry();
+
+		case "Point":
+			return GeometryEngine	.jsonToGeometry(jsonObject.toString())
+									.getGeometry();
+
+		case "LineString":
+			return GeometryEngine	.jsonToGeometry(jsonObject.toString())
+									.getGeometry();
+
+		case "MultiPoint":
+			return GeometryEngine	.jsonToGeometry(jsonObject.toString())
+									.getGeometry();
+
+		case "MultiPolygon":
+			return GeometryEngine	.jsonToGeometry(jsonObject.toString())
+									.getGeometry();
+
+		case "MultiLineString":
+			return GeometryEngine	.jsonToGeometry(jsonObject.toString())
+									.getGeometry();
+		case "Feature":
+			return GeometryEngine	.jsonToGeometry(jsonObject	.getJSONObject("geometry")
+																.toString())
+									.getGeometry();
+		case "GeometryCollection":
+		case "FeatureCollection":
+			return collectionToGeometry(jsonObject);
+
+		default:
+			throw new IllegalArgumentException("Nicht unterstützter Geometrietyp: " + geometryType);
+		}
+	}
+
 	private static OpenWareValue extractCoords(long ts, JSONObject geo, OpenWareValue prevs) {
 		OpenWareValue coords;
 		if (prevs == null) {
@@ -47,9 +164,11 @@ public class GeoHelper {
 		} else {
 			coords = prevs;
 		}
-		JSONArray toUse = (JSONArray) coords.get(0).value();
+		JSONArray toUse = (JSONArray) coords.get(0)
+											.value();
 
-		switch (geo.optString("type").toLowerCase()) {
+		switch (geo	.optString("type")
+					.toLowerCase()) {
 		case "feature": {
 			extractCoords(ts, geo.getJSONObject("geometry"), coords);
 			// toUse.putAll(val.get(0).value());
@@ -65,31 +184,36 @@ public class GeoHelper {
 		}
 		case "point": {
 			OpenWareValue val = extractPointsFromPointOW(ts, geo);
-			toUse.putAll(val.get(0).value());
+			toUse.putAll(val.get(0)
+							.value());
 			break;
 		}
 
 		case "multipoint":
 		case "linestring": {
 			OpenWareValue val = extractPointsFromLineOrMultiPointOW(ts, geo);
-			toUse.putAll(val.get(0).value());
+			toUse.putAll(val.get(0)
+							.value());
 			break;
 		}
 
 		case "multilinestring":
 		case "polygon": {
 			OpenWareValue val = extractPointsFromPolygonOrMultiLineOW(ts, geo);
-			toUse.putAll(val.get(0).value());
+			toUse.putAll(val.get(0)
+							.value());
 			break;
 		}
 		case "multipolygon": {
 			OpenWareValue val = extractPointsFromMultipolygonOW(ts, geo);
-			toUse.putAll(val.get(0).value());
+			toUse.putAll(val.get(0)
+							.value());
 			break;
 		}
 		case "geometrycollection": {
 			OpenWareValue val = extractPointsFromGeometryCollectionOW(ts, geo, coords);
-			toUse.putAll(val.get(0).value());
+			toUse.putAll(val.get(0)
+							.value());
 			break;
 		}
 
@@ -110,10 +234,14 @@ public class GeoHelper {
 		OpenWareDataItem toReturn = data.cloneItem(false);
 		toReturn.setValueTypes(vTypes);
 
-		toReturn.valueUnsafe(data.value().stream().map((OpenWareValue value) -> {
-			JSONObject geo = (JSONObject) value.get(dim).value();
-			return extractCoords(value.getDate(), geo, null);
-		}).collect(Collectors.toList()));
+		toReturn.valueUnsafe(data	.value()
+									.stream()
+									.map((OpenWareValue value) -> {
+										JSONObject geo = (JSONObject) value	.get(dim)
+																			.value();
+										return extractCoords(value.getDate(), geo, null);
+									})
+									.collect(Collectors.toList()));
 		return toReturn;
 	}
 
@@ -142,8 +270,11 @@ public class GeoHelper {
 			}
 
 			// FEATURE Collection
-			JSONObject current = (JSONObject) val.get(dimension).value();
-			if (current.optString("type").toLowerCase().equals("featurecollection")) {
+			JSONObject current = (JSONObject) val	.get(dimension)
+													.value();
+			if (current	.optString("type")
+						.toLowerCase()
+						.equals("featurecollection")) {
 				List<JSONObject> temp = geojsons.getOrDefault(val.getDate(), new ArrayList<JSONObject>());
 				temp.addAll(extractGeometriesFromFeatureCollection(current));
 				geojsons.put(val.getDate(), temp);
@@ -171,7 +302,8 @@ public class GeoHelper {
 			// System.out.println(ts);
 			for (JSONObject obj : geojsons.get(ts)) {
 
-				switch (obj.optString("type").toLowerCase()) {
+				switch (obj	.optString("type")
+							.toLowerCase()) {
 				case "point":
 					res.addAll(extractPointsFromPoint(ts, obj));
 					break;
@@ -214,17 +346,24 @@ public class GeoHelper {
 			featureCollection.put("type", "FeatureCollection");
 			JSONArray features = new JSONArray();
 			for (Cluster<Instance> cluster : clusters) {
-				Point2D[] hullpoints = new Point2D[cluster.getPoints().size()];
+				Point2D[] hullpoints = new Point2D[cluster	.getPoints()
+															.size()];
 				int j = 0;
 				for (Instance i : cluster.getPoints()) {
-					hullpoints[j] = new Point2D(cluster.getPoints().get(j).getPoint()[0],
-							cluster.getPoints().get(j).getPoint()[1], i.ts);
+					hullpoints[j] = new Point2D(cluster	.getPoints()
+														.get(j)
+														.getPoint()[0],
+							cluster	.getPoints()
+									.get(j)
+									.getPoint()[1],
+							i.ts);
 					j++;
 				}
 				GrahamScan hull = new GrahamScan(hullpoints);
 				JSONObject feature = new JSONObject();
 				JSONObject props = new JSONObject();
-				props.put("clusterSize", cluster.getPoints().size());
+				props.put("clusterSize", cluster.getPoints()
+												.size());
 				feature.put("properties", props);
 				feature.put("type", "Feature");
 				JSONObject geo = new JSONObject();
@@ -251,7 +390,8 @@ public class GeoHelper {
 
 				JSONArray coordWrapper = new JSONArray();
 				coordWrapper.put(coords);
-				if (cluster.getPoints().size() >= 4) {
+				if (cluster	.getPoints()
+							.size() >= 4) {
 					geo.put("coordinates", coordWrapper);
 				} else {
 					geo.put("coordinates", coords);
@@ -263,11 +403,17 @@ public class GeoHelper {
 			featureCollection.put("features", features);
 			res.setId(res.getId() + ".clustered");
 			res.setName("Clusters: " + res.getName());
-			OpenWareValue resVal = new OpenWareValue(data.value().get(0).getDate());
-			resVal.addValueDimension(res.getValueTypes().get(0).createValueForDimension(featureCollection));
-			res.value().add(resVal);
+			OpenWareValue resVal = new OpenWareValue(data	.value()
+															.get(0)
+															.getDate());
+			resVal.addValueDimension(res.getValueTypes()
+										.get(0)
+										.createValueForDimension(featureCollection));
+			res	.value()
+				.add(resVal);
 		} catch (Exception e) {
-			OpenWareInstance.getInstance().logError("GEOHELPER - Invalid GeoJSON", e);
+			OpenWareInstance.getInstance()
+							.logError("GEOHELPER - Invalid GeoJSON", e);
 		}
 
 		return res;
@@ -295,7 +441,8 @@ public class GeoHelper {
 		List<JSONObject> extracted = new ArrayList<>();
 		JSONArray features = feature.getJSONArray("features");
 		for (int i = 0; i < features.length(); i++) {
-			extracted.add(features.getJSONObject(i).getJSONObject("geometry"));
+			extracted.add(features	.getJSONObject(i)
+									.getJSONObject("geometry"));
 		}
 		return extracted;
 	}
@@ -365,7 +512,8 @@ public class GeoHelper {
 			data = instances;
 		}
 		JSONObject geometry = collection.getJSONObject("geometry");
-		switch (geometry.getString("type").toLowerCase()) {
+		switch (geometry.getString("type")
+						.toLowerCase()) {
 		case "point":
 			data.addAll(extractPointsFromPoint(ts, geometry));
 			break;
@@ -404,7 +552,9 @@ public class GeoHelper {
 		}
 		JSONArray geometries = collection.getJSONArray("geometries");
 		for (int i = 0; i < geometries.length(); i++) {
-			switch (geometries.getJSONObject(i).getString("type").toLowerCase()) {
+			switch (geometries	.getJSONObject(i)
+								.getString("type")
+								.toLowerCase()) {
 			case "point":
 				data.addAll(extractPointsFromPoint(ts, geometries.getJSONObject(i)));
 				break;
@@ -427,8 +577,8 @@ public class GeoHelper {
 				data.addAll(extractPointsFromGeometryCollection(ts, geometries.getJSONObject(i), data));
 				break;
 			default:
-				throw new IllegalArgumentException(
-						"GeoJSON Type not recognized\n" + geometries.getJSONObject(i).toString());
+				throw new IllegalArgumentException("GeoJSON Type not recognized\n" + geometries	.getJSONObject(i)
+																								.toString());
 			}
 		}
 
@@ -439,7 +589,8 @@ public class GeoHelper {
 		List<JSONObject> extracted = new ArrayList<>();
 		JSONArray features = feature.getJSONArray("features");
 		for (int i = 0; i < features.length(); i++) {
-			extracted.add(features.getJSONObject(i).getJSONObject("geometry"));
+			extracted.add(features	.getJSONObject(i)
+									.getJSONObject("geometry"));
 		}
 		return extracted;
 	}
@@ -516,26 +667,35 @@ public class GeoHelper {
 			data = instances;
 		}
 		JSONObject geometry = collection.getJSONObject("geometry");
-		switch (geometry.getString("type").toLowerCase()) {
+		switch (geometry.getString("type")
+						.toLowerCase()) {
 		case "point": {
-			((JSONArray) data.get(0).value()).putAll(extractPointsFromPointOW(ts, geometry).get(0).value());
+			((JSONArray) data	.get(0)
+								.value()).putAll(extractPointsFromPointOW(ts, geometry)	.get(0)
+																						.value());
 			break;
 		}
 
 		case "multipoint":
 		case "linestring":
-			((JSONArray) data.get(0).value()).putAll(extractPointsFromLineOrMultiPointOW(ts, geometry).get(0).value());
+			((JSONArray) data	.get(0)
+								.value()).putAll(extractPointsFromLineOrMultiPointOW(ts, geometry)	.get(0)
+																									.value());
 			break;
 		case "multilinestring":
 		case "polygon":
-			((JSONArray) data.get(0).value())
-					.putAll(extractPointsFromPolygonOrMultiLineOW(ts, geometry).get(0).value());
+			((JSONArray) data	.get(0)
+								.value()).putAll(extractPointsFromPolygonOrMultiLineOW(ts, geometry).get(0)
+																									.value());
 		case "multipolygon":
-			((JSONArray) data.get(0).value()).putAll(extractPointsFromMultipolygonOW(ts, geometry).get(0).value());
+			((JSONArray) data	.get(0)
+								.value()).putAll(extractPointsFromMultipolygonOW(ts, geometry)	.get(0)
+																								.value());
 			break;
 		case "geometrycollection":
-			((JSONArray) data.get(0).value())
-					.putAll(extractPointsFromGeometryCollectionOW(ts, geometry, data).get(0).value());
+			((JSONArray) data	.get(0)
+								.value()).putAll(extractPointsFromGeometryCollectionOW(ts, geometry, data)	.get(0)
+																											.value());
 
 			break;
 		default:
@@ -556,39 +716,51 @@ public class GeoHelper {
 		}
 		JSONArray geometries = collection.getJSONArray("geometries");
 		for (int i = 0; i < geometries.length(); i++) {
-			switch (geometries.getJSONObject(i).getString("type").toLowerCase()) {
+			switch (geometries	.getJSONObject(i)
+								.getString("type")
+								.toLowerCase()) {
 			case "point": {
 				OpenWareValue val = extractPointsFromPointOW(ts, geometries.getJSONObject(i));
-				((JSONArray) data.get(0).value()).putAll(val.get(0).value());
+				((JSONArray) data	.get(0)
+									.value()).putAll(val.get(0)
+														.value());
 				break;
 			}
 			case "linestring":
 			case "multipoint": {
 				OpenWareValue val = extractPointsFromLineOrMultiPointOW(ts, geometries.getJSONObject(i));
-				((JSONArray) data.get(0).value()).putAll(val.get(0).value());
+				((JSONArray) data	.get(0)
+									.value()).putAll(val.get(0)
+														.value());
 				break;
 			}
 			case "multilinestring":
 			case "polygon": {
 				OpenWareValue val = extractPointsFromPolygonOrMultiLineOW(ts, geometries.getJSONObject(i));
-				((JSONArray) data.get(0).value()).putAll(val.get(0).value());
+				((JSONArray) data	.get(0)
+									.value()).putAll(val.get(0)
+														.value());
 				break;
 			}
 
 			case "multipolygon": {
 				OpenWareValue val = extractPointsFromMultipolygonOW(ts, geometries.getJSONObject(i));
-				((JSONArray) data.get(0).value()).putAll(val.get(0).value());
+				((JSONArray) data	.get(0)
+									.value()).putAll(val.get(0)
+														.value());
 				break;
 			}
 			case "geometrycollection": {
 				OpenWareValue val = extractPointsFromGeometryCollectionOW(ts, geometries.getJSONObject(i), data);
-				((JSONArray) data.get(0).value()).putAll(val.get(0).value());
+				((JSONArray) data	.get(0)
+									.value()).putAll(val.get(0)
+														.value());
 				break;
 			}
 
 			default:
-				throw new IllegalArgumentException(
-						"GeoJSON Type not recognized\n" + geometries.getJSONObject(i).toString());
+				throw new IllegalArgumentException("GeoJSON Type not recognized\n" + geometries	.getJSONObject(i)
+																								.toString());
 			}
 		}
 

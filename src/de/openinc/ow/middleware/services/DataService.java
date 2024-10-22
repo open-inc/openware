@@ -751,6 +751,11 @@ public class DataService {
 		return getHistoricalSensorDataWithUser(sensorName, source, timestamp, until, null);
 	}
 
+	public static OpenWareDataItem countSensorData(String id, String source, long timestamp, long until, String ref,
+			RetrievalOptions options) {
+		return adapter.countData(id, source, timestamp, until, ref, options);
+	}
+
 	public static OpenWareDataItem getHistoricalSensorDataWithUser(String sensorName, String source, long timestamp,
 			long until, User user) throws Exception {
 		if (sensorName.startsWith(Config.get("analyticPrefix", "analytic."))) {

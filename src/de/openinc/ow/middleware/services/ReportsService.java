@@ -17,7 +17,7 @@ import de.openinc.ow.helper.Config;
 
 public class ReportsService {
 
-	private Map<String, Class<ReportInterface>> registeredTypes;
+	private Map<String, Class<? extends ReportInterface>> registeredTypes;
 
 	private static ReportsService me;
 
@@ -29,10 +29,10 @@ public class ReportsService {
 	}
 
 	private ReportsService() {
-		this.registeredTypes = new HashMap<String, Class<ReportInterface>>();
+		this.registeredTypes = new HashMap<String, Class<? extends ReportInterface>>();
 	}
 
-	public Class<ReportInterface> addReportType(String tag, Class<ReportInterface> ri) {
+	public Class<? extends ReportInterface> addReportType(String tag, Class<? extends ReportInterface> ri) {
 		Object o;
 		try {
 			o = ri.newInstance();
@@ -45,20 +45,20 @@ public class ReportsService {
 
 	}
 
-	public Class<ReportInterface> removeReportType(String tag) {
+	public Class<? extends ReportInterface> removeReportType(String tag) {
 		return registeredTypes.remove(tag);
 	}
 
-	public Class<ReportInterface> getReportType(String tag) {
+	public Class<? extends ReportInterface> getReportType(String tag) {
 		return registeredTypes.get(tag);
 	}
 
-	public ReportInterface generateReport(JSONObject params, Class<ReportInterface> reportType, OutputStream out,
+	public ReportInterface generateReport(JSONObject params, Class<? extends ReportInterface> reportType, OutputStream out,
 			User user) {
 		return generateReport(params, reportType, out, user, null);
 	}
 
-	public ReportInterface generateReport(JSONObject params, Class<ReportInterface> reportType, OutputStream out,
+	public ReportInterface generateReport(JSONObject params, Class<? extends ReportInterface> reportType, OutputStream out,
 			User user, List<OpenWareDataItem> preloadedData) {
 		JSONObject parameter = params;
 		ReportInterface clazz;

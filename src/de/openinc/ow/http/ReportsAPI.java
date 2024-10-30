@@ -52,7 +52,7 @@ public class ReportsAPI implements OpenWareAPI {
 			HTTPResponseHelper.badRequest("Request body needs parameter object 'params' to configure report");
 		}
 
-		Class<ReportInterface> clazz = service.getReportType(reportType);
+		Class<? extends ReportInterface> clazz = service.getReportType(reportType);
 
 		try {
 

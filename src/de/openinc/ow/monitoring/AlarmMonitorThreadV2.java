@@ -126,7 +126,7 @@ public class AlarmMonitorThreadV2 {
 		} catch (Exception e) {
 			e.printStackTrace();
 			OpenWareInstance.getInstance()
-					.logWarn("Could not evaluate alarm conditions due to error\n" + e.getMessage());
+					.logError("Could not evaluate alarm conditions due to error\n" + e.getMessage());
 			return;
 		}
 
@@ -145,7 +145,7 @@ public class AlarmMonitorThreadV2 {
 
 			if (shouldSendAgain && userIsAllowed) {
 				// Notification needs to be send again
-
+try {
 				OpenWareDataItem notifyItem = currentItem.cloneItem();
 
 				// Get the item that was created when the alarm was triggered the last time
@@ -187,7 +187,10 @@ public class AlarmMonitorThreadV2 {
 				} catch (Exception e) {
 					// Could not notify via websocket
 				}
-
+} catch (Exception e) {
+	OpenWareInstance.getInstance()
+	.logError("Could not evaluate alarm conditions due to error\n" + e.getMessage());
+}
 			}
 		} else {
 			// Alarm loest nicht mehr aus; Werte wieder normal
@@ -228,26 +231,30 @@ public class AlarmMonitorThreadV2 {
 
 	public void startWatchdogs() {
 		OpenWareInstance.getInstance().getCommonExecuteService().scheduleAtFixedRate(() -> {
-			refresh();
-			alarms.values().stream().forEach(cAlarms -> {
-				cAlarms.stream().filter(cAlarm -> {
-					return cAlarm.getJSONObject("trigger").getString("type").startsWith("ts_last");
-				}).forEach(cAlarm -> {
-					OpenWareDataItem currentValue = DataService.getLiveSensorData(cAlarm.getString("item_id"),
-							cAlarm.getString("item_source"));
-					if (currentValue == null) {
-						OpenWareInstance.getInstance()
-								.logWarn("Watchdog for non-existing sensor " + cAlarm.getString("item_source") + "---"
-										+ cAlarm.getString("item_id") + "(" + cAlarm.getString("_id") + ")");
-						return;
-					}
-					try {
-						evaluateAlarm(cAlarm, currentValue, currentValue);
-					} catch (Exception e) {
-						OpenWareInstance.getInstance().logError("Could not evaluate Watchdog-Alarm", e);
-					}
+			try {
+				refresh();
+				alarms.values().stream().forEach(cAlarms -> {
+					cAlarms.stream().filter(cAlarm -> {
+						return cAlarm.getJSONObject("trigger").getString("type").startsWith("ts_last");
+					}).forEach(cAlarm -> {
+						OpenWareDataItem currentValue = DataService.getLiveSensorData(cAlarm.getString("item_id"),
+								cAlarm.getString("item_source"));
+						if (currentValue == null) {
+							OpenWareInstance.getInstance()
+									.logWarn("Watchdog for non-existing sensor " + cAlarm.getString("item_source") + "---"
+											+ cAlarm.getString("item_id") + "(" + cAlarm.getString("_id") + ")");
+							return;
+						}
+						try {
+							evaluateAlarm(cAlarm, currentValue, currentValue);
+						} catch (Exception e) {
+							OpenWareInstance.getInstance().logError("Could not evaluate Watchdog-Alarm", e);
+						}
+					});
 				});
-			});
+			} catch (Exception e) {
+				OpenWareInstance.getInstance().logError("Could Schedule Alarm", e);
+			}
 		}, 0, 1, TimeUnit.MINUTES);
 	}
 
@@ -270,7 +277,7 @@ public class AlarmMonitorThreadV2 {
 			alarmsCheck = DataService.getGenericData(AlarmAPI.ALARMSV2, null);
 			updateMonitors(alarmsCheck);
 		} catch (Exception e) {
-			OpenWareInstance.getInstance().logWarn("Could not refresh alarms");
+			OpenWareInstance.getInstance().logError("Could not refresh alarms");
 		}
 
 		if (alarmsCheck != null) {
@@ -282,9 +289,7 @@ public class AlarmMonitorThreadV2 {
 					cState.put("lastTriggered", lastEventTriggered.getOrDefault(o.getString("_id"), false));
 					state.put(o.getString("_id"), cState);
 				}
-
-				alarmStatesPersistenceID = DataService.storeGenericData(ALARM_TRIGGER_STATE, alarmStatesPersistenceID,
-						state);
+				alarmStatesPersistenceID = DataService.storeGenericData(ALARM_TRIGGER_STATE, alarmStatesPersistenceID,state);
 			} catch (Exception e) {
 				OpenWareInstance.getInstance().logError("Could not store alarm states", e);
 			}

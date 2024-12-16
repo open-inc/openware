@@ -151,6 +151,7 @@ public class AlarmMonitorThreadV1 extends Thread {
 		while (RUNNING)
 
 		{
+			try {
 			processMail();
 			//processTickets();
 			processPush();
@@ -159,8 +160,11 @@ public class AlarmMonitorThreadV1 extends Thread {
 			} catch (
 
 			InterruptedException e) {
-				// TODO Auto-generated catch block
+				OpenWareInstance.getInstance().logError("Alarm Interupt Error: ", e);
 				e.printStackTrace();
+			}
+			} catch (Exception e) {
+				OpenWareInstance.getInstance().logError("AlarmThread Error: ", e);
 			}
 		}
 		OpenWareInstance.getInstance().logError("Killing AlarmMonitorThread");

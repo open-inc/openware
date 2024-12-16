@@ -336,14 +336,11 @@ public class AlarmMonitorThreadV1 extends Thread {
 			try {
 				ms.sendMail(Config.get("mailserverUser","user"), key.getString("mail"), subject, message);
 			} catch (JSONException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+				OpenWareInstance.getInstance().logError("Error1 in Alarm sendMail: ", e);
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+				OpenWareInstance.getInstance().logError("Error2 in Alarm sendMail: ", e);
 			} catch (EmailException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+				OpenWareInstance.getInstance().logError("Error3 in Alarm sendMail: ", e);
 			}
 		}
 

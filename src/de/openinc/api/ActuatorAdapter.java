@@ -54,17 +54,21 @@ public abstract class ActuatorAdapter {
 			List<OpenWareDataItem> optionalData) throws Exception {
 		JSONObject params = new JSONObject();
 		JSONArray data = new JSONArray();
-		for (OpenWareDataItem item : optionalData) {
-			data.put(item.toJSON());
+		if(optionalData != null) {
+			for (OpenWareDataItem item : optionalData) {
+				data.put(item.toJSON());
+			}
 		}
 		params.put("target", target);
 		params.put("topic", topic);
 		params.put("payload", payload);
 		params.put("options", options);
-		params.put("data", data.get(0));
+		if(data.length()>0) {
+			params.put("data", data.get(0));
+		}
 		params.put("datasets", data);
 		params.put("user", user == null ? new JSONObject() : user.toJSON());
-		if (options.has("templateType") && options.optString("templateType").toLowerCase().equals("vtl")) {
+		if (options != null && options.has("templateType") && options.optString("templateType").toLowerCase().equals("vtl")) {
 			VelocityContext c = new VelocityContext();
 			c.put("target", params.get("target"));
 			c.put("topic", params.get("topic"));
@@ -102,16 +106,20 @@ public abstract class ActuatorAdapter {
 			final String templatedTarget = applyJPTemplate(target, jsonDOC);
 			final String templatedTopic = applyJPTemplate(topic, jsonDOC);
 			final String templatedPayload = applyJPTemplate(payload, jsonDOC);
-			String processed = applyJPTemplate(options.toString(), jsonDOC);
-			processed = removeQuotes(processed);
-			final JSONObject templatedOptions = new JSONObject(processed);
+			JSONObject templatedOptions = new JSONObject();
+			if(options != null) {
+				String processed = applyJPTemplate(options.toString(), jsonDOC);
+				processed = removeQuotes(processed);
+				templatedOptions = new JSONObject();
+			}
+			final JSONObject templateOptionsFinal = templatedOptions;
 
 			return executor.submit(new Callable<Object>() {
-
+				
 				@Override
 				public Object call() throws Exception {
 					try {
-						return processAction(templatedTarget, templatedTopic, templatedPayload, user, templatedOptions,
+						return processAction(templatedTarget, templatedTopic, templatedPayload, user, templateOptionsFinal,
 								optionalData, jsonDOC);
 					} catch (Exception e) {
 						OpenWareInstance.getInstance().logError("Could not process Action\n" + target + "\n" + topic

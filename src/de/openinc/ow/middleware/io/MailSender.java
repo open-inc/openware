@@ -216,44 +216,99 @@ public class MailSender extends ActuatorAdapter {
 	@Override
 	public Object processAction(String target, String topic, String payload, User user, JSONObject options,
 			List<OpenWareDataItem> optionalData, Object templateOptions) throws Exception {
-		MultiPartEmail email = new MultiPartEmail();
-		String res = "";
-		if (user != null && pw != null) {
-			email.setAuthenticator(new DefaultAuthenticator(this.user, this.pw));
-			email.setSSL(true);
-			email.setSmtpPort(this.port);
-		}
-		email.setHostName(this.host);
-		email.setFrom("noreply@openinc.de");
-		if (options.has("extra")) {
-			String from = options.getJSONObject("extra").optString("sender");
-			if (!from.equals("")) {
-				email.setFrom(from);
+		
+		if(payload.contains("<html>")) {
+			HtmlEmail email = new HtmlEmail();
+			String res = "";
+			if (user != null && pw != null) {
+				email.setAuthenticator(new DefaultAuthenticator(this.user, this.pw));
+				email.setSSL(true);
+				email.setSmtpPort(this.port);
+			}
+			email.setHostName(this.host);
+			
+			String abesender = "noreply@openinc.de";
+			if(this.mailName != null && this.mailName != "") {
+				abesender = this.mailName;
+			} 
+			
+			email.setFrom(abesender);
+			if (options.has("extra")) {
+				String from = options.getJSONObject("extra").optString("sender");
+				if (!from.equals("")) {
+					email.setFrom(from);
+				}
+
 			}
 
-		}
+			if (debug) {
+				target = this.debugMail;
+			}
+			String[] recipients = target.split(";");
 
-		if (debug) {
-			target = this.debugMail;
-		}
-		String[] recipients = target.split(";");
+			for (int i = 0; i < recipients.length; i++) {
+				email.addTo(recipients[i]);
+			}
 
-		for (int i = 0; i < recipients.length; i++) {
-			email.addTo(recipients[i]);
-		}
+			email.setCharset(textCharSet);
+			email.setSubject(topic);
+			
+			email.setMsg(payload);
 
-		email.setCharset(textCharSet);
-		email.setSubject(topic);
-		email.setMsg(payload);
+			OpenWareInstance.getInstance().logMail("Sending Mail to: " + target + " with Subject: " + topic + " ("+this.host+":"+this.port+")");
+			try {
+				res = email.send();
+				OpenWareInstance.getInstance().logMail("Mail successfully sent!");
+			} catch (Exception e) {
+				OpenWareInstance.getInstance().logMail("Error in Mail to: " + target + " with Subject: " + topic + " ("+this.host+":"+this.port+"): "+ e);
+			}
+			return res;
+		} else {
+			MultiPartEmail email = new MultiPartEmail();
+			String res = "";
+			if (user != null && pw != null) {
+				email.setAuthenticator(new DefaultAuthenticator(this.user, this.pw));
+				email.setSSL(true);
+				email.setSmtpPort(this.port);
+			}
+			email.setHostName(this.host);
+			String abesender = "noreply@openinc.de";
+			if(this.mailName != null && this.mailName != "") {
+				abesender = this.mailName;
+			} 
+			
+			email.setFrom(abesender);
+			if (options.has("extra")) {
+				String from = options.getJSONObject("extra").optString("sender");
+				if (!from.equals("")) {
+					email.setFrom(from);
+				}
 
-		OpenWareInstance.getInstance().logMail("Sending Mail to: " + target + " with Subject: " + topic + " ("+this.host+":"+this.port+")");
-		try {
-			res = email.send();
-			OpenWareInstance.getInstance().logMail("Mail successfully sent!");
-		} catch (Exception e) {
-			OpenWareInstance.getInstance().logMail("Error in Mail to: " + target + " with Subject: " + topic + " ("+this.host+":"+this.port+"): "+ e);
+			}
+
+			if (debug) {
+				target = this.debugMail;
+			}
+			String[] recipients = target.split(";");
+
+			for (int i = 0; i < recipients.length; i++) {
+				email.addTo(recipients[i]);
+			}
+
+			email.setCharset(textCharSet);
+			email.setSubject(topic);
+			
+			email.setMsg(payload);
+
+			OpenWareInstance.getInstance().logMail("Sending Mail to: " + target + " with Subject: " + topic + " ("+this.host+":"+this.port+")");
+			try {
+				res = email.send();
+				OpenWareInstance.getInstance().logMail("Mail successfully sent!");
+			} catch (Exception e) {
+				OpenWareInstance.getInstance().logMail("Error in Mail to: " + target + " with Subject: " + topic + " ("+this.host+":"+this.port+"): "+ e);
+			}
+			return res;
 		}
-		return res;
 	}
 
 	/**

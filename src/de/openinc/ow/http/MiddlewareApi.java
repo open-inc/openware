@@ -212,10 +212,13 @@ public class MiddlewareApi implements OpenWareAPI {
 				} else {
 					OpenWareDataItem count = DataService.countSensorData(sensorid, source,
 							timestampStart, timestampEnd, null, null);
-					if (count == null) {
+					boolean isAnalytic =
+							sensorid.startsWith(Config.get("analyticPrefix", "analytics."));
+					if (count == null && !isAnalytic) {
 						HTTPResponseHelper.badRequest("No Data for request");
 					}
-					double countOfValues = (double) count.value().get(0).get(0).value();
+					double countOfValues =
+							isAnalytic ? 1 : (double) count.value().get(0).get(0).value();
 					if (countOfValues < 1_00_000) {
 						item = DataService.getHistoricalSensorData(sensorid, source, timestampStart,
 								timestampEnd);

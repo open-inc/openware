@@ -5,7 +5,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
-
+import java.util.TreeMap;
 import org.json.JSONObject;
 
 import com.google.common.base.CharMatcher;
@@ -42,7 +42,7 @@ public class DataTools {
 	public static List<long[]> generateTimeIntervals(long startTS, long endTS, String unitString) {
 		List<long[]> intervals = new ArrayList<>();
 		if (unitString.equals("interval")) {
-			intervals.add(new long[] { startTS, endTS });
+			intervals.add(new long[] {startTS, endTS});
 			return intervals;
 		}
 		Integer unit = null;
@@ -80,7 +80,7 @@ public class DataTools {
 		Calendar current = Calendar.getInstance();
 		current.setTime(start);
 		long[] initial = getStartEndOfDateUnit(startTS, unit);
-		intervals.add(new long[] { startTS, Math.min(initial[1], endTS) });
+		intervals.add(new long[] {startTS, Math.min(initial[1], endTS)});
 
 		while (current.getTimeInMillis() < endTS) {
 			if (unit == DATE_QUARTER_HELPER_CHRONO) {
@@ -98,6 +98,20 @@ public class DataTools {
 		}
 
 		return intervals;
+	}
+
+	public static TreeMap<Long, OpenWareDataItem> bucketizeData(OpenWareDataItem data,
+			List<long[]> intervals) {
+		TreeMap<Long, OpenWareDataItem> result = new TreeMap<>();
+		for (long[] interval : intervals) {
+			OpenWareDataItem item = data.cloneItem(false);
+			result.put(interval[0], item);
+		}
+		for (OpenWareValue val : data.value()) {
+			long ts = val.getDate();
+			result.floorEntry(ts).getValue().value().add(val);
+		}
+		return result;
 	}
 
 	public static long[] getStartEndOfDateUnit(long date, String unitString) {
@@ -136,83 +150,83 @@ public class DataTools {
 	public static long[] getStartEndOfDateUnit(long date, int unit) {
 
 		switch (unit) {
-		case Calendar.SECOND: {
-			long start = date - (date % 1000);
-			long end = start + 999;
-			return new long[] { start, end };
-		}
-		case Calendar.MINUTE: {
-			long start = date - (date % (60l * 1000l));
-			long end = start + (60l * 1000l) - 1;
-			return new long[] { start, end };
-		}
-		case Calendar.HOUR: {
-			long start = date - (date % (60l * 60l * 1000l));
-			long end = start + (60l * 60l * 1000l) - 1;
-			return new long[] { start, end };
-		}
-		case Calendar.DATE: {
-			long start = date - (date % (24l * 60l * 60l * 1000l));
-			long end = start + (24l * 60l * 60l * 1000l) - 1;
-			return new long[] { start, end };
-		}
-		case Calendar.WEEK_OF_YEAR: {
-			Calendar cal = Calendar.getInstance();
-			cal.setTimeInMillis(date);
-			cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY);
-			cal.set(Calendar.HOUR_OF_DAY, 0);
-			cal.set(Calendar.MINUTE, 0);
-			cal.set(Calendar.SECOND, 0);
-			cal.set(Calendar.MILLISECOND, 0);
-			long start = cal.getTimeInMillis();
-			long end = start - 1 + (7l * 24l * 60l * 60l * 1000l);
-			return new long[] { start, end };
-		}
-		case Calendar.MONTH: {
-			Calendar cal = Calendar.getInstance();
-			cal.setTimeInMillis(date);
-			cal.set(Calendar.DATE, 1);
-			cal.set(Calendar.HOUR_OF_DAY, 0);
-			cal.set(Calendar.MINUTE, 0);
-			cal.set(Calendar.SECOND, 0);
-			cal.set(Calendar.MILLISECOND, 0);
-			long start = cal.getTimeInMillis();
-			cal.add(Calendar.MONTH, 1);
-			long end = cal.getTimeInMillis() - 1;
-			return new long[] { start, end };
-		}
-		case DATE_QUARTER_HELPER_CHRONO: {
-			Calendar cal = Calendar.getInstance();
-			cal.setTimeInMillis(date);
-			int currentMonth = cal.get(Calendar.MONTH);
-			int quarterMonth = currentMonth - (currentMonth % 3);
-			cal.set(Calendar.MONTH, quarterMonth);
-			cal.set(Calendar.DATE, 1);
-			cal.set(Calendar.HOUR_OF_DAY, 0);
-			cal.set(Calendar.MINUTE, 0);
-			cal.set(Calendar.SECOND, 0);
-			cal.set(Calendar.MILLISECOND, 0);
-			long start = cal.getTimeInMillis();
-			cal.add(Calendar.YEAR, 1);
-			long end = cal.getTimeInMillis() - 1;
-			return new long[] { start, end };
-		}
-		case Calendar.YEAR: {
-			Calendar cal = Calendar.getInstance();
-			cal.setTimeInMillis(date);
-			cal.set(Calendar.MONTH, Calendar.JANUARY);
-			cal.set(Calendar.DATE, 1);
-			cal.set(Calendar.HOUR_OF_DAY, 0);
-			cal.set(Calendar.MINUTE, 0);
-			cal.set(Calendar.SECOND, 0);
-			cal.set(Calendar.MILLISECOND, 0);
-			long start = cal.getTimeInMillis();
-			cal.add(Calendar.YEAR, 1);
-			long end = cal.getTimeInMillis() - 1;
-			return new long[] { start, end };
-		}
-		default:
-			throw new IllegalArgumentException("Wrong time unit");
+			case Calendar.SECOND: {
+				long start = date - (date % 1000);
+				long end = start + 999;
+				return new long[] {start, end};
+			}
+			case Calendar.MINUTE: {
+				long start = date - (date % (60l * 1000l));
+				long end = start + (60l * 1000l) - 1;
+				return new long[] {start, end};
+			}
+			case Calendar.HOUR: {
+				long start = date - (date % (60l * 60l * 1000l));
+				long end = start + (60l * 60l * 1000l) - 1;
+				return new long[] {start, end};
+			}
+			case Calendar.DATE: {
+				long start = date - (date % (24l * 60l * 60l * 1000l));
+				long end = start + (24l * 60l * 60l * 1000l) - 1;
+				return new long[] {start, end};
+			}
+			case Calendar.WEEK_OF_YEAR: {
+				Calendar cal = Calendar.getInstance();
+				cal.setTimeInMillis(date);
+				cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY);
+				cal.set(Calendar.HOUR_OF_DAY, 0);
+				cal.set(Calendar.MINUTE, 0);
+				cal.set(Calendar.SECOND, 0);
+				cal.set(Calendar.MILLISECOND, 0);
+				long start = cal.getTimeInMillis();
+				long end = start - 1 + (7l * 24l * 60l * 60l * 1000l);
+				return new long[] {start, end};
+			}
+			case Calendar.MONTH: {
+				Calendar cal = Calendar.getInstance();
+				cal.setTimeInMillis(date);
+				cal.set(Calendar.DATE, 1);
+				cal.set(Calendar.HOUR_OF_DAY, 0);
+				cal.set(Calendar.MINUTE, 0);
+				cal.set(Calendar.SECOND, 0);
+				cal.set(Calendar.MILLISECOND, 0);
+				long start = cal.getTimeInMillis();
+				cal.add(Calendar.MONTH, 1);
+				long end = cal.getTimeInMillis() - 1;
+				return new long[] {start, end};
+			}
+			case DATE_QUARTER_HELPER_CHRONO: {
+				Calendar cal = Calendar.getInstance();
+				cal.setTimeInMillis(date);
+				int currentMonth = cal.get(Calendar.MONTH);
+				int quarterMonth = currentMonth - (currentMonth % 3);
+				cal.set(Calendar.MONTH, quarterMonth);
+				cal.set(Calendar.DATE, 1);
+				cal.set(Calendar.HOUR_OF_DAY, 0);
+				cal.set(Calendar.MINUTE, 0);
+				cal.set(Calendar.SECOND, 0);
+				cal.set(Calendar.MILLISECOND, 0);
+				long start = cal.getTimeInMillis();
+				cal.add(Calendar.YEAR, 1);
+				long end = cal.getTimeInMillis() - 1;
+				return new long[] {start, end};
+			}
+			case Calendar.YEAR: {
+				Calendar cal = Calendar.getInstance();
+				cal.setTimeInMillis(date);
+				cal.set(Calendar.MONTH, Calendar.JANUARY);
+				cal.set(Calendar.DATE, 1);
+				cal.set(Calendar.HOUR_OF_DAY, 0);
+				cal.set(Calendar.MINUTE, 0);
+				cal.set(Calendar.SECOND, 0);
+				cal.set(Calendar.MILLISECOND, 0);
+				long start = cal.getTimeInMillis();
+				cal.add(Calendar.YEAR, 1);
+				long end = cal.getTimeInMillis() - 1;
+				return new long[] {start, end};
+			}
+			default:
+				throw new IllegalArgumentException("Wrong time unit");
 		}
 
 	}
@@ -252,12 +266,14 @@ public class DataTools {
 		return String.format("\"%s\" : %s", key, value) + (last ? "" : ",");
 	}
 
-	public static OpenWareDataItem getNoiseData(String id, String source, String name, int nrOfVals) {
+	public static OpenWareDataItem getNoiseData(String id, String source, String name,
+			int nrOfVals) {
 		List<OpenWareValueDimension> valueTypes = new ArrayList<>();
 		OpenWareNumber nr = new OpenWareNumber("tste", "kmh", 5.0);
 		valueTypes.add(nr);
 
-		OpenWareDataItem item = new OpenWareDataItem(id, source, name, new JSONObject(), valueTypes);
+		OpenWareDataItem item =
+				new OpenWareDataItem(id, source, name, new JSONObject(), valueTypes);
 
 		long now = System.currentTimeMillis();
 		long initialNow = now;

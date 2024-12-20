@@ -26,11 +26,13 @@ public class AnalyticsService {
 
 	public void provideLive(OpenWareDataItem toSave, AnalyticSensorProvider provider) {
 		OpenWareDataItem item = toSave.cloneItem(true);
-		item.setId(Config.get("analyticPrefix", "analytic.") + provider.getType() + "." + item.getId());
+		item.setId(Config.get("analyticPrefix", "analytic.") + provider.getType() + "."
+				+ item.getId());
 		DataService.onNewData(item);
 	}
 
-	public OpenWareDataItem handle(User user, String sensor, long start, long end) throws Exception {
+	public OpenWareDataItem handle(User user, String sensor, long start, long end)
+			throws Exception {
 		String[] idParts = sensor.split("\\.");
 		if (idParts.length < 3) {
 			throw new IllegalArgumentException("Malformed V-Sensor Id: " + sensor);
@@ -38,7 +40,8 @@ public class AnalyticsService {
 		AnalyticSensorProvider provider = providers.get(idParts[1]);
 		if (provider == null)
 			throw new IllegalArgumentException("V-Sensor Provider is not registered");
-		return provider.handle(user, sensor.replace(idParts[0] + "." + idParts[1] + ".", ""), start, end);
+		return provider.handle(user, sensor.replace(idParts[0] + "." + idParts[1] + ".", ""), start,
+				end);
 	}
 
 	public AnalyticSensorProvider addSensorProvider(AnalyticSensorProvider provider) {
@@ -46,7 +49,8 @@ public class AnalyticsService {
 	}
 
 	public Map<String, OpenWareDataItem> getAnalyticSensors() {
-		if (lastRefresh + Config.getLong("virtual_sensor_refresh_interval", 5000l) < System.currentTimeMillis()) {
+		if (lastRefresh + Config.getLong("virtual_sensor_refresh_interval", 5000l) < System
+				.currentTimeMillis()) {
 			lastRefresh = System.currentTimeMillis();
 			cachedSensors.clear();
 			for (AnalyticSensorProvider provider : providers.values()) {
@@ -54,12 +58,13 @@ public class AnalyticsService {
 					Map<String, OpenWareDataItem> cVSensors = provider.getAnalyticSensors();
 					for (String key : cVSensors.keySet()) {
 						OpenWareDataItem item = cVSensors.get(key);
-						item.setId(Config.get("analyticPrefix", "analytic.") + provider.getType() + "." + item.getId());
+						item.setId(Config.get("analyticPrefix", "analytic.") + provider.getType()
+								+ "." + item.getId());
 						cachedSensors.put(item.getId(), item);
 					}
 				} catch (Exception e) {
 					OpenWareInstance.getInstance()
-									.logError("Could not retrieve V-Sensors for " + provider.getType(), e);
+							.logError("Could not retrieve V-Sensors for " + provider.getType(), e);
 					continue;
 				}
 
@@ -76,7 +81,8 @@ public class AnalyticsService {
 		return me;
 	}
 
-	public String saveAnalyticSensor(String type, JSONObject parameter, JSONObject acl) throws Exception {
+	public String saveAnalyticSensor(String type, JSONObject parameter, JSONObject acl)
+			throws Exception {
 		AnalyticSensorProvider provider = providers.get(type);
 		if (provider == null)
 			throw new IllegalArgumentException("V-Sensor Provider is not registered");
@@ -88,6 +94,10 @@ public class AnalyticsService {
 		if (provider == null)
 			return false;
 		return provider.deleteAnalyticSensor(user, sensorid);
+	}
+
+	public static boolean isAnalyticSensor(String id) {
+		return id.startsWith(Config.get("analyticPrefix", "analytics."));
 	}
 
 }

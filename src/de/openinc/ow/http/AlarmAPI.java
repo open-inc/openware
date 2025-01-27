@@ -68,7 +68,13 @@ public class AlarmAPI implements OpenWareAPI {
 			amt = new AlarmMonitorThreadV1(initialAlarms);
 			amt.start();
 			*/
-			amt2 = new AlarmMonitorThreadV2(alarms2);
+			
+			OpenWareInstance.getInstance().awaitInitialization().whenCompleteAsync((res, ex) -> {
+				amt2 = new AlarmMonitorThreadV2(alarms2);
+			});
+				
+			
+			
 
 			OpenWareInstance.getInstance().logInfo("Started AlarmServices V1&V2");
 		} catch (Exception e) {

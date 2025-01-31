@@ -50,22 +50,11 @@ import io.javalin.http.MethodNotAllowedResponse;
  * @author stein@openinc.de
  *
  */
-/**
- * @author marti
- *
- */
-/**
- * @author marti
- *
- */
-/**
- * @author marti
- *
- */
+
 public class DataService {
 
 	private static PersistenceAdapter adapter = null;
-	private static ArrayList<DataSubscriber> subscriptions = new ArrayList();
+	private static ArrayList<DataSubscriber> subscriptions;
 	private static ArrayList<DataHandler> handler;
 	private static HashMap<String, ActuatorAdapter> actuators;
 	private static HashMap<String, OpenWareDataItem> items;
@@ -76,7 +65,7 @@ public class DataService {
 	public static final String CONFIG_STORE_TYPE = "sensorconfig";
 	public static final String PERSIST_ITEM_STATE = "LAST_ITEM_STATE";
 	private static Timer timer;
-	private static String storeKey = null;
+	private static HashMap<String, String> storeKeys;
 
 	/**
 	 * The init methods needs be called once before all services can be used. It initializes all
@@ -92,7 +81,17 @@ public class DataService {
 				new BasicThreadFactory.Builder().namingPattern("openware-DataServiceThread-%d")
 						.daemon(false).priority(Thread.NORM_PRIORITY).build();
 		pool = Executors.newFixedThreadPool(Config.getInt("WORKPOOLSIZE", 16), factory);
+		storeKeys = new HashMap<>();
+		subscriptions = new ArrayList<>();
+	}
 
+	private static String getUIDForItem(OpenWareDataItem item) {
+		return getUIDForItem(item.getSource(), item.getId());
+	}
+
+	private static String getUIDForItem(String source, String id) {
+		return Config.get("dbSensorPrefix", "sensors") + Config.get("idSeperator", "---") + source
+				+ Config.get("idSeperator", "---") + id;
 	}
 
 	private static void initLastState() {
@@ -101,28 +100,32 @@ public class DataService {
 		try {
 			List<JSONObject> cachedItems = adapter.getGenericData(PERSIST_ITEM_STATE, null);
 			if (cachedItems.size() > 0) {
-				JSONObject info = cachedItems.get(0);
-				storeKey = info.getString("_id");
-				JSONArray cItems = info.getJSONArray("items");
-				for (int i = 0; i < cItems.length(); i++) {
-					JSONObject o = cItems.getJSONObject(i);
+				for (int j = 0; j < cachedItems.size(); j++) {
+					JSONObject info = cachedItems.get(j);
+					String cStoreKey = info.getString("_id");
+					JSONObject o = info.getJSONObject("item");
 					try {
 						OpenWareDataItem owdi = OpenWareDataItem.fromJSON(o);
 						if (owdi.value().size() > 0) {
-							items.put(owdi.getSource() + owdi.getId(), owdi);
-							for (int j = 0; j < owdi.getValueTypes().size(); j++) {
+							storeKeys.put(getUIDForItem(owdi), cStoreKey);
+							setCurrentItem(owdi);
+							for (int i = 0; i < owdi.getValueTypes().size(); i++) {
 								itemsLastChangedValues.put(owdi.getSource()
 										+ Config.get("idSeperator", "---") + owdi.getId()
-										+ Config.get("idSeperator", "---") + j,
+										+ Config.get("idSeperator", "---") + i,
 										owdi.value().get(0).getDate());
 							}
 
+						} else {
+							adapter.removeGenericData(PERSIST_ITEM_STATE, cStoreKey);
 						}
 
 					} catch (Exception e1) {
 						continue;
 					}
+
 				}
+
 			}
 
 		} catch (Exception e) {
@@ -143,20 +146,58 @@ public class DataService {
 		if (adapter == null)
 			return;
 
-		JSONArray toSave = new JSONArray();
-		for (OpenWareDataItem item : items.values()) {
-			toSave.put(item.toJSON());
-		}
-		JSONObject saveState = new JSONObject();
-		saveState.put("items", toSave);
-		saveState.put("updatedAt", System.currentTimeMillis());
 
+		long now = System.currentTimeMillis();
+		HashMap<String, String> existingKeys = new HashMap<>();
 		try {
-			storeKey = storeGenericData(PERSIST_ITEM_STATE, storeKey, saveState);
-			OpenWareInstance.getInstance().logTrace("Saved Item State");
+			List<JSONObject> cachedItems = adapter.getGenericData(PERSIST_ITEM_STATE, null);
+			for (JSONObject cItem : cachedItems) {
+				String cStoreKey = cItem.getString("_id");
+				try {
+					JSONObject o = cItem.getJSONObject("item");
+					OpenWareDataItem owdi = OpenWareDataItem.fromJSON(o);
+					if (owdi.value().size() > 0) {
+						existingKeys.put(getUIDForItem(owdi), cStoreKey);
+					} else {
+						adapter.removeGenericData(PERSIST_ITEM_STATE, cStoreKey);
+					}
+
+				} catch (Exception e1) {
+					adapter.removeGenericData(PERSIST_ITEM_STATE, cStoreKey);
+					continue;
+				}
+			}
+
 		} catch (Exception e) {
-			OpenWareInstance.getInstance().logError("Error while saving state", e);
+			OpenWareInstance.getInstance().logError("Error while loading cached item state", e);
 		}
+
+
+		for (OpenWareDataItem item : items.values()) {
+			JSONObject saveState = new JSONObject();
+			saveState.put("item", item.toJSON());
+			saveState.put("updatedAt", now);
+			String key = existingKeys.get(getUIDForItem(item));
+			try {
+				storeGenericData(PERSIST_ITEM_STATE, key, saveState);
+				existingKeys.remove(key);
+			} catch (Exception e) {
+				OpenWareInstance.getInstance()
+						.logError("Error while saving state for item:\n" + item.toJSON(), e);
+			}
+		}
+		// Delete Keys that do not exist as items anymore
+		for (String key : existingKeys.keySet()) {
+			try {
+				adapter.removeGenericData(PERSIST_ITEM_STATE, existingKeys.get(key));
+			} catch (Exception e) {
+				OpenWareInstance.getInstance()
+						.logError("Error while removing state for item:\n" + key, e);
+			}
+		}
+		OpenWareInstance.getInstance().logTrace("Saved Item States");
+
+
 	}
 
 	/**
@@ -544,7 +585,8 @@ public class DataService {
 			initLastState();
 			List<OpenWareDataItem> newItems = adapter.getItems();
 			for (OpenWareDataItem item : newItems) {
-				items.put(item.getSource() + item.getId(), item);
+				setCurrentItem(item);
+				// items.put(item.getSource() + item.getId(), item);
 
 			}
 
@@ -670,7 +712,7 @@ public class DataService {
 			}
 		}
 
-		return items2return;
+		return items2return.stream().map(item -> item.cloneItem(true)).toList();
 
 	}
 
@@ -680,8 +722,8 @@ public class DataService {
 
 	public static List<OpenWareDataItem> getItems() {
 		ArrayList<OpenWareDataItem> toReturn = new ArrayList<>();
-		toReturn.addAll(items.values());
-		return toReturn;
+		return items.values().stream().map(item -> item.cloneItem(true)).toList();
+
 	}
 
 	public static int updateData(OpenWareDataItem item) throws Exception {
@@ -697,7 +739,7 @@ public class DataService {
 			}
 		}
 
-		OpenWareDataItem current = items.get(item.getSource() + item.getId());
+		OpenWareDataItem current = items.get(getUIDForItem(item));
 		int updates = adapter.updateData(item);
 		if (current == null || current.value().get(0).getDate() <= latestValue.getDate()) {
 			OpenWareDataItem newLive = item.cloneItem(false);
@@ -1129,9 +1171,9 @@ public class DataService {
 			}
 		}
 
-		DataService.setCurrentItem(item);
+		boolean updatedCurrent = DataService.setCurrentItem(item);
 
-		pool.submit(new SubscriberRunnable(lastItem, item));
+		pool.submit(new SubscriberRunnable(updatedCurrent ? lastItem : item, item));
 
 		if (Config.getBool("dbPersistValue", true) && item.persist()) {
 			return DataService.storeData(item);
@@ -1159,7 +1201,7 @@ public class DataService {
 	}
 
 	public static OpenWareDataItem getLiveSensorData(String sensorID, String source) {
-		OpenWareDataItem live = items.get(source + sensorID);
+		OpenWareDataItem live = items.get(getUIDForItem(source, sensorID));
 		if (live != null) {
 			return live.cloneItem(true);
 		}
@@ -1188,7 +1230,7 @@ public class DataService {
 		OpenWareDataItem liveItem =
 				adapter.liveData(sensorName, user, System.currentTimeMillis(), 1, null);
 		if (liveItem == null || liveItem.value().size() == 0) {
-			items.remove(user + sensorName);
+			items.remove(getUIDForItem(user, sensorName));
 		} else {
 			setCurrentItem(liveItem);
 		}
@@ -1205,9 +1247,28 @@ public class DataService {
 
 	}
 
-	protected static void setCurrentItem(OpenWareDataItem item) {
+	protected static boolean setCurrentItem(OpenWareDataItem item) {
 		synchronized (items) {
-			items.put(item.getSource() + item.getId(), item);
+			OpenWareDataItem current = items.get(getUIDForItem(item));
+			if (item.value().size() > 1) {
+				OpenWareValue latest = item.value().get(0);
+				for (OpenWareValue val : item.value()) {
+					if (val.getDate() > latest.getDate()) {
+						latest = val;
+					}
+				}
+				item.value().clear();
+				item.value().add(latest);
+			}
+			if (current != null
+					&& current.value().get(0).getDate() > item.value().get(0).getDate()) {
+				// Received older Item, so do not update
+				OpenWareInstance.getInstance()
+						.logWarn("Received older data for " + getUIDForItem(item));
+				return false;
+			}
+			items.put(getUIDForItem(item), item);
+			return true;
 		}
 
 	}

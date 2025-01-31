@@ -216,6 +216,7 @@ public class MiddlewareApi implements OpenWareAPI {
 							sensorid.startsWith(Config.get("analyticPrefix", "analytics."));
 					if (count == null && !isAnalytic) {
 						HTTPResponseHelper.badRequest("No Data for request");
+
 					}
 					double countOfValues =
 							isAnalytic ? 1 : (double) count.value().get(0).get(0).value();

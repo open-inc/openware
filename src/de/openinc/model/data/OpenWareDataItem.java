@@ -3,10 +3,15 @@ package de.openinc.model.data;
 import static de.openinc.ow.helper.DataTools.cleanAndValidate;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.apache.commons.text.StringEscapeUtils;
@@ -34,16 +39,16 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	private String reference;
 
 	/**
-	 * Can be used to generate OpenWareItems. Be Careful: Objects are *NOT*
-	 * immutable. If an Item is recieved via an Service (e.g. DataService) best
-	 * practice is to use clone() before altering Objects.
+	 * Can be used to generate OpenWareItems. Be Careful: Objects are *NOT* immutable. If an Item is
+	 * recieved via an Service (e.g. DataService) best practice is to use clone() before altering
+	 * Objects.
 	 * 
-	 * @param id         ID of the item. It needs to be unique within the source
-	 * @param source     Source of the item. Can be used to group items. Combination
-	 *                   of Source and ID need to be globally unique.
-	 * @param name       Human-readable name of the item.
-	 * @param meta       Custom data that will be available within all requests. Can
-	 *                   be used to store data, e.g. for 3rd party apps.
+	 * @param id ID of the item. It needs to be unique within the source
+	 * @param source Source of the item. Can be used to group items. Combination of Source and ID
+	 *        need to be globally unique.
+	 * @param name Human-readable name of the item.
+	 * @param meta Custom data that will be available within all requests. Can be used to store
+	 *        data, e.g. for 3rd party apps.
 	 * @param valueTypes Description of the different {@link OpenWareValueDimension}
 	 */
 	public OpenWareDataItem(String id, String source, String name, JSONObject meta,
@@ -69,12 +74,10 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		int count = 0;
 		for (OpenWareValueDimension dim : this.valueTypes) {
 			OpenWareValueDimension otherDim = other.valueTypes.get(count++);
-			if (!dim.type()
-					.equals(otherDim.type()))
+			if (!dim.type().equals(otherDim.type()))
 				return false;
 			if (includeUnits) {
-				if (!dim.getUnit()
-						.equals(otherDim.getUnit()))
+				if (!dim.getUnit().equals(otherDim.getUnit()))
 					return false;
 			}
 		}
@@ -87,37 +90,25 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		while (it.hasNext()) {
 			OpenWareValue val = it.next();
 			try {
-				if (val != null && val.size() == this	.getValueTypes()
-														.size()) {
+				if (val != null && val.size() == this.getValueTypes().size()) {
 					for (int i = 0; i < this.valueTypes.size(); i++) {
-						if (!(val	.get(i)
-									.type()
-									.equals(this.getValueTypes()
-												.get(i)
-												.type()))) {
-							OpenWareInstance.getInstance()
-											.logWarn(this	.getClass()
-															.getCanonicalName()
-													+ ": Removing value because of wrong valuetype\nExpected:"
-													+ this.valueTypes	.get(i)
-																		.toString()
-													+ "\nReceived:" + val	.toJSON()
-																			.toString());
+						if (!(val.get(i).type().equals(this.getValueTypes().get(i).type()))) {
+							OpenWareInstance.getInstance().logWarn(this.getClass()
+									.getCanonicalName()
+									+ ": Removing value because of wrong valuetype\nExpected:"
+									+ this.valueTypes.get(i).toString() + "\nReceived:"
+									+ val.toJSON().toString());
 							it.remove();
 							break;
 						}
 					}
 				} else {
 					OpenWareInstance.getInstance()
-									.logWarn(this	.getClass()
-													.getCanonicalName()
-											+ ": Removing value because of wrong valuetypes\nExpected:"
-											+ this.valueTypes	.stream()
-																.map(type -> type.toString())
-																.collect(Collectors.joining(","))
-																.toString()
-											+ "\nReceived:" + val	.toJSON()
-																	.toString());
+							.logWarn(this.getClass().getCanonicalName()
+									+ ": Removing value because of wrong valuetypes\nExpected:"
+									+ this.valueTypes.stream().map(type -> type.toString())
+											.collect(Collectors.joining(",")).toString()
+									+ "\nReceived:" + val.toJSON().toString());
 					it.remove();
 				}
 			} catch (Exception e) {
@@ -148,21 +139,18 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		ArrayList<Integer> res = new ArrayList<>();
 
 		for (int i = 0; i < valueTypes.size(); i++) {
-			if (valueTypes	.get(i)
-							.getUnit()
-							.toLowerCase()
-							.equals(unit.toLowerCase()))
+			if (valueTypes.get(i).getUnit().toLowerCase().equals(unit.toLowerCase()))
 				res.add(i);
 		}
 		return res;
 	}
 
 	/**
-	 * Creates a copy of the Item. Members of the Item can be altered without
-	 * altering the original Object (new reference)
+	 * Creates a copy of the Item. Members of the Item can be altered without altering the original
+	 * Object (new reference)
 	 * 
-	 * @param includeValues Item can be cloned with or without values (<b>Warning:
-	 *                      values will be assigned by reference!</b>)
+	 * @param includeValues Item can be cloned with or without values (<b>Warning: values will be
+	 *        assigned by reference!</b>)
 	 * @return The copy of the original Item
 	 */
 	public OpenWareDataItem cloneItem(boolean includeValues) {
@@ -171,14 +159,11 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 			valueTypesNew.add(dim.cloneDimension());
 		}
 		OpenWareDataItem item = new OpenWareDataItem(this.getId(), this.getSource(), this.getName(),
-				new JSONObject(this	.getMeta()
-									.toString()),
-				valueTypesNew);
+				new JSONObject(this.getMeta().toString()), valueTypesNew);
 
 		item.setReference(this.reference);
 		if (includeValues)
-			item.value()
-				.addAll(this.value());
+			item.value().addAll(this.value());
 		item.setPersist(this.persist);
 
 		return item;
@@ -186,9 +171,8 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	}
 
 	/**
-	 * Creates a copy of the Item. Members of the Item can be altered without
-	 * altering the original Object (new reference). <b>Copy will include the values
-	 * by reference!</b>
+	 * Creates a copy of the Item. Members of the Item can be altered without altering the original
+	 * Object (new reference). <b>Copy will include the values by reference!</b>
 	 * 
 	 * @return The copy of the original Item
 	 */
@@ -246,18 +230,15 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		ArrayList<OpenWareValueDimension> valueTypes = new ArrayList<>();
 		JSONArray vTypes = jobj.getJSONArray("valueTypes");
 		for (int i = 0; i < vTypes.length(); i++) {
-			valueTypes.add(OpenWareValueDimension.createNewDimension(cleanAndValidate(vTypes.getJSONObject(i)
-																							.getString("name")),
-					cleanAndValidate(vTypes	.getJSONObject(i)
-											.optString("unit")),
-					cleanAndValidate(vTypes	.getJSONObject(i)
-											.getString("type"))));
+			valueTypes.add(OpenWareValueDimension.createNewDimension(
+					cleanAndValidate(vTypes.getJSONObject(i).getString("name")),
+					cleanAndValidate(vTypes.getJSONObject(i).optString("unit")),
+					cleanAndValidate(vTypes.getJSONObject(i).getString("type"))));
 
 		}
 
 		if (jobj.has("annotations")) {
-			jobj.getJSONObject("meta")
-				.put("annotations", jobj.get("annotations"));
+			jobj.getJSONObject("meta").put("annotations", jobj.get("annotations"));
 		}
 		String source;
 		if (jobj.has("source")) {
@@ -287,23 +268,19 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		JSONArray values = jobj.optJSONArray("values");
 		if (values != null) {
 			for (int i = 0; i < values.length(); i++) {
-				JSONObject date = values.getJSONObject(i)
-										.optJSONObject("date");
+				JSONObject date = values.getJSONObject(i).optJSONObject("date");
 				long dateVal;
 				if (date != null) {
 					dateVal = date.getLong("$numberLong");
 				} else {
-					dateVal = values.getJSONObject(i)
-									.getLong("date");
+					dateVal = values.getJSONObject(i).getLong("date");
 				}
 				OpenWareValue currentV = new OpenWareValue(dateVal);
 
-				JSONArray currentVValues = values	.getJSONObject(i)
-													.getJSONArray("value");
+				JSONArray currentVValues = values.getJSONObject(i).getJSONArray("value");
 				for (int j = 0; j < currentVValues.length(); j++) {
-					currentV.addValueDimension(item	.getValueTypes()
-													.get(j)
-													.createValueForDimension(currentVValues.get(j)));
+					currentV.addValueDimension(item.getValueTypes().get(j)
+							.createValueForDimension(currentVValues.get(j)));
 				}
 				owvalues.add(currentV);
 			}
@@ -345,13 +322,12 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	}
 
 	/**
-	 * Will remove all dimension from **valueTypes** except the dimension with the
-	 * specified index
+	 * Will remove all dimension from **valueTypes** except the dimension with the specified index
 	 * 
 	 * @param dim The index of the dimension to keep
 	 * @return The same {@link OpenWareDataItem} as before with altered valueTypes
-	 * @throws IllegalArgumentException if the specified dimension is larger than
-	 *                                  the valueTypes collection size
+	 * @throws IllegalArgumentException if the specified dimension is larger than the valueTypes
+	 *         collection size
 	 */
 	public OpenWareDataItem reduceToSingleDimension(int dim) throws IllegalArgumentException {
 		if (dim >= this.valueTypes.size()) {
@@ -364,13 +340,13 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	}
 
 	/**
-	 * Will remove all dimension from **valueTypes** and **values** except the
-	 * dimension with the specified index
+	 * Will remove all dimension from **valueTypes** and **values** except the dimension with the
+	 * specified index
 	 * 
 	 * @param dim The index of the dimension to keep
 	 * @return The same {@link OpenWareDataItem} as before with altered valueTypes
-	 * @throws IllegalArgumentException if the specified dimension is larger than
-	 *                                  the valueTypes collection size
+	 * @throws IllegalArgumentException if the specified dimension is larger than the valueTypes
+	 *         collection size
 	 */
 	public OpenWareDataItem reduceToSingleDimensionIncludingValues(int dim) {
 		if (dim >= this.valueTypes.size()) {
@@ -378,32 +354,29 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		}
 		List<OpenWareValueDimension> dim2keep = new ArrayList<OpenWareValueDimension>();
 		dim2keep.add(this.valueTypes.get(dim));
-		this.values = this.values	.stream()
-									.map(cVal -> {
-										OpenWareValue newVal = new OpenWareValue(cVal.getDate());
-										newVal.add(cVal.get(dim));
-										return newVal;
-									})
-									.toList();
+		this.values = this.values.stream().map(cVal -> {
+			OpenWareValue newVal = new OpenWareValue(cVal.getDate());
+			newVal.add(cVal.get(dim));
+			return newVal;
+		}).toList();
 
 		this.setValueTypes(dim2keep);
 		return this;
 	}
 
 	/*
-	 * public OpenWareValue getCurrentValueAt(long ts) { ArrayList<OpenWareValue>
-	 * vals = new ArrayList<>(); vals.addAll(this.value()); vals.sort(new
-	 * Comparator<OpenWareValue>() {
+	 * public OpenWareValue getCurrentValueAt(long ts) { ArrayList<OpenWareValue> vals = new
+	 * ArrayList<>(); vals.addAll(this.value()); vals.sort(new Comparator<OpenWareValue>() {
 	 * 
-	 * @Override public int compare(OpenWareValue o1, OpenWareValue o2) { // TODO
-	 * Auto-generated method stub return 0; } });
+	 * @Override public int compare(OpenWareValue o1, OpenWareValue o2) { // TODO Auto-generated
+	 * method stub return 0; } });
 	 * 
 	 * int start = 0, end = vals.size();
 	 * 
 	 * int ans = -1; while (start <= end) { int mid = (start + end) / 2;
 	 * 
-	 * // Move to right side if target is // greater. if
-	 * (item.value().get(mid).getDate() <= targetTS) { start = mid + 1; }
+	 * // Move to right side if target is // greater. if (item.value().get(mid).getDate() <=
+	 * targetTS) { start = mid + 1; }
 	 * 
 	 * // Move left side. else { ans = mid; end = mid - 1; } } return ans;
 	 * 
@@ -412,7 +385,8 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	@Override
 	public String toString() {
 		StringBuffer res = new StringBuffer("{");
-		res.append(DataTools.getJSONPartial("id", StringEscapeUtils.escapeJava(this.id), false, true));
+		res.append(
+				DataTools.getJSONPartial("id", StringEscapeUtils.escapeJava(this.id), false, true));
 		res.append(DataTools.getJSONPartial("name", this.name, false, true));
 		res.append(DataTools.getJSONPartial("meta", this.meta.toString(), false, false));
 		res.append(DataTools.getJSONPartial("user", this.source, false, true));
@@ -449,18 +423,49 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 		streamPrint(out, false, true);
 	}
 
+	public InputStream asInputStream() throws IOException {
+		PipedInputStream in = new PipedInputStream();
+		PipedOutputStream out = new PipedOutputStream(in);
+		streamPrintAsync(out, false, true);
+		return in;
+	}
+
+	public InputStream asMultiPartInputStream(PipedInputStream in, boolean valuesOnly, boolean last)
+			throws IOException {
+		if (in == null) {
+			in = new PipedInputStream();
+		}
+		PipedOutputStream out = new PipedOutputStream(in);
+		streamPrintAsync(out, valuesOnly, last);
+		return in;
+	}
+
+	public ScheduledFuture streamPrintAsync(OutputStream out, boolean valuesOnly, boolean last) {
+		return OpenWareInstance.getInstance().getCommonExecuteService().schedule(() -> {
+			try {
+				streamPrint(out, valuesOnly, last);
+			} catch (IOException e) {
+				OpenWareInstance.getInstance().logError("Error while streaming data item", e);
+			}
+		}, 0, TimeUnit.MILLISECONDS);
+	}
+
 	public void streamPrint(OutputStream out, boolean valuesOnly, boolean last) throws IOException {
 		boolean first = true;
 		if (!valuesOnly) {
 			StringBuffer res = new StringBuffer("{");
-			res.append(DataTools.getJSONPartial("id", StringEscapeUtils.escapeJava(this.id), false, true));
-			res.append(DataTools.getJSONPartial("name", StringEscapeUtils.escapeJava(this.name), false, true));
+			res.append(DataTools.getJSONPartial("id", StringEscapeUtils.escapeJava(this.id), false,
+					true));
+			res.append(DataTools.getJSONPartial("name", StringEscapeUtils.escapeJava(this.name),
+					false, true));
 			res.append(DataTools.getJSONPartial("meta", this.meta.toString(), false, false));
-			res.append(DataTools.getJSONPartial("user", StringEscapeUtils.escapeJava(this.source), false, true));
-			res.append(DataTools.getJSONPartial("source", StringEscapeUtils.escapeJava(this.source), false, true));
+			res.append(DataTools.getJSONPartial("user", StringEscapeUtils.escapeJava(this.source),
+					false, true));
+			res.append(DataTools.getJSONPartial("source", StringEscapeUtils.escapeJava(this.source),
+					false, true));
 			if (reference != null) {
-				res.append(DataTools.getJSONPartial("reference", StringEscapeUtils.escapeJava(this.getReference()),
-						false, true));
+				res.append(DataTools.getJSONPartial("reference",
+						StringEscapeUtils.escapeJava(this.getReference()), false, true));
 			}
 			res.append("\"valueTypes\":");
 
@@ -476,8 +481,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 			}
 			res.append("],");
 			res.append("\"values\": [");
-			out.write(res	.toString()
-							.getBytes());
+			out.write(res.toString().getBytes());
 		}
 		first = !valuesOnly;
 		for (OpenWareValue val : this.values) {
@@ -531,21 +535,18 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 			JSONObject dimen = new JSONObject();
 			dimen.put("type", "Object");
 			if (valueTypes.get(i) != null) {
-				dimen.put("type", valueTypes.get(i)
-											.type());
+				dimen.put("type", valueTypes.get(i).type());
 			}
 
 			dimen.put("name", this.getName() + "Value " + i);
 			if (valueTypes.get(i) != null) {
-				dimen.put("name", valueTypes.get(i)
-											.getName());
+				dimen.put("name", valueTypes.get(i).getName());
 
 			}
 
 			dimen.put("unit", "");
 			if (valueTypes.get(i) != null) {
-				dimen.put("unit", valueTypes.get(i)
-											.getUnit());
+				dimen.put("unit", valueTypes.get(i).getUnit());
 			}
 
 			vtypes.put(dimen);
@@ -557,36 +558,21 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	}
 
 	/**
-	 * Will compare the last value(s) of this item with the last value of
-	 * {@code newValue}
+	 * Will compare the last value(s) of this item with the last value of {@code newValue}
 	 * 
-	 * @param newValue  The new {@link OpenWareDataItem} whose values will be
-	 *                  compared to this item's values
-	 * @param threshold A threshold in milliseconds which will additionally be
-	 *                  checked to invalidate equality if {@code newValue} is much
-	 *                  newer then this value
-	 * @return true if values are equal or time between values is over threshold.
-	 *         Otherwise false
+	 * @param newValue The new {@link OpenWareDataItem} whose values will be compared to this item's
+	 *        values
+	 * @param threshold A threshold in milliseconds which will additionally be checked to invalidate
+	 *        equality if {@code newValue} is much newer then this value
+	 * @return true if values are equal or time between values is over threshold. Otherwise false
 	 */
 	public boolean equalsLastValue(OpenWareDataItem newValue, long threshold) {
 		if (this.valueTypes.size() == newValue.valueTypes.size()) {
-			for (int i = 0; i < this.value()
-									.get(0)
-									.size(); i++) {
-				boolean equal = this.value()
-									.get(0)
-									.get(i)
-									.value()
-									.equals(newValue.value()
-													.get(0)
-													.get(i)
-													.value());
-				boolean toOld = (newValue	.value()
-											.get(0)
-											.getDate()
-						- this	.value()
-								.get(0)
-								.getDate()) > threshold;
+			for (int i = 0; i < this.value().get(0).size(); i++) {
+				boolean equal = this.value().get(0).get(i).value()
+						.equals(newValue.value().get(0).get(i).value());
+				boolean toOld = (newValue.value().get(0).getDate()
+						- this.value().get(0).getDate()) > threshold;
 				if (!equal || toOld) {
 					return false;
 				}
@@ -597,11 +583,10 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	}
 
 	/**
-	 * Will compare the last value(s) of this item with the last value of
-	 * {@code newValue}
+	 * Will compare the last value(s) of this item with the last value of {@code newValue}
 	 * 
-	 * @param newValue The new {@link OpenWareDataItem} whose values will be
-	 *                 compared to this items values
+	 * @param newValue The new {@link OpenWareDataItem} whose values will be compared to this items
+	 *        values
 	 * @return true if values are equal otherwise false
 	 */
 	public boolean equalsLastValue(OpenWareDataItem newValue) {
@@ -609,9 +594,7 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	}
 
 	public OpenWareValueDimension newValueForDimension(int dim, Object value) throws Exception {
-		return this	.getValueTypes()
-					.get(dim)
-					.createValueForDimension(value);
+		return this.getValueTypes().get(dim).createValueForDimension(value);
 
 	}
 

@@ -7,6 +7,8 @@ import static io.javalin.apibuilder.ApiBuilder.post;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -223,12 +225,15 @@ public class MiddlewareApi implements OpenWareAPI {
 					if (countOfValues < 1_00_000) {
 						item = DataService.getHistoricalSensorData(sensorid, source, timestampStart,
 								timestampEnd);
-						streamResponse(ctx, item);
+						ctx.result(item.asInputStream());
 						ctx.status(200);
 					} else {
 						long interval = timestampEnd - timestampStart;
 						int steps = (int) countOfValues / 1_00_000;
 						int stepSize = (int) interval / steps;
+						PipedInputStream in = new PipedInputStream();
+						PipedOutputStream out = new PipedOutputStream(in);
+						ctx.result(in);
 						for (int i = 0; i < steps; i++) {
 							long start = timestampStart + (stepSize * i);
 							long end = i == steps - 1 ? timestampEnd
@@ -237,8 +242,8 @@ public class MiddlewareApi implements OpenWareAPI {
 									end);
 							boolean last = i == (steps - 1);
 							boolean valuesOnly = i != 0;
-							streamResponse(ctx, item, valuesOnly, last);
 
+							item.streamPrint(out, valuesOnly, last);
 						}
 						ctx.status(200);
 					}

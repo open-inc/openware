@@ -567,17 +567,22 @@ public class OpenWareDataItem implements Comparable<OpenWareDataItem> {
 	 * @return true if values are equal or time between values is over threshold. Otherwise false
 	 */
 	public boolean equalsLastValue(OpenWareDataItem newValue, long threshold) {
-		if (this.valueTypes.size() == newValue.valueTypes.size()) {
-			for (int i = 0; i < this.value().get(0).size(); i++) {
-				boolean equal = this.value().get(0).get(i).value()
-						.equals(newValue.value().get(0).get(i).value());
-				boolean toOld = (newValue.value().get(0).getDate()
-						- this.value().get(0).getDate()) > threshold;
-				if (!equal || toOld) {
-					return false;
+		try {
+			if (this.valueTypes.size() == newValue.valueTypes.size()) {
+				for (int i = 0; i < this.value().get(0).size(); i++) {
+					boolean equal = this.value().get(0).get(i).value()
+							.equals(newValue.value().get(0).get(i).value());
+					boolean toOld = (newValue.value().get(0).getDate()
+							- this.value().get(0).getDate()) > threshold;
+					if (!equal || toOld) {
+						return false;
+					}
 				}
+				return true;
 			}
-			return true;
+		} catch (Exception e) {
+			OpenWareInstance.getInstance()
+					.logTrace("Error while comparing values\n" + e.getMessage());
 		}
 		return false;
 	}

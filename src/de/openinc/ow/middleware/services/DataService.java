@@ -1036,8 +1036,10 @@ public class DataService {
 		}
 		conf.value(item.value());
 		// Only store changed values
+
 		if (conf.getMeta().optBoolean("onChange")) {
-			if (conf.equalsLastValue(item, (60000l * 60l))) {
+			OpenWareDataItem last = getLiveSensorData(conf.getId(), conf.getSource());
+			if (conf.equalsLastValue(last, (60000l * 60l))) {
 				OpenWareInstance.getInstance()
 						.logDebug("Item was not stored due to 'onChange' flag and same value");
 				conf.setPersist(false);

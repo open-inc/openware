@@ -9,9 +9,12 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+
 import java.util.stream.Collectors;
 
 import org.json.JSONArray;
@@ -19,7 +22,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import com.google.gson.JsonArray;
-
+import de.openinc.api.ActuatorAdapter;
 import de.openinc.api.OpenWareAPI;
 import de.openinc.model.data.OpenWareDataItem;
 import de.openinc.model.user.User;
@@ -59,8 +62,8 @@ public class MiddlewareApi implements OpenWareAPI {
 	/**
 	 * API constant to get all the registered actuator items for the user
 	 */
-	public static final String ACTUATOR_TRIGGER_API = "/actuators/{aaid}";
-	public static final String ACTUATOR_LIST_API = "/actuators";
+	public static final String ACTUATOR_TRIGGER_API = "/{aaid}";
+	public static final String ACTUATOR_LIST_API = "/actuator";
 
 	/**
 	 * API constant to push data via HTTP
@@ -163,28 +166,7 @@ public class MiddlewareApi implements OpenWareAPI {
 					HTTPResponseHelper.badRequest("Data item not found");
 				}
 
-				/*
-				 * if (Config.accessControl) { User user = req.session().sessionAttribute("user");
-				 * String source = req.params("source"); String strID = req.params("sensorid"); if
-				 * (user == null || !user.canAccessRead(source, strID)) halt(403,
-				 * "Not allowed to read data"); }
-				 * 
-				 * 
-				 * String sensorID = req.params("sensorid"); String source = req.params("source");
-				 * OpenWareInstance.getInstance()
-				 * .logDebug("Received live data request for sensor: " + sensorID + " and source: "
-				 * + source);
-				 * 
-				 * OpenWareDataItem items; if (sensorID.startsWith(Config.analyticPrefix)) {
-				 * OpenWareInstance.getInstance()
-				 * .logDebug("Received live analytics data request for sensor: " + sensorID +
-				 * " and userID: " + source); items = AnalyticsService.getInstance().handle(source,
-				 * sensorID); } else { OpenWareInstance.getInstance().logDebug(
-				 * "Received live data request for sensor: " + sensorID + " and userID: " + source);
-				 * 
-				 * items = DataService.getLiveSensorData(sensorID, source); } if (items == null) {
-				 * return new JSONObject(); } else { return items; }
-				 */
+
 			});
 
 			get(HISTORICAL_DATA_API, ctx -> {
@@ -364,7 +346,51 @@ public class MiddlewareApi implements OpenWareAPI {
 			});
 
 		});
+		path(ACTUATOR_LIST_API, () -> {
+			get("/", ctx -> {
+				HTTPResponseHelper.ok(ctx, DataService.getActuators());
+			});
+			post(ACTUATOR_TRIGGER_API, ctx -> {
+				User user = ctx.sessionAttribute("user");
+				String aaid = ctx.pathParam("aaid");
+				ActuatorAdapter adapter = DataService.getActuator(aaid);
 
+				if (adapter == null) {
+					HTTPResponseHelper.badRequest("Actuator not found");
+					return;
+				}
+
+				JSONObject body = new JSONObject(ctx.body());
+				String target = body.getString("target");
+				String topic = body.getString("topic");
+				String payload = body.getString("payload");
+				String optionsString = body.optString("options", "{}");
+				JSONObject options = new JSONObject(optionsString);
+				if (!options.has("templateType")) {
+					options.put("templateType", "vtl");
+				}
+				try {
+					CompletableFuture<Object> res = ((CompletableFuture<Object>) adapter
+							.send(target, topic, payload, user, options, new ArrayList()));
+					ctx.future(() -> {
+						return res.thenAccept((object) -> {
+							HTTPResponseHelper.ok(ctx, object);
+						}).exceptionally(error -> {
+							HTTPResponseHelper.internalError(error.getMessage());
+							return null;
+						});
+					});
+				} catch (Exception e) {
+					HTTPResponseHelper.internalError(e.getMessage());
+					return;
+				}
+
+
+
+				// HTTPResponseHelper.ok(ctx, res);
+				// ctx.status(200);
+			});
+		});
 	}
 
 	private void getItems(Context ctx, Set<String> filter) {

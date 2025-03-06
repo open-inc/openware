@@ -192,20 +192,14 @@ public class OpenWareInstance {
 	private OpenWareInstance() {
 		this.started = new CompletableFuture<Boolean>();
 		ctx = (LoggerContext) LogManager.getContext();
-		ThreadFactory factory = new ThreadFactoryBuilder()	.setDaemon(false)
-															.setNameFormat("openware-commonpool-%d")
-															.build();
+		ThreadFactory factory = new ThreadFactoryBuilder().setDaemon(false)
+				.setNameFormat("openware-commonpool-%d").build();
 		this.commonExecuteService = Executors.newScheduledThreadPool(4, factory);
-		this.apacheLogger = ctx	.getConfiguration()
-								.getLoggerConfig("org.apache.http");
-		this.sparkLogger = ctx	.getConfiguration()
-								.getLoggerConfig("spark");
-		this.jettyLogger = ctx	.getConfiguration()
-								.getLoggerConfig("org.eclipse.jetty");
-		this.mongoLogger = ctx	.getConfiguration()
-								.getLoggerConfig("org.mongodb.driver");
-		this.xdocLogger = ctx	.getConfiguration()
-								.getLoggerConfig("fr.opensagres.xdocreport");
+		this.apacheLogger = ctx.getConfiguration().getLoggerConfig("org.apache.http");
+		this.sparkLogger = ctx.getConfiguration().getLoggerConfig("spark");
+		this.jettyLogger = ctx.getConfiguration().getLoggerConfig("org.eclipse.jetty");
+		this.mongoLogger = ctx.getConfiguration().getLoggerConfig("org.mongodb.driver");
+		this.xdocLogger = ctx.getConfiguration().getLoggerConfig("fr.opensagres.xdocreport");
 
 		me = this;
 		this.services = new ArrayList<OpenWareAPI>();
@@ -216,106 +210,105 @@ public class OpenWareInstance {
 		LoggerConfig mqttconf = conf.getLoggerConfig("mqttLogger");
 		LoggerConfig dataconf = conf.getLoggerConfig("dataLogger");
 		switch (Config.get("logLevel", "INFO")) {
-		case "TRACE":
-			logconf.setLevel(Level.TRACE);
-			mqttconf.setLevel(Level.TRACE);
-			dataconf.setLevel(Level.TRACE);
-			break;
-		case "DEBUG":
-			logconf.setLevel(Level.DEBUG);
-			mqttconf.setLevel(Level.INFO);
-			dataconf.setLevel(Level.INFO);
-		case "OFF":
-			logconf.setLevel(Level.OFF);
-			mqttconf.setLevel(Level.OFF);
-			dataconf.setLevel(Level.OFF);
-			;
-			break;
-		case "INFO":
-			logconf.setLevel(Level.INFO);
-			mqttconf.setLevel(Level.INFO);
-			dataconf.setLevel(Level.INFO);
-			break;
-		case "ERROR":
-			logconf.setLevel(Level.ERROR);
-			mqttconf.setLevel(Level.OFF);
-			dataconf.setLevel(Level.OFF);
-			break;
-		case "WARN":
-			logconf.setLevel(Level.WARN);
-			mqttconf.setLevel(Level.INFO);
-			dataconf.setLevel(Level.INFO);
-			break;
-		case "ALL":
-			logconf.setLevel(Level.ALL);
-			mqttconf.setLevel(Level.INFO);
-			dataconf.setLevel(Level.INFO);
-			break;
-		default:
-			logconf.setLevel(Level.INFO);
-			mqttconf.setLevel(Level.INFO);
-			dataconf.setLevel(Level.INFO);
-			break;
+			case "TRACE":
+				logconf.setLevel(Level.TRACE);
+				mqttconf.setLevel(Level.TRACE);
+				dataconf.setLevel(Level.TRACE);
+				break;
+			case "DEBUG":
+				logconf.setLevel(Level.DEBUG);
+				mqttconf.setLevel(Level.INFO);
+				dataconf.setLevel(Level.INFO);
+			case "OFF":
+				logconf.setLevel(Level.OFF);
+				mqttconf.setLevel(Level.OFF);
+				dataconf.setLevel(Level.OFF);;
+				break;
+			case "INFO":
+				logconf.setLevel(Level.INFO);
+				mqttconf.setLevel(Level.INFO);
+				dataconf.setLevel(Level.INFO);
+				break;
+			case "ERROR":
+				logconf.setLevel(Level.ERROR);
+				mqttconf.setLevel(Level.OFF);
+				dataconf.setLevel(Level.OFF);
+				break;
+			case "WARN":
+				logconf.setLevel(Level.WARN);
+				mqttconf.setLevel(Level.INFO);
+				dataconf.setLevel(Level.INFO);
+				break;
+			case "ALL":
+				logconf.setLevel(Level.ALL);
+				mqttconf.setLevel(Level.INFO);
+				dataconf.setLevel(Level.INFO);
+				break;
+			default:
+				logconf.setLevel(Level.INFO);
+				mqttconf.setLevel(Level.INFO);
+				dataconf.setLevel(Level.INFO);
+				break;
 		}
 
 		switch (Config.get("logLevelAPIs", "OFF")) {
-		case "TRACE":
-			apacheLogger.setLevel(Level.TRACE);
-			sparkLogger.setLevel(Level.TRACE);
-			jettyLogger.setLevel(Level.TRACE);
-			mongoLogger.setLevel(Level.TRACE);
-			xdocLogger.setLevel(Level.TRACE);
+			case "TRACE":
+				apacheLogger.setLevel(Level.TRACE);
+				sparkLogger.setLevel(Level.TRACE);
+				jettyLogger.setLevel(Level.TRACE);
+				mongoLogger.setLevel(Level.TRACE);
+				xdocLogger.setLevel(Level.TRACE);
 
-			break;
-		case "DEBUG":
-			apacheLogger.setLevel(Level.DEBUG);
-			sparkLogger.setLevel(Level.DEBUG);
-			jettyLogger.setLevel(Level.DEBUG);
-			mongoLogger.setLevel(Level.DEBUG);
-			xdocLogger.setLevel(Level.DEBUG);
-			break;
-		case "OFF":
-			apacheLogger.setLevel(Level.OFF);
-			sparkLogger.setLevel(Level.OFF);
-			jettyLogger.setLevel(Level.OFF);
-			mongoLogger.setLevel(Level.OFF);
-			xdocLogger.setLevel(Level.OFF);
-			break;
-		case "INFO":
-			apacheLogger.setLevel(Level.INFO);
-			sparkLogger.setLevel(Level.INFO);
-			jettyLogger.setLevel(Level.INFO);
-			mongoLogger.setLevel(Level.INFO);
-			xdocLogger.setLevel(Level.INFO);
-			break;
-		case "ERROR":
-			apacheLogger.setLevel(Level.ERROR);
-			sparkLogger.setLevel(Level.ERROR);
-			jettyLogger.setLevel(Level.ERROR);
-			mongoLogger.setLevel(Level.ERROR);
-			xdocLogger.setLevel(Level.ERROR);
-			break;
-		case "WARN":
-			apacheLogger.setLevel(Level.WARN);
-			sparkLogger.setLevel(Level.WARN);
-			jettyLogger.setLevel(Level.WARN);
-			mongoLogger.setLevel(Level.WARN);
-			xdocLogger.setLevel(Level.WARN);
-			break;
-		case "ALL":
-			apacheLogger.setLevel(Level.ALL);
-			sparkLogger.setLevel(Level.ALL);
-			jettyLogger.setLevel(Level.ALL);
-			mongoLogger.setLevel(Level.ALL);
-			xdocLogger.setLevel(Level.ALL);
-			break;
-		default:
-			apacheLogger.setLevel(Level.WARN);
-			sparkLogger.setLevel(Level.WARN);
-			jettyLogger.setLevel(Level.WARN);
-			mongoLogger.setLevel(Level.WARN);
-			xdocLogger.setLevel(Level.WARN);
-			break;
+				break;
+			case "DEBUG":
+				apacheLogger.setLevel(Level.DEBUG);
+				sparkLogger.setLevel(Level.DEBUG);
+				jettyLogger.setLevel(Level.DEBUG);
+				mongoLogger.setLevel(Level.DEBUG);
+				xdocLogger.setLevel(Level.DEBUG);
+				break;
+			case "OFF":
+				apacheLogger.setLevel(Level.OFF);
+				sparkLogger.setLevel(Level.OFF);
+				jettyLogger.setLevel(Level.OFF);
+				mongoLogger.setLevel(Level.OFF);
+				xdocLogger.setLevel(Level.OFF);
+				break;
+			case "INFO":
+				apacheLogger.setLevel(Level.INFO);
+				sparkLogger.setLevel(Level.INFO);
+				jettyLogger.setLevel(Level.INFO);
+				mongoLogger.setLevel(Level.INFO);
+				xdocLogger.setLevel(Level.INFO);
+				break;
+			case "ERROR":
+				apacheLogger.setLevel(Level.ERROR);
+				sparkLogger.setLevel(Level.ERROR);
+				jettyLogger.setLevel(Level.ERROR);
+				mongoLogger.setLevel(Level.ERROR);
+				xdocLogger.setLevel(Level.ERROR);
+				break;
+			case "WARN":
+				apacheLogger.setLevel(Level.WARN);
+				sparkLogger.setLevel(Level.WARN);
+				jettyLogger.setLevel(Level.WARN);
+				mongoLogger.setLevel(Level.WARN);
+				xdocLogger.setLevel(Level.WARN);
+				break;
+			case "ALL":
+				apacheLogger.setLevel(Level.ALL);
+				sparkLogger.setLevel(Level.ALL);
+				jettyLogger.setLevel(Level.ALL);
+				mongoLogger.setLevel(Level.ALL);
+				xdocLogger.setLevel(Level.ALL);
+				break;
+			default:
+				apacheLogger.setLevel(Level.WARN);
+				sparkLogger.setLevel(Level.WARN);
+				jettyLogger.setLevel(Level.WARN);
+				mongoLogger.setLevel(Level.WARN);
+				xdocLogger.setLevel(Level.WARN);
+				break;
 		}
 		ctx.updateLoggers();
 		this.infoLogger = ctx.getLogger("openware");
@@ -328,27 +321,24 @@ public class OpenWareInstance {
 		this.persistenceLogger = ctx.getLogger("persistenceLogger");
 
 		OpenWareInstance.getInstance()
-						.logError("--------------------------------------------------------------");
+				.logError("--------------------------------------------------------------");
 		OpenWareInstance.getInstance()
-						.logError("---------------------Restart Backend--------------------------");
+				.logError("---------------------Restart Backend--------------------------");
 		OpenWareInstance.getInstance()
-						.logError("--------------------------------------------------------------");
+				.logError("--------------------------------------------------------------");
 
-		OpenWareInstance.getInstance()
-						.logInfo("Reading config file spark.properties");
+		OpenWareInstance.getInstance().logInfo("Reading config file spark.properties");
 
 		TimeZone zone = TimeZone.getDefault();
 		TimeZone.setDefault(TimeZone.getTimeZone(Config.get("timezone", "Europe/Berlin")));
-		String[] localeElements = Config.get("language", "de-de")
-										.split("-");
+		String[] localeElements = Config.get("language", "de-de").split("-");
 		if (localeElements.length > 1) {
 			Locale.setDefault(new Locale(localeElements[0], localeElements[1]));
 
 		} else {
 			Locale.setDefault(new Locale(localeElements[0]));
 		}
-		logInfo("Locale set to " + Locale	.getDefault()
-											.toLanguageTag());
+		logInfo("Locale set to " + Locale.getDefault().toLanguageTag());
 
 		logInfo("Initializing open.WARE v" + OpenWareInstance.getInstance().VERSION + " on port "
 				+ Config.getInt("sparkPort", 4567));
@@ -365,107 +355,88 @@ public class OpenWareInstance {
 		DataService.init();
 		DataService.setPersistenceAdapter(loadPersistenceAdapter());
 		DataService.setReferenceAdapter(loadReferenceAdapterAdapter());
-		OpenWareInstance.getInstance()
-						.logTrace("[ANALYTICS API] " + "Middleware loading...");
+		OpenWareInstance.getInstance().logTrace("[ANALYTICS API] " + "Middleware loading...");
 		loadAnalyticSensorProvider();
 
-		OpenWareInstance.getInstance()
-						.logTrace("[SERVICE API] " + "Middleware loading...");
+		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Middleware loading...");
 		// Middleware Data API
 		MiddlewareApi middlewareApi = new MiddlewareApi();
-		OpenWareInstance.getInstance()
-						.registerService(middlewareApi);
+		OpenWareInstance.getInstance().registerService(middlewareApi);
 
-		OpenWareInstance.getInstance()
-						.logTrace("[SERVICE API] " + "Userservice loading...");
+		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Userservice loading...");
 		// UserManagement API
 		UserAPI userAPI = new UserAPI();
-		OpenWareInstance.getInstance()
-						.registerService(userAPI);
+		OpenWareInstance.getInstance().registerService(userAPI);
 
-		OpenWareInstance.getInstance()
-						.logTrace("[SERVICE API] " + "Analyticservice loading...");
+		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Analyticservice loading...");
 		// AnalyticsService API
 		AnalyticsServiceAPI asa = new AnalyticsServiceAPI();
-		OpenWareInstance.getInstance()
-						.registerService(asa);
+		OpenWareInstance.getInstance().registerService(asa);
 
-		OpenWareInstance.getInstance()
-						.logTrace("[SERVICE API] " + "Admin API loading...");
+		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Admin API loading...");
 		// Admin API
 		AdminAPI adminApi = new AdminAPI();
-		OpenWareInstance.getInstance()
-						.registerService(adminApi);
+		OpenWareInstance.getInstance().registerService(adminApi);
 
-		OpenWareInstance.getInstance()
-						.logTrace("[SERVICE API] " + "Reportservice loading...");
+		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Reportservice loading...");
 		// ReportsAPI
 		ReportsAPI rApi = new ReportsAPI();
-		OpenWareInstance.getInstance()
-						.registerService(rApi);
+		OpenWareInstance.getInstance().registerService(rApi);
 
-		OpenWareInstance.getInstance()
-						.logTrace("[SERVICE API] " + "Alarmservice loading...");
+		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Alarmservice loading...");
 		// Alarm & Event API
 		AlarmAPI as = AlarmAPI.getInstance();
-		OpenWareInstance.getInstance()
-						.registerService(as);
+		OpenWareInstance.getInstance().registerService(as);
 
 		OpenWareInstance.getInstance()
-						.logTrace("[SERVICE API] " + "Transformationservice loading...");
+				.logTrace("[SERVICE API] " + "Transformationservice loading...");
 		// TransformationAPI
 		TransformationAPI tApi = new TransformationAPI();
-		OpenWareInstance.getInstance()
-						.registerService(tApi);
+		OpenWareInstance.getInstance().registerService(tApi);
 
-		OpenWareInstance.getInstance()
-						.logTrace("[SERVICE API] " + "Referenceservice loading...");
+		OpenWareInstance.getInstance().logTrace("[SERVICE API] " + "Referenceservice loading...");
 		// ReferenceAPI
 		ReferenceAPI refApi = new ReferenceAPI();
-		OpenWareInstance.getInstance()
-						.registerService(refApi);
+		OpenWareInstance.getInstance().registerService(refApi);
 
 		OpenWareInstance.getInstance()
-						.logInfo("Using external file path: " + Config.get("publicHTTP", "app"));
+				.logInfo("Using external file path: " + Config.get("publicHTTP", "app"));
 		// Gson gson = new GsonBuilder().serializeSpecialFloatingPointValues().create();
-		gson = new GsonBuilder().registerTypeAdapter(OpenWareDataItem.class, new OpenWareDataItemSerializer())
-								.registerTypeAdapter(JSONObject.class, new JsonSerializer<JSONObject>() {
+		gson = new GsonBuilder()
+				.registerTypeAdapter(OpenWareDataItem.class, new OpenWareDataItemSerializer())
+				.registerTypeAdapter(JSONObject.class, new JsonSerializer<JSONObject>() {
 
-									@Override
-									public JsonElement serialize(JSONObject src, Type typeOfSrc,
-											JsonSerializationContext context) {
-										JsonElement elemt;
-										try {
-											elemt = JsonParser	.parseString(src.toString())
-																.getAsJsonObject();
-											return elemt;
-										} catch (JsonSyntaxException e) {
-											e.printStackTrace();
-											return null;
-										}
+					@Override
+					public JsonElement serialize(JSONObject src, Type typeOfSrc,
+							JsonSerializationContext context) {
+						JsonElement elemt;
+						try {
+							elemt = JsonParser.parseString(src.toString()).getAsJsonObject();
+							return elemt;
+						} catch (JsonSyntaxException e) {
+							e.printStackTrace();
+							return null;
+						}
 
-									}
+					}
 
-								})
-								.registerTypeAdapter(JSONArray.class, new JsonSerializer<JSONArray>() {
+				}).registerTypeAdapter(JSONArray.class, new JsonSerializer<JSONArray>() {
 
-									@Override
-									public JsonElement serialize(JSONArray src, Type typeOfSrc,
-											JsonSerializationContext context) {
-										JsonElement elemt;
-										try {
-											elemt = JsonParser	.parseString(src.toString())
-																.getAsJsonArray();
-											return elemt;
-										} catch (JsonSyntaxException e) {
-											e.printStackTrace();
-											return null;
-										}
+					@Override
+					public JsonElement serialize(JSONArray src, Type typeOfSrc,
+							JsonSerializationContext context) {
+						JsonElement elemt;
+						try {
+							elemt = JsonParser.parseString(src.toString()).getAsJsonArray();
+							return elemt;
+						} catch (JsonSyntaxException e) {
+							e.printStackTrace();
+							return null;
+						}
 
-									}
+					}
 
-								})
-								.create();
+				}).create();
 
 		JsonMapper gsonMapper = new JsonMapper() {
 			@Override
@@ -486,7 +457,8 @@ public class OpenWareInstance {
 				staticFiles.directory = Config.get("publicHTTP", "app");
 			});
 
-			config.spaRoot.addFile("/", Config.get("publicHTTP", "app") + "/index.html", Location.EXTERNAL);
+			config.spaRoot.addFile("/", Config.get("publicHTTP", "app") + "/index.html",
+					Location.EXTERNAL);
 			config.http.defaultContentType = "application/json";
 			config.jsonMapper(gsonMapper);
 			config.http.gzipOnlyCompression();
@@ -502,14 +474,12 @@ public class OpenWareInstance {
 				});
 			});
 			config.router.apiBuilder(() -> {
-				OpenWareInstance.getInstance()
-								.logTrace(
-										"[PlUGINS] " + "------------------Plugins loading...-------------------------");
+				OpenWareInstance.getInstance().logTrace("[PlUGINS] "
+						+ "------------------Plugins loading...-------------------------");
 				// Plugins
 				loadPlugins();
-				OpenWareInstance.getInstance()
-								.logTrace(
-										"[PLUGINS] " + "------------------Plugins loaded...-------------------------");
+				OpenWareInstance.getInstance().logTrace("[PLUGINS] "
+						+ "------------------Plugins loaded...-------------------------");
 
 				path("api", () -> {
 					for (OpenWareAPI os : services) {
@@ -525,47 +495,55 @@ public class OpenWareInstance {
 					if (started != null) {
 						long ended = System.currentTimeMillis();
 						long duration = ended - started;
-						accessLogger.debug("[API-ACCESS][SOURCE:" + ctx.host() + "][" + ctx.method() + "]" + ctx.path()
-								+ "handled in " + duration + "ms");
+						accessLogger.debug("[API-ACCESS][SOURCE:" + ctx.host() + "][" + ctx.method()
+								+ "]" + ctx.path() + "handled in " + duration + "ms");
 					}
 
 				});
 				before("/api/*", ctx -> {
-					accessLogger.debug("[API-ACCESS][SOURCE:" + ctx.host() + "][" + ctx.method() + "]" + ctx.path());
+					accessLogger.debug("[API-ACCESS][SOURCE:" + ctx.host() + "][" + ctx.method()
+							+ "]" + ctx.path());
 
 					// request.session(true);
 					if (Config.getBool("accessControl", true)) {
-						String method = ctx	.method()
-											.toString()
-											.toLowerCase();
+						String method = ctx.method().toString().toLowerCase();
 						if (!method.equals("options")) {
 							boolean authorized = false;
 							User user;
-							if (ctx	.queryParamMap()
-									.keySet()
-									.contains("username")
-									&& ctx	.queryParamMap()
-											.keySet()
-											.contains("password")) {
-								user = UserService	.getInstance()
-													.login(ctx.queryParam("username"), ctx.queryParam("password"));
+							if (ctx.queryParamMap().keySet().contains("username")
+									&& ctx.queryParamMap().keySet().contains("password")) {
+								user = UserService.getInstance().login(ctx.queryParam("username"),
+										ctx.queryParam("password"));
 							} else {
 								Map<String, String> header = ctx.headerMap();
 
-								user = UserService	.getInstance()
-													.checkAuth(ctx.header(UserAPI.OD_SESSION));
+								user = UserService.getInstance()
+										.checkAuth(ctx.header(UserAPI.OD_SESSION));
 							}
 
-							if (ctx	.headerMap()
-									.keySet()
-									.contains("Authorization")
-									&& ctx	.header("Authorization")
-											.startsWith("Bearer ")) {
-								user = UserService	.getInstance()
-													.jwtToUser(ctx	.header("Authorization")
-																	.substring(7));
+							if (ctx.headerMap().keySet().contains("Authorization")
+									&& ctx.header("Authorization").startsWith("Bearer ")) {
+								user = UserService.getInstance()
+										.jwtToUser(ctx.header("Authorization").substring(7));
 								ctx.sessionAttribute("apiaccess", true);
 							}
+
+							// Public User Check
+							if (user == null && Config.getBool("PUBLIC_USER_ENABLED", false)) {
+								String session = Config.get("PUBLIC_USER_SESSION", "");
+								user = UserService.getInstance().checkAuth(session);
+							}
+
+							if (Config.getBool("accessControl_per_features", false)) {
+								boolean canAccess =
+										user.canAccessFeature(ctx.method().name(), ctx.path());
+								if (!canAccess) {
+									throw new ForbiddenResponse(
+											String.format("Not authorized to access %s:%s",
+													ctx.method().name(), ctx.path()));
+								}
+							}
+
 							authorized = user != null;
 
 							if (!authorized) {
@@ -586,15 +564,13 @@ public class OpenWareInstance {
 			JSONObject details = new JSONObject();
 
 			JSONObject params = new JSONObject();
-			for (String key : ctx	.pathParamMap()
-									.keySet()) {
+			for (String key : ctx.pathParamMap().keySet()) {
 				params.put(key, ctx.pathParam(key));
 			}
 			details.put("pathParams", params);
 
 			JSONObject queryP = new JSONObject();
-			for (String key : ctx	.queryParamMap()
-									.keySet()) {
+			for (String key : ctx.queryParamMap().keySet()) {
 				queryP.put(key, ctx.queryParam(key));
 			}
 			User user = (User) ctx.sessionAttribute("user");
@@ -606,9 +582,8 @@ public class OpenWareInstance {
 			details.put("url", ctx.fullUrl());
 			details.put("user", uInfo);
 
-			OpenWareInstance.getInstance()
-							.logError("Error on " + ctx.fullUrl() + ": " + e.getLocalizedMessage() + "\n"
-									+ details.toString(2), e);
+			OpenWareInstance.getInstance().logError("Error on " + ctx.fullUrl() + ": "
+					+ e.getLocalizedMessage() + "\n" + details.toString(2), e);
 			// HTTPResponseHelper.generateResponse(ctx, 400, null, e.getMessage());
 		});
 
@@ -617,15 +592,15 @@ public class OpenWareInstance {
 	}
 
 	private void loadAnalyticSensorProvider() {
-		ServiceLoader<AnalyticSensorProvider> loader = ServiceLoader.load(AnalyticSensorProvider.class);
+		ServiceLoader<AnalyticSensorProvider> loader =
+				ServiceLoader.load(AnalyticSensorProvider.class);
 		try {
 			Iterator<AnalyticSensorProvider> iterator = loader.iterator();
 
 			while (iterator.hasNext()) {
 				AnalyticSensorProvider provider = iterator.next();
-				OWService aHandler = new OWService(provider	.getClass()
-															.getCanonicalName(),
-						provider, new OWServiceActivator() {
+				OWService aHandler = new OWService(provider.getClass().getCanonicalName(), provider,
+						new OWServiceActivator() {
 
 							@Override
 							public boolean unload() throws Exception {
@@ -634,17 +609,15 @@ public class OpenWareInstance {
 							}
 
 							@Override
-							public Object load(Object prevInstance, JSONObject options) throws Exception {
+							public Object load(Object prevInstance, JSONObject options)
+									throws Exception {
 								if (prevInstance != null) {
 									// TODO:AnalyticsService.getInstance().remove(provider)
 								}
 								provider.init(options);
-								AnalyticsService.getInstance()
-												.addSensorProvider(provider);
+								AnalyticsService.getInstance().addSensorProvider(provider);
 
-								logInfo(provider.getClass()
-												.getCanonicalName()
-										+ " loaded!");
+								logInfo(provider.getClass().getCanonicalName() + " loaded!");
 								return provider;
 							}
 						});
@@ -652,9 +625,8 @@ public class OpenWareInstance {
 					try {
 						aHandler.load(null);
 					} catch (Exception e) {
-						logError("Could not load DataHandler " + aHandler	.getClass()
-																			.getCanonicalName(),
-								e);
+						logError("Could not load DataHandler "
+								+ aHandler.getClass().getCanonicalName(), e);
 					}
 				}
 
@@ -677,9 +649,8 @@ public class OpenWareInstance {
 		services.add(service);
 
 		if (isRunning()) {
-			OpenWareInstance.getInstance()
-							.logError(
-									"Server already running! You need to restart the Instance to access newly registered Services");
+			OpenWareInstance.getInstance().logError(
+					"Server already running! You need to restart the Instance to access newly registered Services");
 		}
 	}
 
@@ -720,8 +691,8 @@ public class OpenWareInstance {
 				dims.add(new OpenWareNumber("DayOfYear", "", 0d));
 				dims.add(new OpenWareNumber("Year", "", 0d));
 				dims.add(new OpenWareNumber("Timestamp", "ms", 0d));
-				OpenWareDataItem heartbeat = new OpenWareDataItem("heartbeat", "_owinternal", "Heartbeat",
-						new JSONObject(), dims);
+				OpenWareDataItem heartbeat = new OpenWareDataItem("heartbeat", "_owinternal",
+						"Heartbeat", new JSONObject(), dims);
 
 				long current = DataTools.floorDate(System.currentTimeMillis(), 60000);
 
@@ -730,8 +701,7 @@ public class OpenWareInstance {
 				int min = ldt.getMinute();
 				int hour = ldt.getHour();
 				int minofDay = hour * 60 + min;
-				int weekday = ldt	.getDayOfWeek()
-									.getValue();
+				int weekday = ldt.getDayOfWeek().getValue();
 				int week = ldt.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR);
 				int dayofmonth = ldt.getDayOfMonth();
 				int month = ldt.getMonthValue();
@@ -739,26 +709,16 @@ public class OpenWareInstance {
 				int year = ldt.getYear();
 				OpenWareValue vals = new OpenWareValue(current);
 				try {
-					vals.add(dims	.get(0)
-									.createValueForDimension(min));
-					vals.add(dims	.get(1)
-									.createValueForDimension(minofDay));
-					vals.add(dims	.get(2)
-									.createValueForDimension(hour));
-					vals.add(dims	.get(3)
-									.createValueForDimension(weekday));
-					vals.add(dims	.get(4)
-									.createValueForDimension(week));
-					vals.add(dims	.get(5)
-									.createValueForDimension(dayofmonth));
-					vals.add(dims	.get(6)
-									.createValueForDimension(month));
-					vals.add(dims	.get(7)
-									.createValueForDimension(dayofyear));
-					vals.add(dims	.get(8)
-									.createValueForDimension(year));
-					vals.add(dims	.get(9)
-									.createValueForDimension(current));
+					vals.add(dims.get(0).createValueForDimension(min));
+					vals.add(dims.get(1).createValueForDimension(minofDay));
+					vals.add(dims.get(2).createValueForDimension(hour));
+					vals.add(dims.get(3).createValueForDimension(weekday));
+					vals.add(dims.get(4).createValueForDimension(week));
+					vals.add(dims.get(5).createValueForDimension(dayofmonth));
+					vals.add(dims.get(6).createValueForDimension(month));
+					vals.add(dims.get(7).createValueForDimension(dayofyear));
+					vals.add(dims.get(8).createValueForDimension(year));
+					vals.add(dims.get(9).createValueForDimension(current));
 					heartbeat.value(Lists.asList(vals, new OpenWareValue[0]));
 					DataService.onNewData(heartbeat);
 					logInfo("[Heartbeat] " + i.toString());
@@ -776,12 +736,10 @@ public class OpenWareInstance {
 		if (!isRunning()) {
 			this.started.complete(true);
 			javalinInstance.start(Config.getInt("sparkPort", 4567));
-			OpenWareInstance.getInstance()
-							.logInfo("Started WebServer...");
-			getInstance()	.awaitInitialization()
-							.whenComplete((success, error) -> {
-								startStatsMonitoring();
-							});
+			OpenWareInstance.getInstance().logInfo("Started WebServer...");
+			getInstance().awaitInitialization().whenComplete((success, error) -> {
+				startStatsMonitoring();
+			});
 		}
 		setRunning(true);
 	}
@@ -818,9 +776,8 @@ public class OpenWareInstance {
 
 		while (it.hasNext()) {
 			DataHandler handler = it.next();
-			OWService aHandler = new OWService(handler	.getClass()
-														.getCanonicalName(),
-					handler, new OWServiceActivator() {
+			OWService aHandler = new OWService(handler.getClass().getCanonicalName(), handler,
+					new OWServiceActivator() {
 
 						@Override
 						public boolean unload() throws Exception {
@@ -828,15 +785,14 @@ public class OpenWareInstance {
 						}
 
 						@Override
-						public Object load(Object prevInstance, JSONObject options) throws Exception {
+						public Object load(Object prevInstance, JSONObject options)
+								throws Exception {
 							if (prevInstance != null) {
 								DataService.removeHandler((DataHandler) prevInstance);
 							}
 							handler.setOptions(options);
 							DataService.addHandler(handler);
-							logInfo(handler	.getClass()
-											.getCanonicalName()
-									+ " loaded!");
+							logInfo(handler.getClass().getCanonicalName() + " loaded!");
 							return handler;
 						}
 					});
@@ -844,8 +800,7 @@ public class OpenWareInstance {
 				try {
 					aHandler.load(null);
 				} catch (Exception e) {
-					logError("Could not load DataHandler " + aHandler	.getClass()
-																		.getCanonicalName(),
+					logError("Could not load DataHandler " + aHandler.getClass().getCanonicalName(),
 							e);
 				}
 			}
@@ -855,32 +810,28 @@ public class OpenWareInstance {
 
 	private void loadTransformationOperations() {
 		logInfo("------- 		Loading Tranformation Operations 		------");
-		ServiceLoader<TransformationOperation> loader = ServiceLoader.load(TransformationOperation.class);
+		ServiceLoader<TransformationOperation> loader =
+				ServiceLoader.load(TransformationOperation.class);
 		Iterator<TransformationOperation> it = loader.iterator();
 		while (it.hasNext()) {
 			TransformationOperation op = it.next();
-			OWService anOperation = new OWService(op.getClass()
-													.getCanonicalName(),
-					op, new OWServiceActivator() {
+			OWService anOperation =
+					new OWService(op.getClass().getCanonicalName(), op, new OWServiceActivator() {
 
 						@Override
 						public boolean unload() throws Exception {
-							TransformationService	.getInstance()
-													.removeOperation(op.getClass());
+							TransformationService.getInstance().removeOperation(op.getClass());
 							return true;
 						}
 
 						@Override
-						public Object load(Object prevInstance, JSONObject options) throws Exception {
+						public Object load(Object prevInstance, JSONObject options)
+								throws Exception {
 							if (prevInstance != null) {
-								TransformationService	.getInstance()
-														.removeOperation(op.getClass());
+								TransformationService.getInstance().removeOperation(op.getClass());
 							}
-							TransformationService	.getInstance()
-													.registerOperation(op.getClass());
-							logInfo(op	.getClass()
-										.getCanonicalName()
-									+ " loaded!");
+							TransformationService.getInstance().registerOperation(op.getClass());
+							logInfo(op.getClass().getCanonicalName() + " loaded!");
 							return op;
 						}
 					});
@@ -888,9 +839,8 @@ public class OpenWareInstance {
 				try {
 					anOperation.load(null);
 				} catch (Exception e) {
-					logError("Could not load TransformationOperation " + anOperation.getClass()
-																					.getCanonicalName(),
-							e);
+					logError("Could not load TransformationOperation "
+							+ anOperation.getClass().getCanonicalName(), e);
 				}
 			}
 		}
@@ -902,9 +852,8 @@ public class OpenWareInstance {
 		Iterator<ActuatorAdapter> it = loader.iterator();
 		while (it.hasNext()) {
 			ActuatorAdapter actor = it.next();
-			OWService anActuator = new OWService(actor	.getClass()
-														.getCanonicalName(),
-					actor, new OWServiceActivator() {
+			OWService anActuator = new OWService(actor.getClass().getCanonicalName(), actor,
+					new OWServiceActivator() {
 
 						@Override
 						public boolean unload() throws Exception {
@@ -913,12 +862,11 @@ public class OpenWareInstance {
 						}
 
 						@Override
-						public Object load(Object prevInstance, JSONObject options) throws Exception {
+						public Object load(Object prevInstance, JSONObject options)
+								throws Exception {
 							actor.init(options, true);
 							DataService.addActuator(actor);
-							logInfo(actor	.getClass()
-											.getCanonicalName()
-									+ " loaded!");
+							logInfo(actor.getClass().getCanonicalName() + " loaded!");
 							return actor;
 						}
 					});
@@ -926,8 +874,7 @@ public class OpenWareInstance {
 				try {
 					anActuator.load(null);
 				} catch (Exception e) {
-					logError("Could not load Actuator " + anActuator.getClass()
-																	.getCanonicalName(),
+					logError("Could not load Actuator " + anActuator.getClass().getCanonicalName(),
 							e);
 				}
 			}
@@ -940,29 +887,24 @@ public class OpenWareInstance {
 		Iterator<ReportInterface> it = loader.iterator();
 		while (it.hasNext()) {
 			ReportInterface provider = it.next();
-			OWService aProvider = new OWService(provider.getClass()
-														.getCanonicalName(),
-					provider, new OWServiceActivator() {
+			OWService aProvider = new OWService(provider.getClass().getCanonicalName(), provider,
+					new OWServiceActivator() {
 
 						@Override
 						public boolean unload() throws Exception {
-							ReportsService	.getInstance()
-											.removeReportType(provider.getTag());
+							ReportsService.getInstance().removeReportType(provider.getTag());
 							return true;
 						}
 
 						@Override
-						public Object load(Object prevInstance, JSONObject options) throws Exception {
+						public Object load(Object prevInstance, JSONObject options)
+								throws Exception {
 							if (prevInstance != null) {
-								ReportsService	.getInstance()
-												.removeReportType(provider.getTag());
+								ReportsService.getInstance().removeReportType(provider.getTag());
 							}
-							ReportsService	.getInstance()
-											.addReportType(provider.getTag(),
-													(Class<ReportInterface>) provider.getClass());
-							logInfo(provider.getClass()
-											.getCanonicalName()
-									+ " loaded!");
+							ReportsService.getInstance().addReportType(provider.getTag(),
+									(Class<ReportInterface>) provider.getClass());
+							logInfo(provider.getClass().getCanonicalName() + " loaded!");
 							return provider;
 						}
 					});
@@ -970,8 +912,7 @@ public class OpenWareInstance {
 				try {
 					aProvider.load(null);
 				} catch (Exception e) {
-					logError("Could not load ReportType " + aProvider	.getClass()
-																		.getCanonicalName(),
+					logError("Could not load ReportType " + aProvider.getClass().getCanonicalName(),
 							e);
 				}
 			}
@@ -982,25 +923,20 @@ public class OpenWareInstance {
 	/*
 	 * // V-Sensor private void loadAnalyticsProvider() {
 	 * logInfo("------- 			Loading Analytic Providers			------");
-	 * ServiceLoader<AnalyticsProvider> loader =
-	 * ServiceLoader.load(AnalyticsProvider.class); Iterator<AnalyticsProvider> it =
-	 * loader.iterator(); while (it.hasNext()) { AnalyticsProvider provider =
-	 * it.next(); OWService aProviderService = new
-	 * OWService(provider.getClass().getCanonicalName(), provider, new
-	 * OWServiceActivator() {
+	 * ServiceLoader<AnalyticsProvider> loader = ServiceLoader.load(AnalyticsProvider.class);
+	 * Iterator<AnalyticsProvider> it = loader.iterator(); while (it.hasNext()) { AnalyticsProvider
+	 * provider = it.next(); OWService aProviderService = new
+	 * OWService(provider.getClass().getCanonicalName(), provider, new OWServiceActivator() {
 	 * 
 	 * @Override public boolean unload() throws Exception {
-	 * AnalyticsService.getInstance().deregisterAnalyticsProvider(provider.getOID())
-	 * ; logInfo(provider.getClass().getCanonicalName() + " loaded!"); return true;
-	 * }
+	 * AnalyticsService.getInstance().deregisterAnalyticsProvider(provider.getOID()) ;
+	 * logInfo(provider.getClass().getCanonicalName() + " loaded!"); return true; }
 	 * 
-	 * @Override public Object load(Object prevInstance, JSONObject options) throws
-	 * Exception {
-	 * AnalyticsService.getInstance().registerAnalyticsProvider(provider.getOID(),
-	 * provider); logInfo(provider.getClass().getCanonicalName() + " loaded!");
-	 * return provider; } }); if (!aProviderService.isDeactivated()) { try {
-	 * aProviderService.load(null); } catch (Exception e) {
-	 * logError("Could not load AnalyticsProvider " +
+	 * @Override public Object load(Object prevInstance, JSONObject options) throws Exception {
+	 * AnalyticsService.getInstance().registerAnalyticsProvider(provider.getOID(), provider);
+	 * logInfo(provider.getClass().getCanonicalName() + " loaded!"); return provider; } }); if
+	 * (!aProviderService.isDeactivated()) { try { aProviderService.load(null); } catch (Exception
+	 * e) { logError("Could not load AnalyticsProvider " +
 	 * aProviderService.getClass().getCanonicalName(), e); } } } }
 	 */
 	private void loadHTTPAPI() {
@@ -1010,20 +946,15 @@ public class OpenWareInstance {
 		while (it.hasNext()) {
 			OpenWareAPI api = it.next();
 			registerService(api);
-			logInfo(api	.getClass()
-						.getCanonicalName()
-					+ " loaded!");
+			logInfo(api.getClass().getCanonicalName() + " loaded!");
 		}
 	}
 
 	private UserAdapter loadUserAdapter() throws Exception {
 		logInfo("------- 				Loading User Adapter			------");
 		ServiceLoader<UserAdapter> loader = ServiceLoader.load(UserAdapter.class);
-		UserAdapter adapter = loader.iterator()
-									.next();
-		logInfo(adapter	.getClass()
-						.getCanonicalName()
-				+ " loaded!");
+		UserAdapter adapter = loader.iterator().next();
+		logInfo(adapter.getClass().getCanonicalName() + " loaded!");
 		return adapter;
 
 	}
@@ -1032,11 +963,8 @@ public class OpenWareInstance {
 		logInfo("------- 			Loading Persistence Adapter			------");
 		ServiceLoader<PersistenceAdapter> loader = ServiceLoader.load(PersistenceAdapter.class);
 		try {
-			PersistenceAdapter adapter = loader	.iterator()
-												.next();
-			logInfo(adapter	.getClass()
-							.getCanonicalName()
-					+ " loaded!");
+			PersistenceAdapter adapter = loader.iterator().next();
+			logInfo(adapter.getClass().getCanonicalName() + " loaded!");
 			return adapter;
 		} catch (NoSuchElementException e) {
 			return null;
@@ -1048,11 +976,8 @@ public class OpenWareInstance {
 		logInfo("------- 			Loading Reference Adapter			------");
 		ServiceLoader<ReferenceAdapter> loader = ServiceLoader.load(ReferenceAdapter.class);
 		try {
-			ReferenceAdapter adapter = loader	.iterator()
-												.next();
-			logInfo(adapter	.getClass()
-							.getCanonicalName()
-					+ " loaded!");
+			ReferenceAdapter adapter = loader.iterator().next();
+			logInfo(adapter.getClass().getCanonicalName() + " loaded!");
 			return adapter;
 		} catch (NoSuchElementException e) {
 			return null;
@@ -1065,8 +990,7 @@ public class OpenWareInstance {
 		ServiceLoader<OpenWarePlugin> pluginLoader = ServiceLoader.load(OpenWarePlugin.class);
 		for (OpenWarePlugin plugin : pluginLoader) {
 			try {
-				OWService pluginService = new OWService(plugin	.getClass()
-																.getCanonicalName(),
+				OWService pluginService = new OWService(plugin.getClass().getCanonicalName(),
 						plugin, new OWServiceActivator() {
 
 							@Override
@@ -1076,11 +1000,10 @@ public class OpenWareInstance {
 							}
 
 							@Override
-							public Object load(Object prevInstance, JSONObject options) throws Exception {
+							public Object load(Object prevInstance, JSONObject options)
+									throws Exception {
 								plugin.init(OpenWareInstance.getInstance(), options);
-								logInfo(plugin	.getClass()
-												.getCanonicalName()
-										+ " loaded!");
+								logInfo(plugin.getClass().getCanonicalName() + " loaded!");
 								return plugin;
 							}
 						});
@@ -1088,9 +1011,7 @@ public class OpenWareInstance {
 				if (!pluginService.isDeactivated())
 					pluginService.load(null);
 			} catch (Exception e) {
-				logError("Error while loading Plugin " + plugin	.getClass()
-																.getCanonicalName(),
-						e);
+				logError("Error while loading Plugin " + plugin.getClass().getCanonicalName(), e);
 			}
 		}
 	}

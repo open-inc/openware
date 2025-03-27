@@ -30,7 +30,8 @@ public class AlarmMonitorThreadV1 extends Thread {
 	private MailSender ms;
 
 	public AlarmMonitorThreadV1(JSONArray alarms) {
-		ms = MailSender.getInstance();
+		//ms = MailSender.getInstance();
+		ms = (MailSender) DataService.getActuator("email");
 		this.alarms = updateMonitors(alarms);
 		mailProcessQueue = new HashMap<>();
 		ticketProcessQueue = new HashMap<>();

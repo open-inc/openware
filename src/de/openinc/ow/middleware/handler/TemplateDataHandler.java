@@ -19,7 +19,7 @@ import de.openinc.model.data.OpenWareValue;
 import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.helper.Config;
 
-public class TemplateDataHandler implements DataHandler {
+public class TemplateDataHandler extends DataHandler {
 	public static final String CSV = "csv";
 	public static final String JSON_TIME_VALUE_PAIR = "jsontv";
 	public static final String JSON_TIME_VALUEARRAY_PAIR = "jsontva";
@@ -46,11 +46,12 @@ public class TemplateDataHandler implements DataHandler {
 	private Map<String, String> options;
 	private String extId;
 
-	public TemplateDataHandler(DataHandler handlerForTemplateFormat, Map<String, String> options, String externalID)
-			throws IllegalArgumentException {
+	public TemplateDataHandler(DataHandler handlerForTemplateFormat, Map<String, String> options,
+			String externalID) throws IllegalArgumentException {
 		this.internalDH = handlerForTemplateFormat;
 		if (options == null || options.size() == 0 || !options.containsKey("type")) {
-			throw new IllegalArgumentException("Options Map must not be emtpy and must at least contain 'type'-entry!");
+			throw new IllegalArgumentException(
+					"Options Map must not be emtpy and must at least contain 'type'-entry!");
 		}
 		this.options = options;
 		this.extId = externalID;
@@ -65,39 +66,40 @@ public class TemplateDataHandler implements DataHandler {
 		try {
 			OpenWareDataItem item = internalDH.handleData(id, template.toString()).get(0);
 			switch (options.get(TYPE)) {
-			case JSON_TIME_VALUEARRAY_PAIR: {
-				item.value(parseJSONTVArrayPair(item, data));
-				ArrayList<OpenWareDataItem> list = new ArrayList<>();
-				list.add(item);
-				return list;
-			}
-			case JSON_TIME_VALUE_PAIR: {
-				item.value(parseJSONTVPair(item, data));
-				ArrayList<OpenWareDataItem> list = new ArrayList<>();
-				list.add(item);
-				return list;
-			}
-			case SINGLE_VALUE: {
-				parseSingleValue(item, data);
-				ArrayList<OpenWareDataItem> list = new ArrayList<>();
-				list.add(item);
-				return list;
-			}
-			case CSV: {
-				List<OpenWareValue> vals = parseCSV(item, data);
-				item.value(vals);
-				ArrayList<OpenWareDataItem> list = new ArrayList<>();
-				list.add(item);
-				return list;
-			}
+				case JSON_TIME_VALUEARRAY_PAIR: {
+					item.value(parseJSONTVArrayPair(item, data));
+					ArrayList<OpenWareDataItem> list = new ArrayList<>();
+					list.add(item);
+					return list;
+				}
+				case JSON_TIME_VALUE_PAIR: {
+					item.value(parseJSONTVPair(item, data));
+					ArrayList<OpenWareDataItem> list = new ArrayList<>();
+					list.add(item);
+					return list;
+				}
+				case SINGLE_VALUE: {
+					parseSingleValue(item, data);
+					ArrayList<OpenWareDataItem> list = new ArrayList<>();
+					list.add(item);
+					return list;
+				}
+				case CSV: {
+					List<OpenWareValue> vals = parseCSV(item, data);
+					item.value(vals);
+					ArrayList<OpenWareDataItem> list = new ArrayList<>();
+					list.add(item);
+					return list;
+				}
 
-			default:
-				return null;
+				default:
+					return null;
 			}
 
 		} catch (Exception e) {
 
-			OpenWareInstance.getInstance().logDebug("TEMPLATE_DATA_HANDLER " + e.getLocalizedMessage(), e);
+			OpenWareInstance.getInstance()
+					.logDebug("TEMPLATE_DATA_HANDLER " + e.getLocalizedMessage(), e);
 			return null;
 		}
 
@@ -164,8 +166,8 @@ public class TemplateDataHandler implements DataHandler {
 				OpenWareValue value = new OpenWareValue(ts);
 				for (int i = 0; i < valIndex.length; i++) {
 
-					value.addValueDimension(
-							item.getValueTypes().get(i).createValueForDimension(vals[Integer.parseInt(valIndex[i])]));
+					value.addValueDimension(item.getValueTypes().get(i)
+							.createValueForDimension(vals[Integer.parseInt(valIndex[i])]));
 					res.add(value);
 
 				}
@@ -175,7 +177,8 @@ public class TemplateDataHandler implements DataHandler {
 		return res;
 	}
 
-	private List<OpenWareValue> parseJSONTVPair(OpenWareDataItem item, String data) throws Exception {
+	private List<OpenWareValue> parseJSONTVPair(OpenWareDataItem item, String data)
+			throws Exception {
 		ArrayList<OpenWareValue> res = new ArrayList<>();
 		JSONArray values = new JSONArray();
 		if (!data.startsWith("[")) {
@@ -195,7 +198,8 @@ public class TemplateDataHandler implements DataHandler {
 		return res;
 	}
 
-	private List<OpenWareValue> parseJSONTVArrayPair(OpenWareDataItem item, String data) throws Exception {
+	private List<OpenWareValue> parseJSONTVArrayPair(OpenWareDataItem item, String data)
+			throws Exception {
 		ArrayList<OpenWareValue> res = new ArrayList<>();
 		JSONArray values = new JSONArray();
 		if (!data.startsWith("[")) {
@@ -211,7 +215,8 @@ public class TemplateDataHandler implements DataHandler {
 			JSONArray vals = values.getJSONObject(i).getJSONArray(JSON_VALUE_FIELD);
 			for (int j = 0; j < vals.length(); j++) {
 
-				value.addValueDimension(item.getValueTypes().get(j).createValueForDimension(vals.optString(j)));
+				value.addValueDimension(
+						item.getValueTypes().get(j).createValueForDimension(vals.optString(j)));
 			}
 			res.add(value);
 		}

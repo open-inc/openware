@@ -66,6 +66,7 @@ public class DataService {
 	public static final String PERSIST_ITEM_STATE = "LAST_ITEM_STATE";
 	private static Timer timer;
 	private static HashMap<String, String> storeKeys;
+	private static DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss");
 
 	/**
 	 * The init methods needs be called once before all services can be used. It initializes all
@@ -268,16 +269,31 @@ public class DataService {
 	 * Can be used to add a {@link de.openinc.ow.core.api.DataHandler}. If you register a
 	 * DataHandler, it will be called by the DataService when new unstructured data arrives. The
 	 * DataService will sequentially pass the information to the DataHandlers until one handler can
-	 * parse the data and return a {@link de.openinc.model.data.OpenWareDataItem} Object
+	 * parse the data and return a {@link de.openinc.model.data.OpenWareDataItem} Object. The order
+	 * by which handlers are called can be configured in the configuration file with
+	 * {@code DATAHANDLER_ORDER} env.
 	 * 
 	 * @param dh
 	 * @return
 	 */
-	public static DataHandler addHandler(DataHandler dh) {
-		if (handler.add(dh)) {
-			return dh;
-		}
-		return null;
+	public static boolean addHandler(DataHandler dh) {
+		List<String> handlerOrder = Arrays.asList(Config.get("DATAHANDLER_ORDER", "").split(";"));
+		boolean added = handler.add(dh);
+		handler.sort((a, b) -> {
+			int indexA = handlerOrder.indexOf(a.getClass().getTypeName());
+			int indexB = handlerOrder.indexOf(b.getClass().getTypeName());
+			if (indexA == -1) {
+				indexA = Integer.MAX_VALUE;
+			}
+			if (indexB == -1) {
+				indexB = Integer.MAX_VALUE;
+			}
+			return Integer.compare(indexA, indexB);
+		});
+
+		return added;
+
+
 	}
 
 	/**
@@ -447,40 +463,7 @@ public class DataService {
 	 */
 	public static HashMap<String, OpenWareDataItem> getItemConfiguration(User user) {
 		HashMap<String, OpenWareDataItem> res = new HashMap<>();
-		/*--
-		List<OpenWareDataItem> items = DataService.getItems(user);
-		
-		for (OpenWareDataItem item : items) {
-		
-			String id = item.getId();
-			String source = item.getSource();
-			if (item.getMeta().has("id_source")) {
-				id = item.getMeta().getString("id_source");
-				if (item.getMeta().has("source_source")) {
-					source = item.getMeta().getString("source_source");
-				}
-				if (!isCurrentCustomizedItem(item))
-					continue;
-			}
-			res.put(source + Config.get("idSeperator", "---") + id, item);
-			List<JSONObject> temp;
-			try {
-				temp = DataService.getGenericData(CONFIG_STORE_TYPE, item.getMeta().getString("configuration_id"));
-		
-				if (temp != null && temp.size() > 0) {
-					OpenWareDataItem custom = OpenWareDataItem.fromJSON(temp.get(0));
-					if (!custom.getMeta().has("source_source")) {
-						custom.getMeta().put("source_source", custom.getSource());
-					}
-					res.put(custom.getMeta().getString("source_source") + Config.get("idSeperator", "---")
-							+ custom.getMeta().getString("id_source"), custom);
-				}
-			} catch (JSONException e) {
-				continue;
-			} catch (Exception e) {
-				continue;
-			}
-		}*/
+
 		try {
 			List<JSONObject> confs = DataService.getGenericData(CONFIG_STORE_TYPE, null);
 			for (JSONObject o : confs) {
@@ -489,6 +472,7 @@ public class DataService {
 					cItem.value().clear();
 					OpenWareDataItem currentValues =
 							DataService.getLiveSensorData(cItem.getId(), cItem.getSource());
+
 					if (currentValues == null) {
 						OpenWareInstance.getInstance()
 								.logWarn("Item Configuration for non existing item:"
@@ -620,12 +604,10 @@ public class DataService {
 		if (Config.getBool("verbose", false)) {
 
 			try {
-				DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss");
 				LocalDateTime localDate = LocalDateTime.now();
 				OpenWareInstance.getInstance().logData(dtf.format(localDate).toString(),
 						System.currentTimeMillis(), id, data.toString());
 			} catch (Exception e) {
-				System.out.println(e);
 				e.printStackTrace();
 				OpenWareInstance.getInstance().logData("Date Error", System.currentTimeMillis(), id,
 						data.toString());
@@ -1279,7 +1261,9 @@ public class DataService {
 			throws Exception {
 		String res = adapter.storeGenericData(type, key, value);
 		if (res != null) {
-			OpenWareInstance.getInstance().logDebug("Stored Generic Data " + type + ":" + res);
+			if (Config.getBool("verbose", false)) {
+				OpenWareInstance.getInstance().logDebug("Stored Generic Data " + type + ":" + res);
+			}
 		}
 		return res;
 	}
@@ -1361,6 +1345,9 @@ class DataProcessTask implements Supplier<CompletableFuture<Boolean>> {
 			if (data != null) {
 				List<OpenWareDataItem> toProcess = null;
 				for (DataHandler dh : DataService.getHandler()) {
+					if (!dh.acceptData(id)) {
+						continue;
+					}
 					try {
 						toProcess = dh.handleData(id, data);
 						if (toProcess == null)

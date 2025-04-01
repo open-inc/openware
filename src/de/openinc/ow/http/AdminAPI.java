@@ -1,10 +1,9 @@
 package de.openinc.ow.http;
 
-import static io.javalin.apibuilder.ApiBuilder.delete;
+import static io.javalin.apibuilder.ApiBuilder.before;
 import static io.javalin.apibuilder.ApiBuilder.get;
 import static io.javalin.apibuilder.ApiBuilder.path;
-import static io.javalin.apibuilder.ApiBuilder.post;
-
+import static io.javalin.apibuilder.ApiBuilder.sse;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -14,22 +13,22 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Predicate;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
-
+import org.apache.commons.math3.analysis.function.Log;
+import org.json.JSONObject;
 import de.openinc.api.OpenWareAPI;
-import de.openinc.model.data.OpenWareDataItem;
+import de.openinc.model.user.Role;
 import de.openinc.model.user.User;
 import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.helper.Config;
 import de.openinc.ow.helper.HTTPResponseHelper;
-import de.openinc.ow.middleware.services.DataService;
-import io.javalin.http.BadRequestResponse;
-import io.javalin.http.ForbiddenResponse;
+import de.openinc.ow.helper.LogConsumer;
+import io.javalin.http.Context;
 import io.javalin.http.InternalServerErrorResponse;
-import io.javalin.http.MethodNotAllowedResponse;
+
 
 public class AdminAPI implements OpenWareAPI {
 	/**
@@ -38,194 +37,106 @@ public class AdminAPI implements OpenWareAPI {
 	public static final String GET_STATS = "/state";
 	public static final String GET_ANALYTIC_STATS = "/getAnalyticsStats";
 	public static final String GET_LOGS = "/logs";
+	public static final String GET_LOGS_LIVE = "/livelogs";
 
-	/**
-	 * API constant to GET/POST Sensor Config
-	 */
-	public static final String SENSOR_CONFIG = "/sensors";
+
+
+	private static void logs(Context ctx) throws Exception {
+		User user = ctx.sessionAttribute("user");
+		String roleLabel = Config.get("OW_ADMIN_ROLE", "od-admin");
+		Optional<Role> adminRole = user.getRoles().stream()
+				.filter(role -> role.getName().equals(roleLabel)).findFirst();
+		if (adminRole.isEmpty()) {
+			HTTPResponseHelper.forbidden("User is no " + roleLabel);
+		}
+		int files = 1;
+		String type = "console";
+		if (ctx.queryParamMap().size() > 0) {
+			files = Integer.parseInt(ctx.queryParam("files"));
+			type = ctx.queryParam("type");
+			if (type == null || type.equals("")) {
+				type = "console";
+			}
+		}
+		final String filterType = type.toLowerCase();
+		File logDir = new File("logs");
+		if (!logDir.isDirectory()) {
+			throw new InternalServerErrorResponse("Can't open log dir");
+		}
+		List<String> filteredFiles = Arrays.stream(logDir.list(new FilenameFilter() {
+
+			@Override
+			public boolean accept(File dir, String name) {
+				return name.toLowerCase().contains(filterType);
+			}
+		})).sorted(new Comparator<String>() {
+
+			@Override
+			public int compare(String o1, String o2) {
+				File f1 = new File("logs" + File.separatorChar + o1);
+				File f2 = new File("logs" + File.separatorChar + o2);
+				long mf1 = f1.lastModified();
+				long mf2 = f2.lastModified();
+				if (mf1 > mf2)
+					return -1;
+				if (mf1 < mf2)
+					return 1;
+				return 0;
+			}
+		}).limit(files).collect(Collectors.toList());
+		ctx.status(200);
+		OutputStream out = ctx.outputStream();
+		BufferedOutputStream bout = new BufferedOutputStream(out);
+		for (String file : filteredFiles) {
+			File f = new File("logs" + File.separatorChar + file);
+			System.out.println("Printing logs " + file + "(" + f.getAbsolutePath() + ")");
+			FileInputStream fis = new FileInputStream(f);
+			List<String> lines = IOUtils.readLines(fis, Charset.forName("UTF-8"));
+			for (String line : lines) {
+				bout.write((line + "\n").getBytes());
+			}
+		}
+		bout.flush();
+		bout.close();
+	};
 
 	@Override
 	public void registerRoutes() {
 
+
+
 		path("/admin", () -> {
-			get(GET_LOGS, ctx -> {
-				int files = 1;
-				String type = "console";
-				if (ctx	.queryParamMap()
-						.size() > 0) {
-					files = Integer.parseInt(ctx.queryParam("files"));
-					type = ctx.queryParam("type");
-					if (type == null || type.equals("")) {
-						type = "console";
+			// before(ctx -> {
+			// User user = ctx.sessionAttribute("user");
+			// String roleLabel = Config.get("OW_ADMIN_ROLE", "od-admin");
+			// Optional<Role> adminRole = user.getRoles().stream()
+			// .filter(role -> role.getName().equals(roleLabel)).findFirst();
+			// if (adminRole.isEmpty()) {
+			// HTTPResponseHelper.forbidden("User is no " + roleLabel);
+			// }
+			// });
+
+			get(GET_LOGS, ctx -> logs(ctx));
+			sse(GET_LOGS_LIVE, client -> {
+				LogConsumer logConsumer = new LogConsumer() {
+					@Override
+					public void onLog(String level, String message) {
+						JSONObject json = new JSONObject();
+						json.put("level", level);
+						json.put("message", message);
+						client.sendEvent(json.toString());
 					}
-				}
-				final String filterType = type.toLowerCase();
-				File logDir = new File("logs");
-				if (!logDir.isDirectory()) {
-					throw new InternalServerErrorResponse("Can't open log dir");
-				}
-				List<String> filteredFiles = Arrays	.stream(logDir.list(new FilenameFilter() {
-
-														@Override
-														public boolean accept(File dir, String name) {
-															return name	.toLowerCase()
-																		.contains(filterType);
-														}
-													}))
-													.sorted(new Comparator<String>() {
-
-														@Override
-														public int compare(String o1, String o2) {
-															File f1 = new File("logs" + File.separatorChar + o1);
-															File f2 = new File("logs" + File.separatorChar + o2);
-															long mf1 = f1.lastModified();
-															long mf2 = f2.lastModified();
-															if (mf1 > mf2)
-																return -1;
-															if (mf1 < mf2)
-																return 1;
-															return 0;
-														}
-													})
-													.limit(files)
-													.collect(Collectors.toList());
-				ctx.status(200);
-				OutputStream out = ctx.outputStream();
-				BufferedOutputStream bout = new BufferedOutputStream(out);
-				for (String file : filteredFiles) {
-					File f = new File("logs" + File.separatorChar + file);
-					System.out.println("Printing logs " + file + "(" + f.getAbsolutePath() + ")");
-					FileInputStream fis = new FileInputStream(f);
-					List<String> lines = IOUtils.readLines(fis, Charset.forName("UTF-8"));
-					for (String line : lines) {
-						bout.write((line + "\n").getBytes());
-					}
-				}
-				bout.flush();
-				bout.close();
+				};
+				client.onClose(() -> {
+					OpenWareInstance.getInstance().unregisterLogConsumer(logConsumer);
+				});
+				client.close();
 			});
 
-			post(SENSOR_CONFIG, ctx -> {
-
-				User user = null;
-				if (Config.getBool("accessControl", true)) {
-					user = ctx.sessionAttribute("user");
-					if (user == null)
-						HTTPResponseHelper.forbidden("You need to log in to configure items");
-				}
-				try {
-
-					String res = DataService.storeItemConfiguration(user, ctx.body());
-					HTTPResponseHelper.ok(ctx, res);
-
-				} catch (SecurityException | MethodNotAllowedResponse e2) {
-					HTTPResponseHelper.forbidden("Not allowed to configure sensor\n" + e2.getMessage());
-
-				} catch (Exception e) {
-					OpenWareInstance.getInstance()
-									.logError("Malformed data posted to Sensor Config API\n" + ctx.body(), e);
-					HTTPResponseHelper.badRequest("Malformed data posted to Sensor Config API\n" + e.getMessage());
-
-				}
-			});
-
-			get(SENSOR_CONFIG + "/{source}", ctx -> {
-				User user = ctx.sessionAttribute("user");
-				String source = ctx.pathParam("source");
-				if (Config.getBool("accessControl", true) && user == null) {
-					HTTPResponseHelper.forbidden("You need to log in to configure items");
-				}
-				try {
-
-					ctx.json(DataService.getItemConfiguration(user)
-										.values()
-										.stream()
-										.filter(new Predicate<OpenWareDataItem>() {
-
-											@Override
-											public boolean test(OpenWareDataItem t) {
-												return source == null || t	.getSource()
-																			.equals(source);
-											}
-										})
-										.filter(new Predicate<OpenWareDataItem>() {
-
-											@SuppressWarnings("null")
-											@Override
-											public boolean test(OpenWareDataItem t) {
-												String source = t	.getMeta()
-																	.optString("source_source");
-												String id = t	.getMeta()
-																.optString("id_source");
-												if (source.equals(""))
-													source = t.getSource();
-												if (id.equals(""))
-													id = t.getId();
-												return user.canAccessWrite(source, id);
-											}
-
-										})
-										.map((item) -> {
-											item.value(DataService	.getLiveSensorData(item.getId(), item.getSource())
-																	.value());
-											return item;
-										})
-										.collect(Collectors.toList()));
-				} catch (Exception e) {
-					HTTPResponseHelper.internalError(e.getMessage());
-				}
-
-			});
-
-			get(SENSOR_CONFIG, ctx -> {
-				User user = ctx.sessionAttribute("user");
-				if (Config.getBool("accessControl", true) && user == null) {
-					HTTPResponseHelper.forbidden("You need to log in to configure items");
-				}
-				ctx.json(DataService.getItemConfiguration(user)
-									.values()
-									.stream()
-									.filter(new Predicate<OpenWareDataItem>() {
-
-										@SuppressWarnings("null")
-										@Override
-										public boolean test(OpenWareDataItem t) {
-											String source = t	.getMeta()
-																.optString("source_source");
-											String id = t	.getMeta()
-															.optString("id_source");
-											if (source.equals(""))
-												source = t.getSource();
-											if (id.equals(""))
-												id = t.getId();
-											return user.canAccessWrite(source, id);
-										}
-
-									})
-									.collect(Collectors.toList()));
-
-			});
-
-			delete(SENSOR_CONFIG + "/{owner}/{sensor}", ctx -> {
-				User user = null;
-				if (Config.getBool("accessControl", true)) {
-					user = ctx.sessionAttribute("user");
-					if (user == null)
-						throw new ForbiddenResponse("You need to log in to configure items");
-				}
-				if (DataService.deleteItemConfig(user, ctx.pathParam("owner"), ctx.pathParam("sensor"))) {
-					ctx.json("Successfully deleted Configuration");
-
-				} else {
-					throw new BadRequestResponse("Could not delete configuration or no configuration was assigned");
-
-				}
-			});
 
 			get(GET_STATS, ctx -> {
 
-				HTTPResponseHelper.ok(ctx, OpenWareInstance	.getInstance()
-															.getState());
+				HTTPResponseHelper.ok(ctx, OpenWareInstance.getInstance().getState());
 
 			});
 

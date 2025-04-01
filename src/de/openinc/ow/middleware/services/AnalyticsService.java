@@ -60,7 +60,10 @@ public class AnalyticsService {
 						OpenWareDataItem item = cVSensors.get(key);
 						item.setId(Config.get("analyticPrefix", "analytic.") + provider.getType()
 								+ "." + item.getId());
+						item.getMeta().put("isAnalytic", true);
+						item.getMeta().put("analyticProvider", provider.getType());
 						cachedSensors.put(item.getId(), item);
+
 					}
 				} catch (Exception e) {
 					OpenWareInstance.getInstance()

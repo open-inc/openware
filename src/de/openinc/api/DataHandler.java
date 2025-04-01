@@ -6,8 +6,13 @@ import org.json.JSONObject;
 
 import de.openinc.model.data.OpenWareDataItem;
 
-public interface DataHandler {
-	public List<OpenWareDataItem> handleData(String id, String data) throws Exception;
+public abstract class DataHandler {
 
-	public boolean setOptions(JSONObject options) throws Exception;
+	public abstract List<OpenWareDataItem> handleData(String id, String data) throws Exception;
+
+	public abstract boolean setOptions(JSONObject options) throws Exception;
+
+	public boolean acceptData(String topic) {
+		return true;
+	}
 }

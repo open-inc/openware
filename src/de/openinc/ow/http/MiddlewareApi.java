@@ -7,6 +7,7 @@ import static io.javalin.apibuilder.ApiBuilder.post;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.util.ArrayList;
@@ -14,7 +15,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.json.JSONArray;
@@ -30,7 +31,10 @@ import de.openinc.ow.OpenWareInstance;
 import de.openinc.ow.helper.Config;
 import de.openinc.ow.helper.HTTPResponseHelper;
 import de.openinc.ow.middleware.services.DataService;
+import io.javalin.http.BadRequestResponse;
 import io.javalin.http.Context;
+import io.javalin.http.ForbiddenResponse;
+import io.javalin.http.MethodNotAllowedResponse;
 import io.javalin.validation.ValidationException;
 import jakarta.servlet.ServletOutputStream;
 
@@ -41,10 +45,18 @@ public class MiddlewareApi implements OpenWareAPI {
 	public static final String LIVE_DATA_API = "/live/{source}/{sensorid}";
 
 	/**
+	 * API constant to GET/POST Sensor Config
+	 */
+	public static final String SENSOR_CONFIG = "/items";
+
+	/**
 	 * API constant to get sensor data for the source and sensor
 	 */
 	public static final String HISTORICAL_DATA_API =
 			"/historical/{source}/{sensorid}/{timestampStart}/{timestampEnd}";
+
+	public static final String COUNT_DATA_API =
+			"/count/{source}/{sensorid}/{timestampStart}/{timestampEnd}";
 	/**
 	 * API constant to get all scheduled deletes
 	 */
@@ -115,6 +127,116 @@ public class MiddlewareApi implements OpenWareAPI {
 				}
 
 			});
+			path("admin", () -> {
+				post(SENSOR_CONFIG, ctx -> {
+
+					User user = null;
+					if (Config.getBool("accessControl", true)) {
+						user = ctx.sessionAttribute("user");
+						if (user == null)
+							HTTPResponseHelper.forbidden("You need to log in to configure items");
+					}
+					try {
+
+						String res = DataService.storeItemConfiguration(user, ctx.body());
+						HTTPResponseHelper.ok(ctx, res);
+
+					} catch (SecurityException | MethodNotAllowedResponse e2) {
+						HTTPResponseHelper
+								.forbidden("Not allowed to configure sensor\n" + e2.getMessage());
+
+					} catch (Exception e) {
+						OpenWareInstance.getInstance().logError(
+								"Malformed data posted to Sensor Config API\n" + ctx.body(), e);
+						HTTPResponseHelper.badRequest(
+								"Malformed data posted to Sensor Config API\n" + e.getMessage());
+
+					}
+				});
+
+				get(SENSOR_CONFIG + "/{source}", ctx -> {
+					User user = ctx.sessionAttribute("user");
+					String source = ctx.pathParam("source");
+					if (Config.getBool("accessControl", true) && user == null) {
+						HTTPResponseHelper.forbidden("You need to log in to configure items");
+					}
+					try {
+
+						ctx.json(DataService.getItemConfiguration(user).values().stream()
+								.filter(new Predicate<OpenWareDataItem>() {
+
+									@Override
+									public boolean test(OpenWareDataItem t) {
+										return source == null || t.getSource().equals(source);
+									}
+								}).filter(new Predicate<OpenWareDataItem>() {
+
+									@SuppressWarnings("null")
+									@Override
+									public boolean test(OpenWareDataItem t) {
+										String source = t.getMeta().optString("source_source");
+										String id = t.getMeta().optString("id_source");
+										if (source.equals(""))
+											source = t.getSource();
+										if (id.equals(""))
+											id = t.getId();
+										return user.canAccessWrite(source, id);
+									}
+
+								}).map((item) -> {
+									item.value(DataService
+											.getLiveSensorData(item.getId(), item.getSource())
+											.value());
+									return item;
+								}).collect(Collectors.toList()));
+					} catch (Exception e) {
+						HTTPResponseHelper.internalError(e.getMessage());
+					}
+
+				});
+
+				get(SENSOR_CONFIG, ctx -> {
+					User user = ctx.sessionAttribute("user");
+					if (Config.getBool("accessControl", true) && user == null) {
+						HTTPResponseHelper.forbidden("You need to log in to configure items");
+					}
+					ctx.json(DataService.getItemConfiguration(user).values().stream()
+							.filter(new Predicate<OpenWareDataItem>() {
+
+								@SuppressWarnings("null")
+								@Override
+								public boolean test(OpenWareDataItem t) {
+									String source = t.getMeta().optString("source_source");
+									String id = t.getMeta().optString("id_source");
+									if (source.equals(""))
+										source = t.getSource();
+									if (id.equals(""))
+										id = t.getId();
+									return user.canAccessWrite(source, id);
+								}
+
+							}).collect(Collectors.toList()));
+
+				});
+
+				delete(SENSOR_CONFIG + "/{owner}/{sensor}", ctx -> {
+					User user = null;
+					if (Config.getBool("accessControl", true)) {
+						user = ctx.sessionAttribute("user");
+						if (user == null)
+							throw new ForbiddenResponse("You need to log in to configure items");
+					}
+					if (DataService.deleteItemConfig(user, ctx.pathParam("owner"),
+							ctx.pathParam("sensor"))) {
+						ctx.json("Successfully deleted Configuration");
+
+					} else {
+						throw new BadRequestResponse(
+								"Could not delete configuration or no configuration was assigned");
+
+					}
+				});
+			});
 
 			path(ITEMS_API, () -> {
 
@@ -140,6 +262,7 @@ public class MiddlewareApi implements OpenWareAPI {
 
 				});
 			});
+
 
 			get(LIVE_DATA_API, ctx -> {
 				User user = ctx.sessionAttribute("user");
@@ -169,7 +292,30 @@ public class MiddlewareApi implements OpenWareAPI {
 
 			});
 
+			get(COUNT_DATA_API, ctx -> {
+				String source = ctx.pathParam("source");
+				String sensorid = ctx.pathParam("sensorid");
+				User user = null;
+				if (Config.getBool("accessControl", true)) {
+					user = ctx.sessionAttribute("user");
+					if (user == null || !user.canAccessRead(source, sensorid))
+						HTTPResponseHelper.forbidden("Not allowed to read data");
+				}
+
+				Long timestampStart = ctx.pathParamAsClass("timestampStart", Long.class).get();
+				Long timestampEnd = ctx.pathParamAsClass("timestampEnd", Long.class).get();
+				OpenWareDataItem item;
+				OpenWareDataItem count = DataService.countSensorData(sensorid, source,
+						timestampStart, timestampEnd, null, null);
+				if (count == null) {
+					HTTPResponseHelper.ok(ctx, Double.valueOf(0));
+				}
+				double countOfValues = (double) count.value().get(0).get(0).value();
+				HTTPResponseHelper.ok(ctx, Double.valueOf(countOfValues));
+			});
+
 			get(HISTORICAL_DATA_API, ctx -> {
+
 				String source = ctx.pathParam("source");
 				String sensorid = ctx.pathParam("sensorid");
 				User user = null;
@@ -211,11 +357,13 @@ public class MiddlewareApi implements OpenWareAPI {
 						ctx.status(200);
 					} else {
 						long interval = timestampEnd - timestampStart;
-						int steps = (int) countOfValues / 1_00_000;
+						int steps = (int) countOfValues / 100000;
 						int stepSize = (int) interval / steps;
 						PipedInputStream in = new PipedInputStream();
 						PipedOutputStream out = new PipedOutputStream(in);
-						ctx.result(in);
+						ctx.contentType("application/json");
+						OutputStream outputStream = ctx.res().getOutputStream();
+
 						for (int i = 0; i < steps; i++) {
 							long start = timestampStart + (stepSize * i);
 							long end = i == steps - 1 ? timestampEnd
@@ -225,8 +373,10 @@ public class MiddlewareApi implements OpenWareAPI {
 							boolean last = i == (steps - 1);
 							boolean valuesOnly = i != 0;
 
-							item.streamPrint(out, valuesOnly, last);
+							item.streamPrint(outputStream, valuesOnly, last);
 						}
+
+
 						ctx.status(200);
 					}
 
@@ -346,6 +496,9 @@ public class MiddlewareApi implements OpenWareAPI {
 			});
 
 		});
+
+
+
 		path(ACTUATOR_LIST_API, () -> {
 			get("/", ctx -> {
 				HTTPResponseHelper.ok(ctx, DataService.getActuators());

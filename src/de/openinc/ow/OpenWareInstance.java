@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.IsoFields;
 import java.util.ArrayList;
+
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -24,7 +25,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
-
+import org.apache.commons.math3.analysis.function.Log;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -65,6 +66,7 @@ import de.openinc.model.data.OpenWareValueDimension;
 import de.openinc.model.user.User;
 import de.openinc.ow.helper.Config;
 import de.openinc.ow.helper.DataTools;
+import de.openinc.ow.helper.LogConsumer;
 import de.openinc.ow.http.AdminAPI;
 import de.openinc.ow.http.AlarmAPI;
 import de.openinc.ow.http.AnalyticsServiceAPI;
@@ -84,6 +86,7 @@ import io.javalin.Javalin;
 import io.javalin.http.ForbiddenResponse;
 import io.javalin.http.staticfiles.Location;
 import io.javalin.json.JsonMapper;
+
 
 public class OpenWareInstance {
 	/**
@@ -119,6 +122,7 @@ public class OpenWareInstance {
 	private CompletableFuture<Boolean> started;
 	private Javalin javalinInstance;
 	private Gson gson;
+	private List<LogConsumer> logConsumers;
 
 	public void logData(String current, long ts, String topic, String msg) {
 
@@ -203,7 +207,7 @@ public class OpenWareInstance {
 
 		me = this;
 		this.services = new ArrayList<OpenWareAPI>();
-
+		this.logConsumers = new ArrayList<LogConsumer>();
 		Config.init();
 		Configuration conf = ctx.getConfiguration();
 		LoggerConfig logconf = conf.getLoggerConfig("openware");
@@ -456,50 +460,44 @@ public class OpenWareInstance {
 				staticFiles.location = Location.EXTERNAL;
 				staticFiles.directory = Config.get("publicHTTP", "app");
 			});
+			// config.registerPlugin(new OpenApiPlugin(oaPluginConf -> {
+			// oaPluginConf.withDefinitionConfiguration((version, definition) -> {
+			// definition.withInfo(info -> info.setTitle("open.WARE API"));
+			// definition.withServer(server -> {
+			// server.setUrl("{secure}://" + Config.get("OW_SERVERURI", "localhost") + ":"
+			// + Config.get("sparkPort", "4567") + "/");
+			// server.addVariable("secure", "http", new String[] {"http", "https"},
+			// "HTTP or HTTPS");
 
+			// });
+			// definition.withSecurity(sec -> {
+
+			// });
+			// });
+			// oaPluginConf.withDocumentationPath("/openapi");
+			// }));
+			// config.registerPlugin(new SwaggerPlugin());
+			// config.registerPlugin(new ReDocPlugin());
 			config.spaRoot.addFile("/", Config.get("publicHTTP", "app") + "/index.html",
 					Location.EXTERNAL);
 			config.http.defaultContentType = "application/json";
 			config.jsonMapper(gsonMapper);
 			config.http.gzipOnlyCompression();
-
+			config.http.asyncTimeout = 120000;
 			config.jetty.modifyHttpConfiguration(jettyconf -> {
 				jettyconf.setIdleTimeout(60 * 10 * 1000);
+
 			});
 
 			config.bundledPlugins.enableCors(cors -> {
-
 				cors.addRule(it -> {
 					it.anyHost();
 				});
 			});
+
 			config.router.apiBuilder(() -> {
 				OpenWareInstance.getInstance().logTrace("[PlUGINS] "
 						+ "------------------Plugins loading...-------------------------");
-				// Plugins
-				loadPlugins();
-				OpenWareInstance.getInstance().logTrace("[PLUGINS] "
-						+ "------------------Plugins loaded...-------------------------");
-
-				path("api", () -> {
-					for (OpenWareAPI os : services) {
-						os.registerRoutes();
-					}
-				});
-				ws(LIVE_API, ws -> {
-					JavalinWebsocketProvider jwp = new JavalinWebsocketProvider();
-					jwp.registerWSforJavalin(ws);
-				});
-				after(ctx -> {
-					Long started = ctx.sessionAttribute("request_started");
-					if (started != null) {
-						long ended = System.currentTimeMillis();
-						long duration = ended - started;
-						accessLogger.debug("[API-ACCESS][SOURCE:" + ctx.host() + "][" + ctx.method()
-								+ "]" + ctx.path() + "handled in " + duration + "ms");
-					}
-
-				});
 				before("/api/*", ctx -> {
 					accessLogger.debug("[API-ACCESS][SOURCE:" + ctx.host() + "][" + ctx.method()
 							+ "]" + ctx.path());
@@ -556,6 +554,33 @@ public class OpenWareInstance {
 
 					}
 				});
+				// Plugins
+				loadPlugins();
+				OpenWareInstance.getInstance().logTrace("[PLUGINS] "
+						+ "------------------Plugins loaded...-------------------------");
+
+
+				path("api", () -> {
+					for (OpenWareAPI os : services) {
+						os.registerRoutes();
+					}
+				});
+				ws(LIVE_API, ws -> {
+					JavalinWebsocketProvider jwp = new JavalinWebsocketProvider();
+					jwp.registerWSforJavalin(ws);
+				});
+				after(ctx -> {
+					Long started = ctx.sessionAttribute("request_started");
+					if (started != null) {
+						long ended = System.currentTimeMillis();
+						long duration = ended - started;
+						accessLogger.debug("[API-ACCESS][SOURCE:" + ctx.host() + "][" + ctx.method()
+								+ "]" + ctx.path() + "handled in " + duration + "ms");
+					}
+
+				});
+
+
 
 			});
 
@@ -652,6 +677,14 @@ public class OpenWareInstance {
 			OpenWareInstance.getInstance().logError(
 					"Server already running! You need to restart the Instance to access newly registered Services");
 		}
+	}
+
+	public void registerLogConsumer(LogConsumer consumer) {
+		logConsumers.add(consumer);
+	}
+
+	public void unregisterLogConsumer(LogConsumer consumer) {
+		logConsumers.remove(consumer);
 	}
 
 	public JSONObject getState() {

@@ -3,22 +3,26 @@ package de.openinc.ow.http;
 import static io.javalin.apibuilder.ApiBuilder.before;
 import static io.javalin.apibuilder.ApiBuilder.get;
 import static io.javalin.apibuilder.ApiBuilder.path;
+import static io.javalin.apibuilder.ApiBuilder.post;
 import static io.javalin.apibuilder.ApiBuilder.sse;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FilenameFilter;
 import java.io.OutputStream;
+import java.net.http.HttpResponse;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.ServiceLoader;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.math3.analysis.function.Log;
 import org.json.JSONObject;
+import de.openinc.api.AdminFunctionInterface;
 import de.openinc.api.OpenWareAPI;
 import de.openinc.model.user.Role;
 import de.openinc.model.user.User;
@@ -27,6 +31,7 @@ import de.openinc.ow.helper.Config;
 import de.openinc.ow.helper.HTTPResponseHelper;
 import de.openinc.ow.helper.LogConsumer;
 import io.javalin.http.Context;
+import io.javalin.http.ForbiddenResponse;
 import io.javalin.http.InternalServerErrorResponse;
 
 
@@ -38,10 +43,11 @@ public class AdminAPI implements OpenWareAPI {
 	public static final String GET_ANALYTIC_STATS = "/getAnalyticsStats";
 	public static final String GET_LOGS = "/logs";
 	public static final String GET_LOGS_LIVE = "/livelogs";
+	public static final String GET_ADMIN_FUNCTIONS = "/functions";
+	public static final String POST_ADMIN_FUNCTIONS = "/functions/{functionName}";
 
 
-
-	private static void logs(Context ctx) throws Exception {
+	private static void checkAdminRole(Context ctx) throws ForbiddenResponse {
 		User user = ctx.sessionAttribute("user");
 		String roleLabel = Config.get("OW_ADMIN_ROLE", "od-admin");
 		Optional<Role> adminRole = user.getRoles().stream()
@@ -49,6 +55,21 @@ public class AdminAPI implements OpenWareAPI {
 		if (adminRole.isEmpty()) {
 			HTTPResponseHelper.forbidden("User is no " + roleLabel);
 		}
+	}
+
+	private static List<Role> checkRoles(Context ctx, List<Role> roles) throws ForbiddenResponse {
+		User user = ctx.sessionAttribute("user");
+		String roleLabel = Config.get("OW_ADMIN_ROLE", "od-admin");
+		List<Role> permittedRoles = user.getRoles().stream()
+				.filter(role -> role.getName().equals(roleLabel)).collect(Collectors.toList());
+		if (permittedRoles.isEmpty()) {
+			HTTPResponseHelper.forbidden("User is no " + roleLabel);
+		}
+		return permittedRoles;
+	}
+
+	private static void logs(Context ctx) throws Exception {
+		checkAdminRole(ctx);
 		int files = 1;
 		String type = "console";
 		if (ctx.queryParamMap().size() > 0) {
@@ -115,7 +136,48 @@ public class AdminAPI implements OpenWareAPI {
 			// HTTPResponseHelper.forbidden("User is no " + roleLabel);
 			// }
 			// });
+			get(GET_ADMIN_FUNCTIONS, ctx -> {
+				ServiceLoader.load(AdminFunctionInterface.class).forEach(adminFunction -> {
+					JSONObject json = new JSONObject();
+					json.put("name", adminFunction.getName());
+					json.put("description", adminFunction.getDescription());
+					json.put("functionName", adminFunction.getFunctionName());
+					json.put("allowedRoles", adminFunction.getAllowedRoles().stream()
+							.map(role -> role.getName()).collect(Collectors.toList()));
+					ctx.json(json);
+				});
+			});
+			post(POST_ADMIN_FUNCTIONS, ctx -> {
 
+				String function = ctx.pathParam("functionName");
+				JSONObject params = new JSONObject(ctx.body());
+				ServiceLoader.load(AdminFunctionInterface.class).stream()
+						.filter(provider -> provider.get().getFunctionName().equals(function))
+						.findFirst().ifPresentOrElse(provider -> {
+
+							AdminFunctionInterface adminFunction = provider.get();
+							List<Role> roles = checkRoles(ctx, adminFunction.getAllowedRoles());
+							if (roles.isEmpty()) {
+								return;
+							}
+							try {
+								Object res = adminFunction.execute(params);
+								HTTPResponseHelper.ok(ctx, res);
+							} catch (Exception e) {
+								OpenWareInstance.getInstance().logError(
+										"Error while executing admin function " + function, e);
+								HTTPResponseHelper
+										.internalError("Error while executing admin function "
+												+ function + ":\n" + e.getMessage());
+							}
+						}, () -> {
+							HTTPResponseHelper
+									.badRequest("No function found with name " + function);
+
+						});
+
+
+			});
 			get(GET_LOGS, ctx -> logs(ctx));
 			sse(GET_LOGS_LIVE, client -> {
 				LogConsumer logConsumer = new LogConsumer() {
@@ -135,7 +197,7 @@ public class AdminAPI implements OpenWareAPI {
 
 
 			get(GET_STATS, ctx -> {
-
+				checkAdminRole(ctx);
 				HTTPResponseHelper.ok(ctx, OpenWareInstance.getInstance().getState());
 
 			});

@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.math3.analysis.function.Log;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import de.openinc.api.AdminFunctionInterface;
 import de.openinc.api.OpenWareAPI;
@@ -33,6 +34,7 @@ import de.openinc.ow.helper.LogConsumer;
 import io.javalin.http.Context;
 import io.javalin.http.ForbiddenResponse;
 import io.javalin.http.InternalServerErrorResponse;
+
 
 
 public class AdminAPI implements OpenWareAPI {
@@ -137,6 +139,7 @@ public class AdminAPI implements OpenWareAPI {
 			// }
 			// });
 			get(GET_ADMIN_FUNCTIONS, ctx -> {
+				JSONArray functions = new JSONArray();
 				ServiceLoader.load(AdminFunctionInterface.class).forEach(adminFunction -> {
 					JSONObject json = new JSONObject();
 					json.put("name", adminFunction.getName());
@@ -144,8 +147,9 @@ public class AdminAPI implements OpenWareAPI {
 					json.put("functionName", adminFunction.getFunctionName());
 					json.put("allowedRoles", adminFunction.getAllowedRoles().stream()
 							.map(role -> role.getName()).collect(Collectors.toList()));
-					ctx.json(json);
+					functions.put(json);
 				});
+				HTTPResponseHelper.ok(ctx, functions);
 			});
 			post(POST_ADMIN_FUNCTIONS, ctx -> {
 
